@@ -32,7 +32,7 @@ Prove the OpenCode engine works behind a browser chat.
 - [x] Manual validation: health, session create, session list via curl
 - [x] Backend test suite (28 tests): config, models, engine client, process, routes
 - [x] Lint clean (ruff check passes)
-- [ ] End-to-end test: browser → FastAPI → OpenCode → LLM → streamed response
+- [x] End-to-end tests (10 tests): health, sessions, chat, error handling with real OpenCode
 
 **Exit criteria:** One minimal web page can start an OpenCode session, send a prompt, and stream the response back.
 

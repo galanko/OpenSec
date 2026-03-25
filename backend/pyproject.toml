@@ -30,3 +30,6 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM", "TCH"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests requiring OpenCode binary and LLM API key",
+]

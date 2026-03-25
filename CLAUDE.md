@@ -116,23 +116,37 @@ cd frontend && npm test
 Every phase must have tests passing before it is considered complete.
 
 ```bash
-# Run all backend tests
-cd backend && uv run pytest -v
+# Unit tests only (fast, no external deps)
+cd backend && uv run pytest -v -m 'not e2e'
 
-# Run with coverage (when added)
-cd backend && uv run pytest --cov=opensec
+# E2E tests (needs OpenCode binary + OPENAI_API_KEY)
+cd backend && uv run pytest tests/e2e/ -v
+
+# All tests
+cd backend && uv run pytest -v
 
 # Lint
 cd backend && uv run ruff check opensec/ tests/
 ```
 
-Tests use mocked external dependencies — no real OpenCode server needed. Test files live in `backend/tests/` and mirror the source structure:
+### Unit tests (28, ~0.1s)
+
+Mocked external dependencies — no real OpenCode needed:
 
 - `test_config.py` — Settings and path resolution
 - `test_models.py` — Pydantic model validation
 - `test_engine_client.py` — OpenCode HTTP client (mocked httpx)
 - `test_engine_process.py` — Subprocess lifecycle
 - `test_routes_*.py` — API endpoint behavior with mocked engine
+
+### E2E tests (10, ~12s)
+
+Real OpenCode subprocess + real LLM calls. Skipped automatically if OpenCode binary or API key is missing:
+
+- `e2e/test_health_e2e.py` — Health with real engine
+- `e2e/test_session_flow.py` — Session create/list/get
+- `e2e/test_chat_flow.py` — Send message, verify round-trip
+- `e2e/test_error_handling.py` — Error cases
 
 ## Development Conventions
 
