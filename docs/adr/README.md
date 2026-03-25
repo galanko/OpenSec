@@ -8,7 +8,7 @@ ADRs document significant architectural decisions made during the project. Once 
 
 | # | Title | Status |
 |---|-------|--------|
-| [0001](0001-opencode-engine-integration.md) | Use OpenCode as the AI engine (Git submodule) | Accepted |
+| [0001](0001-opencode-engine-integration.md) | Use OpenCode as the AI engine (binary dependency) | Accepted |
 | [0002](0002-fastapi-backend.md) | FastAPI for the backend | Accepted |
 | [0003](0003-react-vite-tailwind-frontend.md) | React + TypeScript + Vite + Tailwind for the frontend | Accepted |
 | [0004](0004-sqlite-persistence.md) | SQLite for persistence | Accepted |

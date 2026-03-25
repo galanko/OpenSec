@@ -1,6 +1,8 @@
 # OpenSec Roadmap
 
-## Phase 0: Decisions & Setup (Current)
+> **Convention:** Every phase must have automated tests passing before it is considered complete. Run `cd backend && uv run pytest -v` and `cd backend && uv run ruff check opensec/ tests/` before marking a phase done.
+
+## Phase 0: Decisions & Setup (Complete)
 
 Lock the MVP boundaries before writing code.
 
@@ -10,24 +12,27 @@ Lock the MVP boundaries before writing code.
 - [x] Write Architecture Decision Records (ADRs)
 - [x] Document domain model, adapter interfaces, and agent pipeline
 - [x] Write ROADMAP.md
-- [ ] Create initial GitHub Issues for Phase 1
 
 **Exit criteria:** A new contributor can read the docs and understand what to build, how, and why.
 
 ---
 
-## Phase 1: Fork & OpenCode Spike
+## Phase 1: OpenCode Spike (Current)
 
 Prove the OpenCode engine works behind a browser chat.
 
-- [ ] Add OpenCode as Git submodule in `engine/opencode/`
-- [ ] Build and run OpenCode locally
-- [ ] Identify session, agent, config, and model entry points in OpenCode
-- [ ] Create minimal FastAPI app that starts OpenCode server as subprocess
-- [ ] Prove a browser-triggered prompt creates an OpenCode-backed session
-- [ ] Prove sub-agent invocation works via the REST API
-- [ ] Prove partial response streaming works (SSE to browser)
-- [ ] Map OpenCode config to future Settings UI
+- [x] Pin OpenCode version (`.opencode-version`) and create download script
+- [x] Create OpenCode project config (`opencode.json`) and custom agent
+- [x] Create FastAPI backend skeleton with OpenCode process manager
+- [x] Implement OpenCode HTTP client (sessions, messages, streaming)
+- [x] Implement API routes (health, sessions, chat with SSE)
+- [x] Create minimal React frontend spike (chat UI with SSE consumer)
+- [x] Create dev runner script (`scripts/dev.sh`)
+- [x] Update ADR-0001 (submodule → binary dependency)
+- [x] Manual validation: health, session create, session list via curl
+- [x] Backend test suite (28 tests): config, models, engine client, process, routes
+- [x] Lint clean (ruff check passes)
+- [ ] End-to-end test: browser → FastAPI → OpenCode → LLM → streamed response
 
 **Exit criteria:** One minimal web page can start an OpenCode session, send a prompt, and stream the response back.
 

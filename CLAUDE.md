@@ -14,7 +14,7 @@ Built on the [OpenCode](https://github.com/anomalyco/opencode) engine. Single-us
 |-------|-----------|----------|
 | Frontend | React + TypeScript + Vite + Tailwind | `frontend/` |
 | Backend | FastAPI (Python 3.11+) | `backend/` |
-| AI Engine | OpenCode (Go) — Git submodule | `engine/opencode/` |
+| AI Engine | OpenCode (Go) — binary dependency, pinned in `.opencode-version` | managed subprocess |
 | Database | SQLite (single file) | `data/opensec.db` |
 | Deployment | Single Docker container, port 8000 | `docker/` |
 
@@ -23,18 +23,27 @@ See `docs/architecture/overview.md` for the full system diagram.
 ## Repository Layout
 
 ```
-backend/          FastAPI app — API routes, domain models, adapters, agents, orchestrator
-frontend/         React SPA — pages, components, API client
-engine/opencode/  OpenCode Git submodule (AI runtime engine)
-docker/           Dockerfile, docker-compose, supervisord config
+backend/              FastAPI app (Python)
+  opensec/
+    main.py           App entry point, lifespan, CORS
+    config.py         Settings via env vars
+    engine/           OpenCode integration (process manager + HTTP client)
+    api/routes/       REST endpoints (health, sessions, chat)
+frontend/             React SPA (TypeScript + Vite)
+  src/
+    pages/            Page components
+    api/              API client
+docker/               Dockerfile, docker-compose, supervisord config
 docs/
-  adr/            Architecture Decision Records (numbered, immutable once accepted)
-  architecture/   System diagrams, domain model, adapter specs, agent pipeline
-  guides/         Developer setup, Docker build, adding adapters
-  api/            Auto-generated API docs (future)
-scripts/          Build, dev, seed, and migration scripts
-fixtures/         Mock/demo data for adapters
-tests/            Cross-stack integration tests
+  adr/                Architecture Decision Records
+  architecture/       System diagrams, domain model, adapter specs, agent pipeline
+  guides/             Developer setup, Docker build, adding adapters
+scripts/              dev.sh, install-opencode.sh
+fixtures/             Mock/demo data for adapters
+tests/                Cross-stack integration tests
+.opencode/agents/     Custom OpenCode agent definitions
+.opencode-version     Pinned OpenCode version
+opencode.json         OpenCode project config
 ```
 
 ## Key Domain Concepts
@@ -78,19 +87,52 @@ See `docs/architecture/agent-pipeline.md` for I/O contracts.
 ### Commands
 
 ```bash
-# Backend
+# Full dev environment (backend + frontend)
+scripts/dev.sh
+
+# Backend only
 cd backend && uv run uvicorn opensec.main:app --reload --port 8000
 
-# Frontend
+# Frontend only (needs backend running for API proxy)
 cd frontend && npm run dev
 
-# Docker (full stack)
-docker compose up --build
+# Install OpenCode binary (auto-downloads pinned version)
+scripts/install-opencode.sh
 
 # Tests
 cd backend && uv run pytest
 cd frontend && npm test
 ```
+
+### How It Runs
+
+1. FastAPI starts on port 8000 and launches OpenCode as a subprocess on port 4096 (internal)
+2. Vite dev server starts on port 5173 and proxies `/api/*` to FastAPI
+3. Browser talks to Vite (5173) in dev, or FastAPI (8000) in production
+4. All OpenCode communication goes through FastAPI — frontend never talks to OpenCode directly
+
+## Testing
+
+Every phase must have tests passing before it is considered complete.
+
+```bash
+# Run all backend tests
+cd backend && uv run pytest -v
+
+# Run with coverage (when added)
+cd backend && uv run pytest --cov=opensec
+
+# Lint
+cd backend && uv run ruff check opensec/ tests/
+```
+
+Tests use mocked external dependencies — no real OpenCode server needed. Test files live in `backend/tests/` and mirror the source structure:
+
+- `test_config.py` — Settings and path resolution
+- `test_models.py` — Pydantic model validation
+- `test_engine_client.py` — OpenCode HTTP client (mocked httpx)
+- `test_engine_process.py` — Subprocess lifecycle
+- `test_routes_*.py` — API endpoint behavior with mocked engine
 
 ## Development Conventions
 
@@ -104,4 +146,4 @@ cd frontend && npm test
 
 ## Current Phase
 
-See `ROADMAP.md` — currently in **Phase 0: Decisions & Setup**.
+See `ROADMAP.md` — currently in **Phase 1: Fork & OpenCode Spike**.

@@ -232,3 +232,10 @@ Thumbs.db
 # Local env overrides
 .env.local
 .env.*.local
+
+# Local tool configs
+.claude-flow/
+.mcp.json
+
+# Data directory
+data/

@@ -26,24 +26,50 @@ Built on the [OpenCode](https://github.com/anomalyco/opencode) engine. Open sour
 
 See [docs/architecture/overview.md](docs/architecture/overview.md) for the full system diagram.
 
-## Quick Start
+## Quick Start (Development)
 
-> Coming soon — the project is currently in Phase 0 (planning and architecture). See the [Roadmap](ROADMAP.md).
+### Prerequisites
+
+- Python 3.11+ with [uv](https://docs.astral.sh/uv/)
+- Node.js 20+
+- An LLM API key (e.g., `ANTHROPIC_API_KEY`)
+
+### Run it
+
+```bash
+git clone https://github.com/galanko/OpenSec.git
+cd OpenSec
+
+# Install backend dependencies
+cd backend && uv sync --extra dev && cd ..
+
+# Install frontend dependencies
+cd frontend && npm install && cd ..
+
+# Start everything (backend + frontend)
+scripts/dev.sh
+```
+
+Open [http://localhost:5173](http://localhost:5173)
+
+The backend runs on port 8000 (with OpenCode engine on port 4096 internally). The frontend dev server on port 5173 proxies API calls to the backend.
+
+### Run tests
+
+```bash
+cd backend && uv run pytest -v        # 28 tests
+cd backend && uv run ruff check opensec/ tests/  # lint
+```
+
+### Docker (coming in Phase 9)
 
 ```bash
 docker run -p 8000:8000 -v opensec-data:/data ghcr.io/galanko/opensec:latest
 ```
 
-Open [http://localhost:8000](http://localhost:8000)
-
 ## Development
 
-See [docs/guides/development-setup.md](docs/guides/development-setup.md) for local setup instructions.
-
-```bash
-git clone --recurse-submodules https://github.com/galanko/OpenSec.git
-cd OpenSec
-```
+See [docs/guides/development-setup.md](docs/guides/development-setup.md) for full setup instructions.
 
 ## Roadmap
 

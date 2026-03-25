@@ -1,7 +1,7 @@
-# ADR-0001: Use OpenCode as the AI Engine (Git Submodule)
+# ADR-0001: Use OpenCode as the AI Engine (Binary Dependency)
 
 **Date:** 2026-03-25
-**Status:** Accepted
+**Status:** Accepted (updated 2026-03-25 — changed from Git submodule to binary dependency)
 
 ## Context
 
@@ -18,19 +18,30 @@ OpenSec needs an AI engine to power code analysis, remediation planning, and age
 
 The server/client architecture means we can use OpenCode's engine without inheriting its terminal UI.
 
+OpenCode compiles to a **standalone static binary** (`CGO_ENABLED=0`). No Go runtime is needed — only the binary itself.
+
 ## Decision
 
-Use `anomalyco/opencode` as the AI runtime engine, integrated as a **Git submodule** under `engine/opencode/`.
+Use `anomalyco/opencode` as the AI runtime engine, integrated as a **pinned binary dependency**.
 
-- OpenCode runs as a managed subprocess inside the Docker container
-- FastAPI backend communicates with it via its REST API on an internal port
-- We use OpenCode's agent/subagent model to define our cyber-specific agents
-- We do NOT use or depend on OpenCode's terminal UI
+- OpenCode version is pinned in `.opencode-version` at the repo root
+- A download script (`scripts/install-opencode.sh`) fetches the correct binary for the user's platform
+- On first run, the FastAPI backend auto-downloads OpenCode if the binary is not found
+- OpenCode runs as a managed subprocess inside the app, listening on an internal-only port (default 4096)
+- FastAPI backend communicates with it via its REST API — the frontend never talks to OpenCode directly
+- Custom cyber-security agents are defined in `.opencode/agents/`
+
+### Version management
+
+- `.opencode-version` contains the pinned version (e.g., `1.3.2`)
+- In Docker: binary is downloaded during image build
+- Local dev: auto-downloaded to `~/.opensec/bin/opencode` on first run, or manually via `brew install opencode` / `npm i -g opencode-ai`
 
 ## Consequences
 
 - **Easier:** We get agent orchestration, model provider support, tool execution, and session management for free.
-- **Easier:** Upstream improvements flow in via submodule updates.
+- **Easier:** No Go toolchain required anywhere — not for development, CI, or Docker builds.
+- **Easier:** Version pinning + binary download is simpler than submodule management.
 - **Harder:** We depend on an external project's API stability. Breaking changes in OpenCode require adaptation.
-- **Harder:** Go runtime must be present in the Docker image to build/run OpenCode.
-- **Risk:** If OpenCode's architecture diverges from our needs, we may need to fork internals later. The submodule approach keeps this option open.
+- **Harder:** Binary download adds a network dependency to first run. Mitigated by caching and manual install option.
+- **Risk:** If OpenCode's architecture diverges from our needs, we may need to fork. The binary approach makes this harder than a source-level fork, but the REST API boundary keeps our code decoupled.
