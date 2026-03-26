@@ -19,7 +19,7 @@ The MVP is a **single-user self-hosted community edition**:
 - One local settings profile
 - One local integration config set
 - One local history store
-- Free and open source (MIT license)
+- Free and open source (AGPL-3.0 license)
 
 On first run, the app boots into a setup flow where the user configures their model provider and optionally loads demo data.
 
