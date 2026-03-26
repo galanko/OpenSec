@@ -1,9 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router'
 import { api, type Workspace } from '@/api/client'
 import { useFinding, useWorkspaces } from '@/api/hooks'
 import HistoryCard from '@/components/HistoryCard'
-import HistoryDetail, { generateExportMarkdown } from '@/components/HistoryDetail'
+import { generateExportMarkdown } from '@/components/HistoryDetail'
 
 const STATE_TABS = [
   { value: '', label: 'All' },
@@ -21,8 +20,6 @@ export default function HistoryPage() {
   const [stateFilter, setStateFilter] = useState('')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('newest')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const navigate = useNavigate()
 
   const { data: workspaces, isLoading } = useWorkspaces(
     stateFilter ? { state: stateFilter } : undefined,
@@ -38,14 +35,6 @@ export default function HistoryPage() {
     return list
   }, [workspaces, sortBy])
 
-  const handleSelect = useCallback((id: string) => {
-    setSelectedId((prev) => (prev === id ? null : id))
-  }, [])
-
-  const handleReopen = useCallback((ws: Workspace) => {
-    navigate(`/workspace/${ws.id}`)
-  }, [navigate])
-
   return (
     <div className="p-8 lg:p-12">
       <div className="max-w-6xl mx-auto">
@@ -55,14 +44,13 @@ export default function HistoryPage() {
             Operational memory
           </h1>
           <p className="text-on-surface-variant max-w-lg">
-            Browse completed remediation work. Search, review past decisions,
-            replay conversations, and reopen workspaces for continued action.
+            Browse remediation work. Search past decisions, reopen workspaces,
+            and export summaries.
           </p>
         </div>
 
         {/* Controls: search + filter tabs + sort */}
         <div className="flex flex-col md:flex-row md:items-center gap-4 mb-6">
-          {/* Search */}
           <div className="relative flex-1 max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
               search
@@ -76,7 +64,6 @@ export default function HistoryPage() {
             />
           </div>
 
-          {/* State tabs */}
           <div className="flex items-center gap-1 bg-surface-container-low rounded-lg p-1">
             {STATE_TABS.map((tab) => (
               <button
@@ -93,7 +80,6 @@ export default function HistoryPage() {
             ))}
           </div>
 
-          {/* Sort */}
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
               sort
@@ -120,65 +106,18 @@ export default function HistoryPage() {
         ) : sorted.length === 0 ? (
           <EmptyState hasSearch={!!search || !!stateFilter} />
         ) : (
-          <WorkspaceList
-            workspaces={sorted}
-            search={search}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            onReopen={handleReopen}
-          />
+          <div className="space-y-3">
+            {sorted.map((ws) => (
+              <FilterableRow key={ws.id} workspace={ws} search={search} />
+            ))}
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Workspace list with search filtering
-// ---------------------------------------------------------------------------
-
-function WorkspaceList({
-  workspaces,
-  search,
-  selectedId,
-  onSelect,
-  onReopen,
-}: {
-  workspaces: Workspace[]
-  search: string
-  selectedId: string | null
-  onSelect: (id: string) => void
-  onReopen: (ws: Workspace) => void
-}) {
-  return (
-    <div className="space-y-3">
-      {workspaces.map((ws) => (
-        <FilterableHistoryRow
-          key={ws.id}
-          workspace={ws}
-          search={search}
-          isSelected={selectedId === ws.id}
-          onSelect={() => onSelect(ws.id)}
-          onReopen={() => onReopen(ws)}
-        />
-      ))}
-    </div>
-  )
-}
-
-function FilterableHistoryRow({
-  workspace,
-  search,
-  isSelected,
-  onSelect,
-  onReopen,
-}: {
-  workspace: Workspace
-  search: string
-  isSelected: boolean
-  onSelect: () => void
-  onReopen: () => void
-}) {
+function FilterableRow({ workspace, search }: { workspace: Workspace; search: string }) {
   const { data: finding } = useFinding(workspace.finding_id)
 
   // Client-side search filter.
@@ -225,23 +164,8 @@ function FilterableHistoryRow({
     URL.revokeObjectURL(url)
   }, [workspace, finding])
 
-  return (
-    <div>
-      <HistoryCard
-        workspace={workspace}
-        isSelected={isSelected}
-        onSelect={onSelect}
-        onReopen={onReopen}
-        onExport={handleExport}
-      />
-      {isSelected && <HistoryDetail workspace={workspace} />}
-    </div>
-  )
+  return <HistoryCard workspace={workspace} onExport={handleExport} />
 }
-
-// ---------------------------------------------------------------------------
-// Empty state
-// ---------------------------------------------------------------------------
 
 function EmptyState({ hasSearch }: { hasSearch: boolean }) {
   return (

@@ -55,12 +55,6 @@ export default function TopBar() {
         <button className="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full">
           <span className="material-symbols-outlined">help_outline</span>
         </button>
-        <NavLink
-          to="/workspace"
-          className="bg-primary text-white px-5 py-1.5 rounded-lg text-sm font-semibold hover:bg-primary-dim transition-all shadow-md shadow-primary/10"
-        >
-          Solve
-        </NavLink>
       </div>
     </header>
   )
