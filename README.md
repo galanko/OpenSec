@@ -4,7 +4,7 @@ A free, self-hosted cybersecurity remediation copilot.
 
 OpenSec helps security teams take vulnerability findings from "raw scanner output" to "validated, closed remediation" — using AI agents to enrich context, identify owners, plan fixes, manage tickets, and confirm closure.
 
-Built on the [OpenCode](https://github.com/anomalyco/opencode) engine. Open source. MIT licensed.
+Built on the [OpenCode](https://github.com/anomalyco/opencode) engine. Open source. AGPL-3.0 licensed.
 
 ## How It Works
 
@@ -85,4 +85,4 @@ See [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+AGPL-3.0 — see [LICENSE](LICENSE).
