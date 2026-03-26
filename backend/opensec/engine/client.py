@@ -70,21 +70,42 @@ class OpenCodeClient:
         ]
 
     async def get_session(self, session_id: str) -> SessionDetail:
-        """Get session details including messages."""
+        """Get session details including messages from OpenCode."""
         client = await self._get_client()
         resp = await client.get(f"/session/{session_id}")
         resp.raise_for_status()
         data = resp.json()
-        messages = []
-        for m in data.get("messages", []):
-            messages.append(
-                MessageInfo(
-                    id=m.get("id", ""),
-                    role=m.get("role", ""),
-                    content=m.get("content", ""),
-                    created_at=m.get("created_at"),
-                )
-            )
+
+        # Fetch messages from the separate /message endpoint.
+        messages: list[MessageInfo] = []
+        try:
+            msg_resp = await client.get(f"/session/{session_id}/message")
+            msg_resp.raise_for_status()
+            raw_messages = msg_resp.json()
+            if isinstance(raw_messages, list):
+                for m in raw_messages:
+                    info = m.get("info", m)
+                    role = info.get("role", "")
+                    msg_id = info.get("id", "")
+                    # Extract text from parts array.
+                    parts = m.get("parts", [])
+                    text_parts = [
+                        p.get("text", "")
+                        for p in parts
+                        if p.get("type") == "text" and p.get("text")
+                    ]
+                    content = "\n".join(text_parts)
+                    if content:
+                        messages.append(
+                            MessageInfo(
+                                id=msg_id,
+                                role=role,
+                                content=content,
+                            )
+                        )
+        except Exception:
+            logger.debug("Could not fetch messages for session %s", session_id)
+
         return SessionDetail(
             id=data.get("id", data.get("sessionID", session_id)),
             created_at=data.get("created_at"),

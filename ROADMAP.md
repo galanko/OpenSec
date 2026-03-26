@@ -132,13 +132,13 @@ Three full vertical slices (backend + frontend + wiring) that run in parallel. A
 
 First usable page — the entry point for remediation work.
 
-- [ ] Findings list/table with columns: title, severity, asset, owner, status, updated
-- [ ] Filtering by severity, status, source
+- [x] Findings list/table with columns: title, severity, asset, owner, status, updated
+- [x] Filtering by severity, status, source
 - [ ] Search by title, asset, CVE
-- [ ] Sort by severity, updated, status
-- [ ] "Solve" button creates/opens a Workspace for the Finding
-- [ ] Status badges and severity indicators
-- [ ] Data from FindingSource fixture adapter
+- [x] Sort by severity, updated, status
+- [x] "Solve" button creates/opens a Workspace for the Finding
+- [x] Status badges and severity indicators
+- [x] Data from FindingSource fixture adapter
 - [ ] "Why this matters" preview on hover/expand
 
 **Exit criteria:** User can land on Queue, browse findings, and open one into a Workspace. All backed by real APIs.
@@ -147,17 +147,17 @@ First usable page — the entry point for remediation work.
 
 The product center — chat-led remediation with persistent structured state.
 
-- [ ] Workspace page layout: top bar + center chat + right sidebar
-- [ ] Top bar: finding title, severity badge, status, action buttons
-- [ ] Chat thread: message list with user/assistant/agent roles
-- [ ] Chat input with send button
-- [ ] Suggested action chips ("Enrich finding", "Find owner", "Build plan")
-- [ ] Agent run cards (running state, spinner, status)
-- [ ] Markdown result cards for agent outputs
-- [ ] Persistent sidebar: Summary, Evidence, Owner, Plan, Definition of Done, Ticket, Validation
-- [ ] Sidebar auto-updates after each agent run
-- [ ] Activity timeline (chronological list of actions)
-- [ ] Connect chat to OpenCode via FastAPI orchestrator
+- [x] Workspace page layout: top bar + center chat + right sidebar
+- [x] Top bar: finding title, severity badge, status, action buttons
+- [x] Chat thread: message list with user/assistant/agent roles
+- [x] Chat input with send button
+- [x] Suggested action chips ("Enrich finding", "Find owner", "Build plan")
+- [x] Agent run cards (running state, spinner, status)
+- [x] Markdown result cards for agent outputs
+- [x] Persistent sidebar: Summary, Evidence, Owner, Plan, Definition of Done, Ticket, Validation
+- [x] Sidebar auto-updates after each agent run
+- [x] Activity timeline (chronological list of actions)
+- [x] Connect chat to OpenCode via FastAPI orchestrator
 
 **Exit criteria:** User can run at least one agent from chat, see the running state, get results, and see sidebar update. All state persisted.
 
