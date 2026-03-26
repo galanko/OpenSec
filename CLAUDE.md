@@ -20,6 +20,29 @@ Built on the [OpenCode](https://github.com/anomalyco/opencode) engine. Single-us
 
 See `docs/architecture/overview.md` for the full system diagram.
 
+## Design System: "The Serene Sentinel"
+
+The UI follows the Stitch-generated "Ethos Security" design system (Stitch project `12683083125265338263`). See `docs/adr/0011-stitch-design-system.md` for the decision record.
+
+| Aspect | Choice |
+|--------|--------|
+| Creative direction | "Editorial Assurance" — calm, authoritative, gallery-like |
+| Color mode | Light mode default |
+| Primary color | `#4d44e3` (indigo) |
+| Background | `#f8f9fa` |
+| Headlines font | Manrope (600-800) |
+| Body/labels font | Inter (400-600) |
+| Icons | Google Material Symbols Outlined |
+| Color tokens | See `frontend/tailwind.config.ts` (65+ tokens from Stitch) |
+| Mockup reference | `frontend/mockups/html/*.html` and `frontend/mockups/screenshots/*.png` |
+
+**Core design rules:**
+- **No-Line Rule:** Never use `1px solid` borders. Use background shifts, spacing, or tonal transitions.
+- **Tonal Layering:** Depth via background colors: Level 0 `#f8f9fa`, Level 1 `#f1f4f6`, Level 2 `#ffffff`
+- **Ghost Borders:** `outline-variant` at 15% opacity when borders are needed
+- **Sentence case:** All labels, headers, buttons. No Title Case or ALL CAPS.
+- **Text color:** Never use pure `#000000`. Use `on-surface` (`#2b3437`).
+
 ## Repository Layout
 
 ```
@@ -29,10 +52,15 @@ backend/              FastAPI app (Python)
     config.py         Settings via env vars
     engine/           OpenCode integration (process manager + HTTP client)
     api/routes/       REST endpoints (health, sessions, chat)
-frontend/             React SPA (TypeScript + Vite)
+frontend/             React SPA (TypeScript + Vite + Tailwind)
   src/
-    pages/            Page components
-    api/              API client
+    pages/            Page components (Queue, Workspace, History, Integrations, Settings)
+    api/              API client + TanStack Query hooks
+    components/       Shared components (layout, Markdown, ResultCard)
+    layouts/          App layout (SideNav + TopBar + Outlet)
+    lib/              Utilities (cn(), query-client)
+  mockups/            Stitch HTML + screenshots (design reference)
+  tailwind.config.ts  Full Stitch color tokens
 docker/               Dockerfile, docker-compose, supervisord config
 docs/
   adr/                Architecture Decision Records

@@ -41,9 +41,9 @@ export default function Spike() {
     });
 
     // Handle "error" events
-    es.addEventListener('error', (event) => {
+    es.addEventListener('error', (event: Event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data = JSON.parse((event as MessageEvent).data);
         const errorMsg = data.message || 'Unknown error';
         setStreaming('');
         setMessages((msgs) => [
