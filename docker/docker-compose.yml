@@ -1,0 +1,27 @@
+services:
+  opensec:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "${OPENSEC_APP_PORT:-8000}:8000"
+    volumes:
+      - opensec-data:/data
+    environment:
+      # App
+      - OPENSEC_APP_PORT=8000
+      # AI model — set your provider key
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Data
+      - OPENSEC_DATA_DIR=/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  opensec-data:
