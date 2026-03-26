@@ -120,22 +120,6 @@ export default function HistoryPage() {
 function FilterableRow({ workspace, search }: { workspace: Workspace; search: string }) {
   const { data: finding } = useFinding(workspace.finding_id)
 
-  // Client-side search filter.
-  if (search) {
-    const q = search.toLowerCase()
-    const haystack = [
-      finding?.title,
-      finding?.asset_label,
-      finding?.likely_owner,
-      finding?.source_type,
-      finding?.source_id,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    if (!haystack.includes(q)) return null
-  }
-
   const handleExport = useCallback(async () => {
     let messages: { role: string; content: string }[] = []
     const sessionId = workspace.current_focus
@@ -163,6 +147,22 @@ function FilterableRow({ workspace, search }: { workspace: Workspace; search: st
     a.click()
     URL.revokeObjectURL(url)
   }, [workspace, finding])
+
+  // Client-side search filter (after all hooks).
+  if (search) {
+    const q = search.toLowerCase()
+    const haystack = [
+      finding?.title,
+      finding?.asset_label,
+      finding?.likely_owner,
+      finding?.source_type,
+      finding?.source_id,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    if (!haystack.includes(q)) return null
+  }
 
   return <HistoryCard workspace={workspace} onExport={handleExport} />
 }
