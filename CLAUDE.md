@@ -202,4 +202,4 @@ Never commit directly to `main`. Never force-push to `main`. If tests or lint fa
 
 ## Current Phase
 
-See `ROADMAP.md` — currently in **Phase 1: Fork & OpenCode Spike**.
+See `ROADMAP.md` — currently in **Stage 1** (Phase 3: Persistence, Phase 6a: Agent Definitions, Phase 9a: Docker Skeleton — running in parallel).

@@ -38,7 +38,7 @@ Prove the OpenCode engine works behind a browser chat.
 
 ---
 
-## Phase 2: App Shell (Current)
+## Phase 2: App Shell (Complete)
 
 Create the product frame — all five pages as navigable shells.
 
@@ -57,9 +57,36 @@ Create the product frame — all five pages as navigable shells.
 
 ---
 
-## Phase 3: Persistence & Domain Model
+# Stages 1–4: Parallel Execution Plan
 
-Make the product stateful.
+> Phases 0–2 were sequential. From here on, work is organized into **stages** that maximize parallelism. Within each stage, tracks run concurrently. A stage completes when all its tracks are done.
+
+```
+Stage 1:  Phase 3 ──────────────┐
+          Phase 6a (agents) ─────┤  (parallel — no deps between them)
+          Phase 9a (docker) ─────┘
+                                 │
+Stage 2:  Phase 4 (Queue) ──────┤
+          Phase 5 (Workspace) ───┤  (parallel — all need Phase 3 only)
+          Phase 8 (History) ─────┘
+                                 │
+Stage 3:  Phase 6b (orchestr.) ──┤  (needs Phase 5)
+          Phase 7 (Tickets) ─────┘  (needs Phase 6b)
+                                 │
+Stage 4:  Phase 9b (ship) ───────┘  (needs everything)
+```
+
+**Critical path:** Phase 3 → Phase 5 → Phase 6b → Phase 7 → Phase 9b
+
+---
+
+## Stage 1: Foundation
+
+Three parallel tracks with no dependencies between them. Stage 2 is blocked until all three complete.
+
+### Phase 3: Persistence & Domain Model
+
+Make the product stateful. Full vertical slice — backend schema, APIs, and tests.
 
 - [ ] Set up SQLite with WAL mode
 - [ ] Create migration system (numbered SQL scripts)
@@ -69,13 +96,39 @@ Make the product stateful.
 - [ ] Implement Message storage and retrieval
 - [ ] Implement AgentRun storage
 - [ ] Implement SidebarState persistence
-- [ ] Create seed fixture loader (demo findings + context data)
+- [ ] Tests for all CRUD endpoints
 
-**Exit criteria:** Reloading the app preserves all state. Seed data loads correctly.
+**Exit criteria:** Reloading the app preserves all state. All CRUD endpoints tested.
+
+### Phase 6a: Agent Definitions
+
+Define the five cyber sub-agents. No code dependencies — just configs and prompts.
+
+- [ ] Define OpenCode agent configs for all 5 sub-agents (`.opencode/agents/`)
+- [ ] Define I/O contracts (input schema, output schema, sidebar field mapping)
+- [ ] Write agent prompts for Finding Enricher, Owner Resolver, Exposure Analyzer, Remediation Planner, Validation Checker
+
+**Exit criteria:** All 5 agent configs exist with documented I/O contracts.
+
+### Phase 9a: Docker Skeleton
+
+Build the container infrastructure. No dependency on app features.
+
+- [ ] Multi-stage Dockerfile (Node build -> Python + Go runtime)
+- [ ] Supervisord config for FastAPI + OpenCode processes
+- [ ] Docker Compose example with volume mounts
+- [ ] Environment variable handling (ports, data dir, model config)
+- [ ] Health check endpoint integration (`/health`)
+
+**Exit criteria:** `docker compose up` builds and starts the app (feature-incomplete is fine).
 
 ---
 
-## Phase 4: Queue
+## Stage 2: Features
+
+Three full vertical slices (backend + frontend + wiring) that run in parallel. All depend on Phase 3 only.
+
+### Phase 4: Queue
 
 First usable page — the entry point for remediation work.
 
@@ -85,14 +138,12 @@ First usable page — the entry point for remediation work.
 - [ ] Sort by severity, updated, status
 - [ ] "Solve" button creates/opens a Workspace for the Finding
 - [ ] Status badges and severity indicators
-- [ ] Mock data from FindingSource fixture adapter
+- [ ] Data from FindingSource fixture adapter
 - [ ] "Why this matters" preview on hover/expand
 
-**Exit criteria:** User can land on Queue, browse findings, and open one into a Workspace.
+**Exit criteria:** User can land on Queue, browse findings, and open one into a Workspace. All backed by real APIs.
 
----
-
-## Phase 5: Solve Workspace v1
+### Phase 5: Solve Workspace v1
 
 The product center — chat-led remediation with persistent structured state.
 
@@ -108,16 +159,33 @@ The product center — chat-led remediation with persistent structured state.
 - [ ] Activity timeline (chronological list of actions)
 - [ ] Connect chat to OpenCode via FastAPI orchestrator
 
-**Exit criteria:** User can run at least one agent from chat, see the running state, get results, and see sidebar update.
+**Exit criteria:** User can run at least one agent from chat, see the running state, get results, and see sidebar update. All state persisted.
+
+### Phase 8: History
+
+Turn completed work into searchable, reusable memory.
+
+- [ ] History page with list of completed Workspaces
+- [ ] Filter: open vs completed, by finding, asset, owner, date range
+- [ ] Search across finding titles, agents used, outcomes
+- [ ] Summary card per workspace (finding, outcome, agents run, ticket)
+- [ ] Full chat replay for any past workspace
+- [ ] Reopen a past workspace for continued work
+- [ ] Export workspace summary as markdown
+
+**Exit criteria:** Completed work is searchable and readable. Past workspaces can be reopened. All backed by real APIs.
 
 ---
 
-## Phase 6: Core Cyber Sub-Agents
+## Stage 3: Agent Integration & Tickets
 
-Support the full remediation user story with mock and partial real data.
+Sequential within this stage — Phase 6b first, then Phase 7. Depends on Stage 2 (specifically Phase 5).
 
-- [ ] Define OpenCode agent configs for all 5 sub-agents
-- [ ] Implement Finding Enricher (input/output contract, prompt, sidebar update)
+### Phase 6b: Agent Orchestration
+
+Wire the agent definitions from Phase 6a into the workspace from Phase 5.
+
+- [ ] Implement Finding Enricher (sidebar update, chat output)
 - [ ] Implement Owner Resolver
 - [ ] Implement Exposure/Context Analyzer
 - [ ] Implement Remediation Planner
@@ -125,15 +193,13 @@ Support the full remediation user story with mock and partial real data.
 - [ ] Build orchestrator logic ("what should we do next?")
 - [ ] Handle missing data gracefully (agent suggests what's needed)
 - [ ] Support rerun / retry / cancel for agent runs
-- [ ] End-to-end test: finding -> enrichment -> owner -> plan -> validation with mock data
+- [ ] End-to-end test: finding -> enrichment -> owner -> plan -> validation
 
 **Exit criteria:** A single finding can flow through all five agents and reach validated closure.
 
----
+### Phase 7: Ticket Workflow
 
-## Phase 7: Ticket Workflow
-
-Turn remediation plans into actionable tickets.
+Turn remediation plans into actionable tickets. Depends on Phase 6b (needs agent output).
 
 - [ ] Ticket preview panel in Workspace sidebar
 - [ ] "Create ticket" action using mock Ticketing adapter
@@ -147,31 +213,12 @@ Turn remediation plans into actionable tickets.
 
 ---
 
-## Phase 8: History
+## Stage 4: Polish & Ship
 
-Turn completed work into searchable, reusable memory.
+Final packaging. Depends on everything above.
 
-- [ ] History page with list of completed Workspaces
-- [ ] Filter: open vs completed, by finding, asset, owner, date range
-- [ ] Search across finding titles, agents used, outcomes
-- [ ] Summary card per workspace (finding, outcome, agents run, ticket)
-- [ ] Full chat replay for any past workspace
-- [ ] Reopen a past workspace for continued work
-- [ ] Export workspace summary as markdown
+### Phase 9b: Packaging Finalization
 
-**Exit criteria:** Completed work is searchable and readable. Past workspaces can be reopened.
-
----
-
-## Phase 9: Packaging & Release
-
-Make it installable by real users.
-
-- [ ] Multi-stage Dockerfile (Node build -> Python + Go runtime)
-- [ ] Supervisord config for FastAPI + OpenCode processes
-- [ ] Docker Compose example with volume mounts
-- [ ] Environment variable handling (ports, data dir, model config)
-- [ ] Health check endpoint (`/health`)
 - [ ] Startup migration runner
 - [ ] Seed demo data mode (`OPENSEC_DEMO=true`)
 - [ ] Install documentation
