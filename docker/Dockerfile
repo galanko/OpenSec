@@ -34,17 +34,17 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast Python dependency management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
 # Copy version file first (needed by install script)
 COPY .opencode-version ./
 
-# Copy and run OpenCode install script
+# Copy and run OpenCode install script (non-fatal if download fails)
 COPY scripts/install-opencode.sh ./scripts/
 ENV OPENSEC_BIN_DIR=/app/bin
-RUN bash scripts/install-opencode.sh
+RUN bash scripts/install-opencode.sh || echo "WARNING: OpenCode download failed — engine will be unavailable"
 
 # Install Python dependencies (cache layer)
 COPY backend/pyproject.toml backend/uv.lock* ./backend/
