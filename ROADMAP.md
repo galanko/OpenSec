@@ -88,15 +88,15 @@ Three parallel tracks with no dependencies between them. Stage 2 is blocked unti
 
 Make the product stateful. Full vertical slice — backend schema, APIs, and tests.
 
-- [ ] Set up SQLite with WAL mode
-- [ ] Create migration system (numbered SQL scripts)
-- [ ] Implement schema for all entities (Finding, Workspace, Message, AgentRun, SidebarState, TicketLink, ValidationResult, AppSetting, IntegrationConfig)
-- [ ] Implement Finding CRUD API endpoints
-- [ ] Implement Workspace CRUD API endpoints
-- [ ] Implement Message storage and retrieval
-- [ ] Implement AgentRun storage
-- [ ] Implement SidebarState persistence
-- [ ] Tests for all CRUD endpoints
+- [x] Set up SQLite with WAL mode
+- [x] Create migration system (numbered SQL scripts)
+- [x] Implement schema for all entities (Finding, Workspace, Message, AgentRun, SidebarState, TicketLink, ValidationResult, AppSetting, IntegrationConfig)
+- [x] Implement Finding CRUD API endpoints
+- [x] Implement Workspace CRUD API endpoints
+- [x] Implement Message storage and retrieval
+- [x] Implement AgentRun storage
+- [x] Implement SidebarState persistence
+- [x] Tests for all CRUD endpoints
 
 **Exit criteria:** Reloading the app preserves all state. All CRUD endpoints tested.
 
@@ -114,11 +114,11 @@ Define the five cyber sub-agents. No code dependencies — just configs and prom
 
 Build the container infrastructure. No dependency on app features.
 
-- [ ] Multi-stage Dockerfile (Node build -> Python + Go runtime)
-- [ ] Supervisord config for FastAPI + OpenCode processes
-- [ ] Docker Compose example with volume mounts
-- [ ] Environment variable handling (ports, data dir, model config)
-- [ ] Health check endpoint integration (`/health`)
+- [x] Multi-stage Dockerfile (Node build -> Python + Go runtime)
+- [x] Supervisord config for FastAPI + OpenCode processes
+- [x] Docker Compose example with volume mounts
+- [x] Environment variable handling (ports, data dir, model config)
+- [x] Health check endpoint integration (`/health`)
 
 **Exit criteria:** `docker compose up` builds and starts the app (feature-incomplete is fine).
 
