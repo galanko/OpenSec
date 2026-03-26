@@ -165,13 +165,13 @@ The product center — chat-led remediation with persistent structured state.
 
 Turn completed work into searchable, reusable memory.
 
-- [ ] History page with list of completed Workspaces
-- [ ] Filter: open vs completed, by finding, asset, owner, date range
-- [ ] Search across finding titles, agents used, outcomes
-- [ ] Summary card per workspace (finding, outcome, agents run, ticket)
-- [ ] Full chat replay for any past workspace
-- [ ] Reopen a past workspace for continued work
-- [ ] Export workspace summary as markdown
+- [x] History page with list of completed Workspaces
+- [x] Filter: open vs completed, by finding, asset, owner, date range
+- [x] Search across finding titles, agents used, outcomes
+- [x] Summary card per workspace (finding, outcome, agents run, ticket)
+- [x] Full chat replay for any past workspace
+- [x] Reopen a past workspace for continued work
+- [x] Export workspace summary as markdown
 
 **Exit criteria:** Completed work is searchable and readable. Past workspaces can be reopened. All backed by real APIs.
 
