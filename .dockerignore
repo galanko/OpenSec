@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Node
+frontend/node_modules
+frontend/.vite
+
+# Python
+backend/__pycache__
+backend/.pytest_cache
+backend/.ruff_cache
+**/__pycache__
+**/*.pyc
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (mounted as volume)
+data/
+
+# Docs and fixtures (not needed in image)
+docs/
+fixtures/
+frontend/mockups/
+
+# Tests (not needed in production image)
+tests/
+backend/tests/
+
+# Dev files
+*.md
+!.opencode-version
+LICENSE
+.env
+.env.*

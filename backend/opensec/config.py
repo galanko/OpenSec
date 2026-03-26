@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     # Paths
     repo_root: Path = _find_repo_root()
     data_dir: Path = Path(os.getenv("OPENSEC_DATA_DIR", ""))
+    static_dir: str = ""  # Path to built frontend assets (set in Docker)
 
     model_config = {"env_prefix": "OPENSEC_"}
 

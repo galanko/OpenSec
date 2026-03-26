@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from opensec.api.routes import (
     agent_runs,
@@ -78,3 +81,23 @@ app.include_router(workspaces.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(agent_runs.router, prefix="/api")
 app.include_router(sidebar.router, prefix="/api")
+
+# Serve built frontend in production (when OPENSEC_STATIC_DIR is set)
+_static_dir = Path(settings.static_dir) if settings.static_dir else None
+if _static_dir and _static_dir.is_dir():
+    # Serve static assets (JS, CSS, images) under /assets
+    _assets_dir = _static_dir / "assets"
+    if _assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=str(_assets_dir)), name="static-assets")
+
+    # SPA fallback: serve index.html for all non-API, non-health routes
+    _index_html = _static_dir / "index.html"
+
+    @app.get("/{full_path:path}")
+    async def _spa_fallback(full_path: str) -> FileResponse:
+        """Serve the SPA index.html for client-side routing."""
+        # Try to serve a static file first (favicon, etc.)
+        candidate = _static_dir / full_path
+        if full_path and candidate.is_file() and _static_dir in candidate.resolve().parents:
+            return FileResponse(str(candidate))
+        return FileResponse(str(_index_html))
