@@ -11,7 +11,7 @@ export default function TopBar() {
   const { data: health } = useHealth()
 
   return (
-    <header className="sticky top-0 w-full z-40 bg-white/80 backdrop-blur-xl shadow-sm shadow-slate-200/50 ml-20 flex justify-between items-center px-8 h-16">
+    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl shadow-sm shadow-slate-200/50 ml-20 w-[calc(100%-5rem)] flex justify-between items-center px-8 h-16">
       <div className="flex items-center gap-8">
         <div className="flex items-center gap-2">
           <span className="text-lg font-extrabold tracking-tight text-slate-900">OpenSec</span>
