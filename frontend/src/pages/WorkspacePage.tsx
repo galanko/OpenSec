@@ -268,10 +268,22 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     sendChatMessage(prompt)
   }, [sendChatMessage])
 
+  const isResolved = workspace?.state === 'closed'
+
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className={`flex flex-col h-[calc(100vh-4rem)] ${isResolved ? 'opacity-80' : ''}`}>
       {/* Top bar with finding context */}
-      <FindingHeader finding={finding} />
+      <FindingHeader finding={finding} workspaceId={workspaceId} workspaceState={workspace?.state} />
+
+      {/* Resolved banner */}
+      {isResolved && (
+        <div className="bg-green-50 border-b border-green-200 px-8 py-2 flex items-center gap-2">
+          <span className="material-symbols-outlined text-green-600 text-sm">check_circle</span>
+          <span className="text-xs font-medium text-green-700">
+            This workspace has been resolved. Chat and actions are read-only.
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Center: chat */}
@@ -304,10 +316,12 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           )}
 
           {/* Action chips */}
-          <ActionChips
-            onAction={handleAgentAction}
-            disabled={!sessionId || sending}
-          />
+          {!isResolved && (
+            <ActionChips
+              onAction={handleAgentAction}
+              disabled={!sessionId || sending}
+            />
+          )}
 
           {/* Chat messages */}
           {messages.map((msg, i) => (
@@ -368,26 +382,34 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       </div>
 
       {/* Chat input */}
-      <div className="px-8 py-4 bg-surface-container-lowest border-t border-surface-container">
-        <div className="max-w-3xl mx-auto flex items-end gap-3">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a message or use action chips above..."
-            disabled={sending || !sessionId}
-            rows={1}
-            className="flex-1 bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all resize-none"
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={!input.trim() || sending || !sessionId}
-            className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dim disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20 active:scale-95"
-          >
-            <span className="material-symbols-outlined">send</span>
-          </button>
+      {isResolved ? (
+        <div className="px-8 py-4 bg-surface-container-low border-t border-surface-container">
+          <div className="max-w-3xl mx-auto text-center text-xs text-on-surface-variant py-2">
+            This workspace is resolved. Reopen it from the History page to continue.
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="px-8 py-4 bg-surface-container-lowest border-t border-surface-container">
+          <div className="max-w-3xl mx-auto flex items-end gap-3">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message or use action chips above..."
+              disabled={sending || !sessionId}
+              rows={1}
+              className="flex-1 bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all resize-none"
+            />
+            <button
+              onClick={handleSubmit}
+              disabled={!input.trim() || sending || !sessionId}
+              className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dim disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20 active:scale-95"
+            >
+              <span className="material-symbols-outlined">send</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -396,7 +418,31 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
 // Finding header bar
 // ---------------------------------------------------------------------------
 
-function FindingHeader({ finding }: { finding: Finding | undefined }) {
+function FindingHeader({
+  finding,
+  workspaceId,
+  workspaceState,
+}: {
+  finding: Finding | undefined
+  workspaceId: string
+  workspaceState: string | undefined
+}) {
+  const navigate = useNavigate()
+  const [resolving, setResolving] = useState(false)
+
+  const isClosed = workspaceState === 'closed'
+
+  const handleResolve = useCallback(async () => {
+    setResolving(true)
+    try {
+      await api.updateWorkspace(workspaceId, { state: 'closed' } as Parameters<typeof api.updateWorkspace>[1])
+      navigate('/queue')
+    } catch (err) {
+      console.error('Failed to resolve workspace:', err)
+      setResolving(false)
+    }
+  }, [workspaceId, navigate])
+
   return (
     <section className="bg-surface-container-lowest px-8 py-4 flex items-center justify-between border-b border-surface-container">
       <div className="flex items-center gap-4">
@@ -425,10 +471,21 @@ function FindingHeader({ finding }: { finding: Finding | undefined }) {
         </div>
       </div>
       <div className="flex gap-2">
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/30 text-sm hover:bg-surface-container transition-colors">
-          <span className="material-symbols-outlined text-sm">share</span>
-          Share
-        </button>
+        {isClosed ? (
+          <span className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-100 text-green-700 text-sm font-bold">
+            <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            Resolved
+          </span>
+        ) : (
+          <button
+            onClick={handleResolve}
+            disabled={resolving}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-tertiary hover:bg-tertiary-dim text-on-tertiary text-sm font-bold transition-all shadow-sm disabled:opacity-50"
+          >
+            <span className="material-symbols-outlined text-sm">done_all</span>
+            {resolving ? 'Resolving...' : 'Resolve'}
+          </button>
+        )}
       </div>
     </section>
   )

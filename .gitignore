@@ -224,6 +224,7 @@ bin/
 *.db
 *.db-journal
 *.db-wal
+*.db-shm
 
 # Docker
 .docker/
