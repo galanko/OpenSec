@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import ASGITransport, AsyncClient
 
 from opensec.engine.models import SessionDetail, SessionSummary
 
@@ -14,6 +15,11 @@ from opensec.engine.models import SessionDetail, SessionSummary
 @asynccontextmanager
 async def _noop_lifespan(app):
     yield
+
+
+# ---------------------------------------------------------------------------
+# OpenCode mocks (existing tests)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -63,3 +69,28 @@ def client(mock_opencode_process, mock_opencode_client):
     app.router.lifespan_context = _noop_lifespan
     with TestClient(app) as c:
         yield c
+
+
+# ---------------------------------------------------------------------------
+# Database fixtures (Phase 3+)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def db_client():
+    """Async HTTP client backed by an in-memory SQLite database.
+
+    Uses httpx.AsyncClient + ASGITransport to keep everything in a single
+    event loop — avoids the cross-loop issues with sync TestClient + async db.
+    """
+    from opensec.db.connection import close_db, init_db
+    from opensec.main import app
+
+    app.router.lifespan_context = _noop_lifespan
+    await init_db(":memory:")
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    await close_db()
