@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#d2d9f8",
+              "on-error-container": "#782232",
+              "outline-variant": "#abb3b7",
+              "error-dim": "#4f0116",
+              "primary-fixed": "#e2dfff",
+              "tertiary-fixed-dim": "#c4cbe9",
+              "surface-variant": "#dbe4e7",
+              "secondary-container": "#dde1ff",
+              "inverse-on-surface": "#9b9d9e",
+              "on-tertiary": "#faf8ff",
+              "on-error": "#fff7f7",
+              "primary-container": "#e2dfff",
+              "inverse-surface": "#0c0f10",
+              "primary": "#4d44e3",
+              "on-surface-variant": "#586064",
+              "on-secondary-fixed-variant": "#555a74",
+              "surface-container-low": "#f1f4f6",
+              "surface-dim": "#d1dce0",
+              "on-secondary": "#faf8ff",
+              "on-tertiary-container": "#444c65",
+              "tertiary-container": "#d2d9f8",
+              "on-secondary-container": "#4c506a",
+              "on-primary-fixed-variant": "#4a40e0",
+              "surface-bright": "#f8f9fa",
+              "primary-fixed-dim": "#d2d0ff",
+              "outline": "#737c7f",
+              "surface-container-highest": "#dbe4e7",
+              "on-primary": "#faf6ff",
+              "on-tertiary-fixed": "#323951",
+              "secondary-fixed-dim": "#cfd3f2",
+              "surface": "#f8f9fa",
+              "background": "#f8f9fa",
+              "surface-container-lowest": "#ffffff",
+              "tertiary": "#575e78",
+              "secondary": "#595e78",
+              "primary-dim": "#4034d7",
+              "error-container": "#ff8b9a",
+              "on-surface": "#2b3437",
+              "surface-container-high": "#e3e9ec",
+              "secondary-fixed": "#dde1ff",
+              "inverse-primary": "#8582ff",
+              "on-tertiary-fixed-variant": "#4e556f",
+              "on-secondary-fixed": "#393e57",
+              "on-primary-fixed": "#2a13c5",
+              "secondary-dim": "#4d526b",
+              "surface-tint": "#4d44e3",
+              "surface-container": "#eaeff1",
+              "error": "#9e3f4e",
+              "on-primary-container": "#3f33d6",
+              "on-background": "#2b3437",
+              "tertiary-dim": "#4b526c"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(20px);
+      }
+    </style>
+</head>
+<body class="bg-background font-body text-on-surface antialiased">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full w-20 border-r border-slate-200/50 bg-slate-50 flex flex-col items-center py-8 gap-y-6 z-50 font-manrope text-sm tracking-tight antialiased">
+<div class="mb-4">
+<span class="text-xl font-bold text-slate-900 tracking-tighter">S</span>
+</div>
+<nav class="flex flex-col items-center gap-y-4 w-full">
+<a class="group flex flex-col items-center p-3 w-full text-slate-400 hover:text-slate-600 transition-all duration-200 ease-in-out hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="assignment_late">assignment_late</span>
+</a>
+<a class="group flex flex-col items-center p-3 w-full text-slate-400 hover:text-slate-600 transition-all duration-200 ease-in-out hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="terminal">terminal</span>
+</a>
+<a class="group flex flex-col items-center p-3 w-full text-slate-400 hover:text-slate-600 transition-all duration-200 ease-in-out hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="history">history</span>
+</a>
+<a class="group flex flex-col items-center p-3 w-full text-indigo-600 border-r-2 border-indigo-600 bg-indigo-50/50 transition-all duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="extension">extension</span>
+</a>
+<a class="group flex flex-col items-center p-3 w-full text-slate-400 hover:text-slate-600 transition-all duration-200 ease-in-out hover:bg-slate-100" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="settings">settings</span>
+</a>
+</nav>
+<div class="mt-auto">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden">
+<img alt="User profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOppvDNSBfg2W4j5nbiOWYLBCklDoO2xxOHfCtw56FJF5UNcm3bV-dhw48PMyahidYJajSBiA7a7RkipAFvr-VjoFBEb1AaJRR7QOUYEWY4iwrxwAEC83H1wjp149dV8bhd0gg92Yx1rtrY-ZYTyfylSC1MKBzDT0qO37blE1mV9ILncFO0ZdO1szaq6Ljk5zyOFPiGFCdqBxJSmXE6e8WmNgr-ZzUpPzIQdrhYOmlgPaZa1tKQ73EVX-75HyRnYwY-QbL9Lw1P7f5"/>
+</div>
+</div>
+</aside>
+<!-- TopNavBar Anchor -->
+<header class="sticky top-0 w-full z-40 bg-white/80 backdrop-blur-xl flex justify-between items-center px-8 h-16 ml-20 shadow-sm shadow-slate-200/50">
+<div class="flex items-center gap-8">
+<span class="text-lg font-extrabold tracking-tight text-slate-900 font-headline">OpenSec</span>
+<nav class="hidden md:flex items-center gap-6 font-manrope text-base font-medium">
+<a class="text-slate-500 hover:text-indigo-500 transition-colors" href="#">Queue</a>
+<a class="text-slate-500 hover:text-indigo-500 transition-colors" href="#">Workspace</a>
+<a class="text-slate-500 hover:text-indigo-500 transition-colors" href="#">History</a>
+<a class="text-indigo-600 font-semibold border-b-2 border-indigo-600 py-1" href="#">Integrations</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center bg-surface-container rounded-lg px-3 py-1.5 border border-transparent focus-within:border-primary/20 transition-all">
+<span class="material-symbols-outlined text-on-surface-variant text-sm mr-2" data-icon="search">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 text-on-surface" placeholder="Search apps..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" data-icon="notifications">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors" data-icon="help_outline">help_outline</button>
+<button class="ml-2 px-5 py-2 bg-gradient-to-br from-primary to-primary-dim text-white text-sm font-semibold rounded-lg hover:shadow-lg hover:shadow-primary/20 transition-all active:scale-95">Solve</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-20 p-8 lg:p-12 max-w-7xl mx-auto">
+<!-- Header Section -->
+<header class="mb-12">
+<h1 class="font-headline text-4xl font-extrabold text-on-surface tracking-tight mb-3">Integrations</h1>
+<p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">Connect your security stack to enable automated remediation, centralized visibility, and intelligence-driven workflows.</p>
+</header>
+<!-- Category Filter -->
+<div class="flex flex-wrap gap-3 mb-12">
+<button class="px-6 py-2.5 rounded-full bg-primary text-on-primary text-sm font-medium transition-all shadow-md shadow-primary/10">All apps</button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high transition-all text-sm font-medium">Finding sources</button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high transition-all text-sm font-medium">Context / ownership sources</button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high transition-all text-sm font-medium">Ticketing</button>
+<button class="px-6 py-2.5 rounded-full bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-high transition-all text-sm font-medium">Validation</button>
+</div>
+<!-- Integrations Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+<!-- Card: Tenable -->
+<div class="group relative flex flex-col bg-surface-container-lowest rounded-xl p-8 border border-transparent hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300">
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 rounded-lg bg-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-primary" data-icon="security">security</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-primary-container text-on-primary-container text-xs font-semibold tracking-wide uppercase">Connected</span>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface mb-2">Tenable</h3>
+<p class="text-on-surface-variant text-sm mb-8 leading-relaxed">Vulnerability management and risk-based assessment for your entire attack surface.</p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-surface-container">
+<a class="text-primary text-sm font-semibold hover:underline decoration-2 underline-offset-4 transition-all" href="#">Test connection</a>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" data-icon="more_horiz">more_horiz</button>
+</div>
+</div>
+<!-- Card: Jira -->
+<div class="group relative flex flex-col bg-surface-container-lowest rounded-xl p-8 border border-transparent hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300">
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 rounded-lg bg-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-secondary" data-icon="task_alt">task_alt</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-primary-container text-on-primary-container text-xs font-semibold tracking-wide uppercase">Connected</span>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface mb-2">Jira</h3>
+<p class="text-on-surface-variant text-sm mb-8 leading-relaxed">Sync security findings directly into developer workflows with automated ticket creation.</p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-surface-container">
+<a class="text-primary text-sm font-semibold hover:underline decoration-2 underline-offset-4 transition-all" href="#">Test connection</a>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" data-icon="more_horiz">more_horiz</button>
+</div>
+</div>
+<!-- Card: ServiceNow (Available) -->
+<div class="group relative flex flex-col bg-surface-container-lowest rounded-xl p-8 border border-transparent hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300 overflow-hidden">
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 rounded-lg bg-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-tertiary" data-icon="hub">hub</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-semibold tracking-wide uppercase">Available</span>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface mb-2">ServiceNow</h3>
+<p class="text-on-surface-variant text-sm mb-8 leading-relaxed">Enterprise-grade IT service management for asset tracking and incident response.</p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-surface-container">
+<button class="text-primary text-sm font-semibold hover:underline decoration-2 underline-offset-4 transition-all">Connect app</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" data-icon="info">info</button>
+</div>
+</div>
+<!-- Card: CrowdStrike -->
+<div class="group relative flex flex-col bg-surface-container-lowest rounded-xl p-8 border border-transparent hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300">
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 rounded-lg bg-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-primary" data-icon="radar">radar</span>
+</div>
+<span class="px-3 py-1 rounded-full bg-primary-container text-on-primary-container text-xs font-semibold tracking-wide uppercase">Connected</span>
+</div>
+<h3 class="font-headline text-xl font-bold text-on-surface mb-2">CrowdStrike</h3>
+<p class="text-on-surface-variant text-sm mb-8 leading-relaxed">Endpoint protection and threat intelligence integration for real-time asset context.</p>
+<div class="mt-auto flex items-center justify-between pt-6 border-t border-surface-container">
+<a class="text-primary text-sm font-semibold hover:underline decoration-2 underline-offset-4 transition-all" href="#">Test connection</a>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-on-surface transition-colors" data-icon="more_horiz">more_horiz</button>
+</div>
+</div>
+<!-- AI Logic Suggestion Card -->
+<div class="md:col-span-2 xl:col-span-2 relative bg-gradient-to-br from-primary to-primary-dim rounded-xl p-10 flex flex-col md:flex-row gap-10 items-center overflow-hidden">
+<!-- Decorative element -->
+<div class="absolute -right-20 -top-20 w-80 h-80 bg-white/10 rounded-full blur-3xl"></div>
+<div class="relative z-10 flex-1">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-white" data-icon="auto_awesome" data-weight="fill" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<span class="text-white/80 font-bold uppercase tracking-widest text-xs">AI Insight</span>
+</div>
+<h2 class="font-headline text-3xl font-extrabold text-white mb-4 leading-tight">Recommended Integrations</h2>
+<p class="text-white/90 text-lg leading-relaxed mb-6">Based on your recent security scans, connecting <span class="font-bold underline">Splunk</span> could reduce your incident MTTR by up to 24% through automated logging.</p>
+<button class="px-8 py-3 bg-white text-primary font-bold rounded-lg hover:bg-surface-container-lowest transition-all active:scale-95">Explore insights</button>
+</div>
+<div class="relative z-10 w-full md:w-64 aspect-square glass-card rounded-2xl p-6 border border-white/20 shadow-2xl flex flex-col items-center justify-center text-center">
+<div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-primary text-4xl" data-icon="monitoring">monitoring</span>
+</div>
+<div class="text-on-surface text-2xl font-bold mb-1">+24%</div>
+<div class="text-on-surface-variant text-sm">Potential Efficiency</div>
+</div>
+</div>
+</div>
+<!-- Pagination / Footer Actions -->
+<footer class="mt-16 flex flex-col md:flex-row items-center justify-between gap-6 pb-20">
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 text-on-surface-variant font-medium hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
+                    Previous
+                </button>
+<div class="flex items-center gap-1">
+<span class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-on-primary font-bold text-sm">1</span>
+<span class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant font-medium text-sm transition-all cursor-pointer">2</span>
+<span class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface-variant font-medium text-sm transition-all cursor-pointer">3</span>
+</div>
+<button class="flex items-center gap-2 text-on-surface-variant font-medium hover:text-on-surface transition-colors">
+                    Next
+                    <span class="material-symbols-outlined text-sm" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant text-sm">
+<span class="material-symbols-outlined text-sm" data-icon="sync">sync</span>
+                Last updated 2 minutes ago
+            </div>
+</footer>
+</main>
+</body></html>

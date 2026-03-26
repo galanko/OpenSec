@@ -1,11 +1,23 @@
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', sans-serif;
+    @apply bg-background text-on-surface antialiased;
+  }
+  h1, h2, h3 {
+    font-family: 'Manrope', sans-serif;
+  }
 }
 
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  background: #fff;
-  color: #111;
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px);
 }

@@ -1,0 +1,314 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Serene Sentinel | Work Queue</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "tertiary-fixed": "#d2d9f8",
+                        "on-error-container": "#782232",
+                        "outline-variant": "#abb3b7",
+                        "error-dim": "#4f0116",
+                        "primary-fixed": "#e2dfff",
+                        "tertiary-fixed-dim": "#c4cbe9",
+                        "surface-variant": "#dbe4e7",
+                        "secondary-container": "#dde1ff",
+                        "inverse-on-surface": "#9b9d9e",
+                        "on-tertiary": "#faf8ff",
+                        "on-error": "#fff7f7",
+                        "primary-container": "#e2dfff",
+                        "inverse-surface": "#0c0f10",
+                        "primary": "#4d44e3",
+                        "on-surface-variant": "#586064",
+                        "on-secondary-fixed-variant": "#555a74",
+                        "surface-container-low": "#f1f4f6",
+                        "surface-dim": "#d1dce0",
+                        "on-secondary": "#faf8ff",
+                        "on-tertiary-container": "#444c65",
+                        "tertiary-container": "#d2d9f8",
+                        "on-secondary-container": "#4c506a",
+                        "on-primary-fixed-variant": "#4a40e0",
+                        "surface-bright": "#f8f9fa",
+                        "primary-fixed-dim": "#d2d0ff",
+                        "outline": "#737c7f",
+                        "surface-container-highest": "#dbe4e7",
+                        "on-primary": "#faf6ff",
+                        "on-tertiary-fixed": "#323951",
+                        "secondary-fixed-dim": "#cfd3f2",
+                        "surface": "#f8f9fa",
+                        "background": "#f8f9fa",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#575e78",
+                        "secondary": "#595e78",
+                        "primary-dim": "#4034d7",
+                        "error-container": "#ff8b9a",
+                        "on-surface": "#2b3437",
+                        "surface-container-high": "#e3e9ec",
+                        "secondary-fixed": "#dde1ff",
+                        "inverse-primary": "#8582ff",
+                        "on-tertiary-fixed-variant": "#4e556f",
+                        "on-secondary-fixed": "#393e57",
+                        "on-primary-fixed": "#2a13c5",
+                        "secondary-dim": "#4d526b",
+                        "surface-tint": "#4d44e3",
+                        "surface-container": "#eaeff1",
+                        "error": "#9e3f4e",
+                        "on-primary-container": "#3f33d6",
+                        "on-background": "#2b3437",
+                        "tertiary-dim": "#4b526c"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+            vertical-align: middle;
+        }
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-full w-20 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-900 flex flex-col items-center py-8 gap-y-6 z-50">
+<div class="mb-4">
+<span class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tighter" style="">O</span>
+</div>
+<nav class="flex flex-col items-center gap-y-4 w-full">
+<a class="p-3 rounded-lg text-indigo-600 dark:text-indigo-400 border-r-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 transition-all duration-200 scale-95 active:scale-90" href="#" title="Queue" style="">
+<span class="material-symbols-outlined" data-icon="assignment_late" style="">assignment_late</span>
+</a>
+<a class="p-3 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800" href="#" title="Workspace" style="">
+<span class="material-symbols-outlined" data-icon="terminal" style="">terminal</span>
+</a>
+<a class="p-3 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800" href="#" title="History" style="">
+<span class="material-symbols-outlined" data-icon="history" style="">history</span>
+</a>
+<a class="p-3 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800" href="#" title="Integrations" style="">
+<span class="material-symbols-outlined" data-icon="extension" style="">extension</span>
+</a>
+<div class="mt-auto">
+<a class="p-3 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-all duration-200 hover:bg-slate-100 dark:hover:bg-slate-800" href="#" title="Settings" style="">
+<span class="material-symbols-outlined" data-icon="settings" style="">settings</span>
+</a>
+</div>
+</nav>
+</aside>
+<!-- TopNavBar Anchor -->
+<header class="sticky top-0 w-full z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm shadow-slate-200/50 dark:shadow-none ml-20 flex justify-between items-center px-8 h-16">
+<div class="flex items-center gap-x-8">
+<span class="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white" style="">OpenSec</span>
+<nav class="hidden md:flex items-center gap-x-6">
+<a class="text-indigo-600 dark:text-indigo-400 font-semibold border-b-2 border-indigo-600 py-5 transition-colors" href="#" style="">Queue</a>
+<a class="text-slate-500 dark:text-slate-400 font-medium hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors py-5" href="#" style="">Workspace</a>
+<a class="text-slate-500 dark:text-slate-400 font-medium hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors py-5" href="#" style="">History</a>
+</nav>
+</div>
+<div class="flex items-center gap-x-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm" data-icon="search" style="">search</span>
+<input class="bg-surface-container-low border-none rounded-lg pl-10 pr-4 py-1.5 text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search findings..." type="text">
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container transition-colors rounded-full" style="">
+<span class="material-symbols-outlined" data-icon="notifications" style="">notifications</span>
+</button>
+<img alt="Cybersecurity Analyst" class="w-8 h-8 rounded-full object-cover border border-outline-variant/20" data-alt="Professional woman with glasses smiling confidently, high-end corporate portrait with soft studio lighting and neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvP_Nv-pMvqutlJgmbaEkibJ3AQvVENT7p2KKspu37jkcyov5KHxqvS37siP4Qv2BbPU_PKxJvYnvCLYO4TDU2-jxp7Pi_ng5j3ZRSrq4in0Z-SLRrejf6tDTaXLrPuO_u2TWOZRrThq08fCSrk6zAOlARhs__ERpukoWpf48BiX72gSqJE7PQZ-TeyB9Se06LQDNruAjkV8UZZ0xd6l2VLq7VvFPW3bwjqe4HuUBscZWDVWLF27M4qf_WslODuwMDV1Htv-pSrpDf" style="">
+</div>
+</header>
+<main class="ml-20 min-h-screen p-8 lg:p-12">
+<div class="max-w-6xl mx-auto">
+<!-- Page Header -->
+<div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h1 class="text-4xl font-extrabold tracking-tight text-on-surface mb-2" style="">Work queue</h1>
+<p class="text-on-surface-variant max-w-lg" style="">Prioritized security findings requiring immediate attention or verification. Review and resolve to maintain infrastructure integrity.</p>
+</div>
+<div class="flex items-center gap-x-3">
+<button class="flex items-center gap-x-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/10 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors shadow-sm" style="">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list" style="">filter_list</span>
+                        Filter
+                    </button>
+<button class="flex items-center gap-x-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/10 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors shadow-sm" style="">
+<span class="material-symbols-outlined text-sm" data-icon="sort" style="">sort</span>
+                        Latest
+                    </button>
+</div>
+</div>
+<!-- Inbox List Layout -->
+<div class="space-y-4">
+<!-- Row 1: The Specific Finding -->
+<div class="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/40 border border-transparent hover:border-primary/5 flex flex-col md:flex-row md:items-center gap-6">
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-error-container/20 flex items-center justify-center text-error">
+<span class="material-symbols-outlined" data-icon="warning" data-weight="fill" style="font-variation-settings: &quot;FILL&quot; 1;">warning</span>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-1">
+<span class="text-xs font-bold uppercase tracking-wider text-error bg-error-container/30 px-2 py-0.5 rounded-full" style="">Critical</span>
+<span class="text-xs font-medium text-on-surface-variant" style="">Finding #8421</span>
+<span class="text-xs text-outline-variant" style="">•</span>
+<span class="text-xs font-medium text-on-surface-variant" style="">2h ago</span>
+</div>
+<h3 class="text-lg font-bold text-on-surface truncate mb-1" style="">Apache Tomcat vulnerable version on web-prod-17</h3>
+<div class="flex flex-wrap items-center gap-x-4 text-sm text-on-surface-variant">
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="dns" style="">dns</span> web-prod-17</span>
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="hub" style="">hub</span> Tenable</span>
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="groups" style="">groups</span> Web Platform Team</span>
+</div>
+</div>
+<div class="flex items-center gap-x-6 flex-shrink-0">
+<div class="text-right hidden lg:block">
+<span class="block text-xs font-medium text-outline-variant mb-1" style="">Status</span>
+<span class="inline-flex items-center gap-x-1.5 text-sm font-semibold text-primary" style="">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+                                Needs attention
+                            </span>
+</div>
+<button class="bg-primary hover:bg-primary-dim text-white px-8 py-2.5 rounded-lg font-bold transition-all shadow-lg shadow-primary/20 active:scale-95" style="">
+                            Solve
+                        </button>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/40 border border-transparent hover:border-primary/5 flex flex-col md:flex-row md:items-center gap-6">
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-tertiary-container/20 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined" data-icon="cloud" data-weight="fill" style="font-variation-settings: &quot;FILL&quot; 1;">cloud</span>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-1">
+<span class="text-xs font-bold uppercase tracking-wider text-tertiary bg-tertiary-container/30 px-2 py-0.5 rounded-full" style="">Medium</span>
+<span class="text-xs font-medium text-on-surface-variant" style="">Finding #8419</span>
+<span class="text-xs text-outline-variant" style="">•</span>
+<span class="text-xs font-medium text-on-surface-variant" style="">5h ago</span>
+</div>
+<h3 class="text-lg font-bold text-on-surface truncate mb-1" style="">Publicly exposed S3 bucket with permissive policy</h3>
+<div class="flex flex-wrap items-center gap-x-4 text-sm text-on-surface-variant">
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="storage" style="">storage</span> data-archive-01</span>
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="security" style="">security</span> CloudWatch</span>
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="groups" style="">groups</span> Data Engineering</span>
+</div>
+</div>
+<div class="flex items-center gap-x-6 flex-shrink-0">
+<div class="text-right hidden lg:block">
+<span class="block text-xs font-medium text-outline-variant mb-1" style="">Status</span>
+<span class="inline-flex items-center gap-x-1.5 text-sm font-semibold text-secondary" style="">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                                Investigating
+                            </span>
+</div>
+<button class="bg-primary hover:bg-primary-dim text-white px-8 py-2.5 rounded-lg font-bold transition-all shadow-lg shadow-primary/20 active:scale-95" style="">
+                            Solve
+                        </button>
+</div>
+</div>
+<!-- Row 3: Blocked State -->
+<div class="group relative bg-surface-container-lowest opacity-75 grayscale-[0.5] rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/40 border border-transparent flex flex-col md:flex-row md:items-center gap-6">
+<div class="flex-shrink-0">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="block" data-weight="fill" style="font-variation-settings: &quot;FILL&quot; 1;">block</span>
+</div>
+</div>
+<div class="flex-grow min-w-0">
+<div class="flex flex-wrap items-center gap-x-3 gap-y-2 mb-1">
+<span class="text-xs font-bold uppercase tracking-wider text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full" style="">Low</span>
+<span class="text-xs font-medium text-on-surface-variant" style="">Finding #8405</span>
+<span class="text-xs text-outline-variant" style="">•</span>
+<span class="text-xs font-medium text-on-surface-variant" style="">Yesterday</span>
+</div>
+<h3 class="text-lg font-bold text-on-surface truncate mb-1" style="">Outdated SSH keys detected on jump-host-04</h3>
+<div class="flex flex-wrap items-center gap-x-4 text-sm text-on-surface-variant">
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="vpn_key" style="">vpn_key</span> jump-host-04</span>
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="sync" style="">sync</span> Internal Scan</span>
+<span class="flex items-center gap-x-1" style=""><span class="material-symbols-outlined text-xs" data-icon="groups" style="">groups</span> IT Security</span>
+</div>
+</div>
+<div class="flex items-center gap-x-6 flex-shrink-0">
+<div class="text-right hidden lg:block">
+<span class="block text-xs font-medium text-outline-variant mb-1" style="">Status</span>
+<span class="inline-flex items-center gap-x-1.5 text-sm font-semibold text-on-surface-variant" style="">
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+                                Blocked (Pending Approval)
+                            </span>
+</div>
+<button class="bg-surface-container-highest text-on-surface-variant px-8 py-2.5 rounded-lg font-bold transition-all cursor-not-allowed" style="">
+                            Solve
+                        </button>
+</div>
+</div>
+</div>
+<!-- Empty Space / Editorial Detail -->
+<div class="mt-16 flex justify-center">
+<div class="bg-primary/5 rounded-2xl p-8 max-w-2xl text-center border border-primary/10">
+<span class="material-symbols-outlined text-primary text-4xl mb-4" data-icon="auto_awesome" style="">auto_awesome</span>
+<h2 class="text-xl font-bold text-on-surface mb-2" style="">Automated remediation is learning</h2>
+<p class="text-on-surface-variant text-sm leading-relaxed mb-6" style="">Our Sentinel AI has observed your resolution patterns for Apache vulnerabilities. In 4 out of 5 cases, the fix involves an automated patch cycle. Would you like to enable auto-remediation for non-critical assets?</p>
+<div class="flex justify-center gap-x-4">
+<button class="text-sm font-bold text-primary hover:text-primary-dim transition-colors" style="">Review automation rules</button>
+<button class="text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors" style="">Dismiss</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Contextual Summary Sidebar (AI Logic) - Asymmetric Layout Element -->
+<div class="fixed right-0 top-16 bottom-0 w-80 bg-surface-container-low/30 backdrop-blur-sm border-l border-outline-variant/10 hidden xl:flex flex-col p-8 overflow-y-auto">
+<h4 class="text-xs font-bold uppercase tracking-widest text-outline-variant mb-6" style="">Sentinel Insights</h4>
+<div class="space-y-8">
+<section>
+<div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm border border-outline-variant/5 mb-4">
+<p class="text-sm font-semibold text-on-surface mb-3" style="">Priority Summary</p>
+<div class="space-y-4">
+<div class="flex items-center justify-between">
+<span class="text-xs text-on-surface-variant" style="">Critical findings</span>
+<span class="text-xs font-bold text-error" style="">1 active</span>
+</div>
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+<div class="bg-error w-1/4 h-full"></div>
+</div>
+</div>
+</div>
+<p class="text-[13px] text-on-surface-variant leading-relaxed italic" style="">"The Apache Tomcat vulnerability on web-prod-17 represents the highest immediate risk due to its internet-facing status and known exploit availability."</p>
+</section>
+<section>
+<h5 class="text-sm font-bold text-on-surface mb-4" style="">Active Owners</h5>
+<div class="space-y-3">
+<div class="flex items-center gap-x-3">
+<img alt="Team Member" class="w-6 h-6 rounded-full" data-alt="Close-up of a smiling man with a beard in a minimalist home office, warm natural light" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAi5Cu0283vDflqFxiu_qoo11LiyM-k4yL6FQanS_wQlDad7SrtuKBXFHDCxnI7TUH9Vzf9985DlvyGpnQ0fnUQsYJzdJ4ZzmpWdlXWCQlip5w-hSS8SenZJMjWP3hMF8BVd16G8OgZL1jiF89-5SWICMEymbtIuLCHUBrePaujwPFC5-vnxp7ujEarlsIXUcqHwCXK0iuqKzl4XpkyOGauix59hgEmg2yoJiCVZRR8o-QbMnFy7C6hQztw9aUf-w0ymXsOklu8Rv_P" style="">
+<span class="text-xs font-medium" style="">David Chen</span>
+<span class="ml-auto w-2 h-2 rounded-full bg-primary/40"></span>
+</div>
+<div class="flex items-center gap-x-3">
+<img alt="Team Member" class="w-6 h-6 rounded-full" data-alt="Professional woman looking at camera with a subtle smile, clean modern office environment, daylight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAsPJYRGBNG7C9pRd5F-ah0se0b88Q7p9LrAN9chS-XAmL0gQ7bwWP8zDvRTnWPuKpFQSt6ltUOmPIpdvv0dWfO2g2bncSALTtGNVCt_PL_YiW8-0EBvH25Wc0mRRaJkmTVPZ_QAv2-7MNBigzRcpjAIEi5FPvpRYGHLK_NiodaskTTgR1-nnz13XThULzneCkaDJV8JizsLed-h-FjD872oRVrH9AHV8gaZBdmV_eY6Fo50D-xyVXlookAIztajsRqn-VjEVcioa0C" style="">
+<span class="text-xs font-medium" style="">Sarah Miller</span>
+<span class="ml-auto w-2 h-2 rounded-full bg-primary"></span>
+</div>
+</div>
+</section>
+<div class="mt-auto pt-8">
+<div class="p-4 bg-primary rounded-xl text-white">
+<p class="text-xs font-bold mb-2" style="">Efficiency Rating</p>
+<p class="text-2xl font-black mb-1" style="">94%</p>
+<p class="text-[10px] opacity-80 uppercase tracking-widest font-bold" style="">MTTR optimal range</p>
+</div>
+</div>
+</div>
+</div>
+</body></html>

@@ -17,7 +17,7 @@ Lock the MVP boundaries before writing code.
 
 ---
 
-## Phase 1: OpenCode Spike (Current)
+## Phase 1: OpenCode Spike (Complete)
 
 Prove the OpenCode engine works behind a browser chat.
 
@@ -38,18 +38,20 @@ Prove the OpenCode engine works behind a browser chat.
 
 ---
 
-## Phase 2: App Shell
+## Phase 2: App Shell (Current)
 
 Create the product frame — all five pages as navigable shells.
 
-- [ ] Initialize React + Vite + Tailwind project in `frontend/`
-- [ ] Add routing for Queue / Workspace / History / Integrations / Settings
-- [ ] Create app layout (nav, top bar, content area)
-- [ ] Add global design tokens and shared component primitives
-- [ ] Create base API client (TanStack Query + fetch)
-- [ ] Add markdown rendering system for result cards
-- [ ] Add empty states for all pages
-- [ ] Set up dev proxy (Vite -> FastAPI)
+- [x] Initialize React + Vite + Tailwind project in `frontend/`
+- [x] Add routing for Queue / Workspace / History / Integrations / Settings
+- [x] Create app layout (nav, top bar, content area)
+- [x] Add global design tokens and shared component primitives
+- [x] Create base API client (TanStack Query + fetch)
+- [x] Add markdown rendering system for result cards
+- [x] Create page shells with Stitch-matching UI (populated with demo data)
+- [x] Set up dev proxy (Vite -> FastAPI)
+- [x] Adopt Stitch design system "Serene Sentinel" (ADR-0011)
+- [x] Lint clean + build passes
 
 **Exit criteria:** All five pages exist as shells. App is navigable. Theme is coherent.
 

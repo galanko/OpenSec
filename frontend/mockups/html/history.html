@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Operational Memory | Serene Sentinel</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Fonts: Manrope & Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#d2d9f8",
+              "on-error-container": "#782232",
+              "outline-variant": "#abb3b7",
+              "error-dim": "#4f0116",
+              "primary-fixed": "#e2dfff",
+              "tertiary-fixed-dim": "#c4cbe9",
+              "surface-variant": "#dbe4e7",
+              "secondary-container": "#dde1ff",
+              "inverse-on-surface": "#9b9d9e",
+              "on-tertiary": "#faf8ff",
+              "on-error": "#fff7f7",
+              "primary-container": "#e2dfff",
+              "inverse-surface": "#0c0f10",
+              "primary": "#4d44e3",
+              "on-surface-variant": "#586064",
+              "on-secondary-fixed-variant": "#555a74",
+              "surface-container-low": "#f1f4f6",
+              "surface-dim": "#d1dce0",
+              "on-secondary": "#faf8ff",
+              "on-tertiary-container": "#444c65",
+              "tertiary-container": "#d2d9f8",
+              "on-secondary-container": "#4c506a",
+              "on-primary-fixed-variant": "#4a40e0",
+              "surface-bright": "#f8f9fa",
+              "primary-fixed-dim": "#d2d0ff",
+              "outline": "#737c7f",
+              "surface-container-highest": "#dbe4e7",
+              "on-primary": "#faf6ff",
+              "on-tertiary-fixed": "#323951",
+              "secondary-fixed-dim": "#cfd3f2",
+              "surface": "#f8f9fa",
+              "background": "#f8f9fa",
+              "surface-container-lowest": "#ffffff",
+              "tertiary": "#575e78",
+              "secondary": "#595e78",
+              "primary-dim": "#4034d7",
+              "error-container": "#ff8b9a",
+              "on-surface": "#2b3437",
+              "surface-container-high": "#e3e9ec",
+              "secondary-fixed": "#dde1ff",
+              "inverse-primary": "#8582ff",
+              "on-tertiary-fixed-variant": "#4e556f",
+              "on-secondary-fixed": "#393e57",
+              "on-primary-fixed": "#2a13c5",
+              "secondary-dim": "#4d526b",
+              "surface-tint": "#4d44e3",
+              "surface-container": "#eaeff1",
+              "error": "#9e3f4e",
+              "on-primary-container": "#3f33d6",
+              "on-background": "#2b3437",
+              "tertiary-dim": "#4b526c"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .font-headline { font-family: 'Manrope', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface antialiased">
+<!-- SideNavBar (Shared Component) -->
+<nav class="fixed left-0 top-0 h-full w-20 border-r border-slate-200/50 dark:border-slate-800/50 bg-slate-50 dark:bg-slate-900 flex flex-col items-center py-8 gap-y-6 z-50 font-manrope text-sm tracking-tight antialiased">
+<div class="mb-4">
+<span class="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tighter">S</span>
+</div>
+<a class="group p-3 rounded-xl transition-all duration-200 ease-in-out hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="assignment_late">assignment_late</span>
+</a>
+<a class="group p-3 rounded-xl transition-all duration-200 ease-in-out hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+</a>
+<!-- ACTIVE TAB: History -->
+<a class="group p-3 rounded-xl transition-all duration-200 ease-in-out text-indigo-600 dark:text-indigo-400 border-r-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20 scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="history" style="font-variation-settings: 'FILL' 1;">history</span>
+</a>
+<a class="group p-3 rounded-xl transition-all duration-200 ease-in-out hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="extension">extension</span>
+</a>
+<a class="mt-auto group p-3 rounded-xl transition-all duration-200 ease-in-out hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 scale-95 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</a>
+</nav>
+<!-- TopNavBar (Shared Component) -->
+<header class="sticky top-0 w-full z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl flex justify-between items-center px-8 h-16 ml-20 shadow-sm shadow-slate-200/50 dark:shadow-none font-manrope text-base font-medium">
+<div class="flex items-center gap-8">
+<span class="text-lg font-extrabold tracking-tight text-slate-900 dark:text-white">OpenSec</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors opacity-90 active:opacity-100" href="#">Queue</a>
+<a class="text-slate-500 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors opacity-90 active:opacity-100" href="#">Workspace</a>
+<a class="text-indigo-600 dark:text-indigo-400 font-semibold border-b-2 border-indigo-600 opacity-90 active:opacity-100" href="#">History</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-1.5 rounded-full bg-surface-container-low border-none focus:ring-2 focus:ring-primary/20 text-sm w-64 transition-all" placeholder="Search operational memory..." type="text"/>
+</div>
+<button class="material-symbols-outlined p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" data-icon="notifications">notifications</button>
+<button class="bg-primary text-white px-5 py-1.5 rounded-lg text-sm font-semibold hover:bg-primary-dim transition-colors">Solve</button>
+<img alt="Analyst" class="w-8 h-8 rounded-full border border-slate-200" data-alt="professional portrait of a cybersecurity analyst with soft ambient studio lighting and blurred tech office background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6YymjhzKkrcp0B1BpKNPNf9Ogqy4aONT6YQ187n4nBoUB15po3GK72O9k6GbXoUmeJruEoYmvyBZGbDzgv4qePzdqEv5hGfk60MQhy6IprWUBo8ivmbPOUM0uiRBYqXJG0bzqA65f1CqG5i8TTM6YzvFGNkxWcyn-6L6I6zzSDFFqeue4IZcn4eIReifPeJ4QUIQa95EX_sHLG52cVFnhIHMnhBJYD29bm5eauZCUDozH8U7yY9cNjiJX3UsN6qouxeJ7YZXSGTB_"/>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-20 p-8 lg:p-12 max-w-7xl mx-auto">
+<!-- Header Section -->
+<section class="mb-12">
+<h1 class="text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-2">Operational Memory</h1>
+<p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">
+                A historical repository of solved findings, agent logic, and validated outcomes. Use this library to audit past actions or reuse successful remediation plans.
+            </p>
+</section>
+<!-- Stats Bento Row -->
+<section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
+<span class="text-sm font-label text-on-surface-variant uppercase tracking-wider">Total Resolved</span>
+<div class="flex items-baseline gap-2 mt-2">
+<span class="text-3xl font-headline font-bold">1,284</span>
+<span class="text-primary text-xs font-semibold">+12% this month</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
+<span class="text-sm font-label text-on-surface-variant uppercase tracking-wider">Avg. Time to Fix</span>
+<div class="flex items-baseline gap-2 mt-2">
+<span class="text-3xl font-headline font-bold">4.2h</span>
+<span class="text-on-surface-variant text-xs">-15m vs last week</span>
+</div>
+</div>
+<div class="bg-primary text-on-primary p-6 rounded-xl shadow-md flex justify-between items-center relative overflow-hidden">
+<div class="relative z-10">
+<span class="text-sm font-label opacity-80 uppercase tracking-wider">Success Rate</span>
+<div class="text-3xl font-headline font-bold mt-2">99.2%</div>
+</div>
+<span class="material-symbols-outlined text-6xl opacity-20 absolute -right-2 -bottom-2" data-icon="verified">verified</span>
+</div>
+</section>
+<!-- Filters & Tools -->
+<section class="flex flex-wrap items-center justify-between gap-4 mb-6">
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/15 rounded-lg text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span>
+                    Filter
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/15 rounded-lg text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-sm" data-icon="calendar_month">calendar_month</span>
+                    Last 30 Days
+                </button>
+</div>
+<div class="text-sm text-on-surface-variant font-medium">
+                Showing <span class="text-on-surface">48</span> of 1,284 findings
+            </div>
+</section>
+<!-- Findings Library (Asymmetric/Modern List) -->
+<div class="space-y-4">
+<!-- Entry 1 -->
+<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-1">
+<span class="material-symbols-outlined text-primary" data-icon="security" style="font-variation-settings: 'FILL' 1;">security</span>
+<h3 class="text-lg font-headline font-bold text-on-surface">Tomcat vulnerability on web-prod-17</h3>
+</div>
+<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> Web Platform Team</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> PLAT-5571</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 2 days ago</span>
+</div>
+</div>
+<div class="flex items-center gap-4 lg:ml-auto">
+<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
+<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
+<div class="flex items-center gap-2">
+<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
+<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
+<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Entry 2 -->
+<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-1">
+<span class="material-symbols-outlined text-error" data-icon="leak_add" style="font-variation-settings: 'FILL' 1;">leak_add</span>
+<h3 class="text-lg font-headline font-bold text-on-surface">AWS S3 Public Bucket Exposure</h3>
+</div>
+<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> Cloud Ops</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> SEC-9021</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 5 days ago</span>
+</div>
+</div>
+<div class="flex items-center gap-4 lg:ml-auto">
+<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
+<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
+<div class="flex items-center gap-2">
+<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
+<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
+<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Entry 3 -->
+<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-1">
+<span class="material-symbols-outlined text-amber-500" data-icon="key" style="font-variation-settings: 'FILL' 1;">key</span>
+<h3 class="text-lg font-headline font-bold text-on-surface">Hardcoded API Key in frontend-repo</h3>
+</div>
+<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> UI Team</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> DEV-1294</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 1 week ago</span>
+</div>
+</div>
+<div class="flex items-center gap-4 lg:ml-auto">
+<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
+<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
+<div class="flex items-center gap-2">
+<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
+<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
+<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
+</button>
+</div>
+</div>
+</div>
+<!-- AI Insight Card (Asymmetric Layout) -->
+<div class="relative bg-gradient-to-br from-primary to-indigo-700 rounded-2xl p-8 text-white shadow-xl overflow-hidden mt-12 mb-12">
+<div class="relative z-10 grid md:grid-cols-2 gap-8 items-center">
+<div>
+<h2 class="text-2xl font-headline font-bold mb-4">Historical Pattern Detected</h2>
+<p class="text-indigo-100 leading-relaxed mb-6">
+                            I've noticed a 30% increase in Tomcat-related vulnerabilities across different subnets. Your past remediation plan for PLAT-5571 was 40% faster than manual resolution. I recommend standardizing this plan for future instances.
+                        </p>
+<button class="bg-white text-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors shadow-lg">Standardize Remediation</button>
+</div>
+<div class="hidden md:block">
+<div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
+<div class="text-xs uppercase tracking-widest opacity-60 mb-4">Efficiency Map</div>
+<div class="space-y-3">
+<div class="h-2 w-full bg-white/10 rounded-full"><div class="h-full bg-white rounded-full" style="width: 85%"></div></div>
+<div class="h-2 w-full bg-white/10 rounded-full"><div class="h-full bg-white rounded-full" style="width: 45%"></div></div>
+<div class="h-2 w-full bg-white/10 rounded-full"><div class="h-full bg-white rounded-full" style="width: 65%"></div></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Decorative element -->
+<div class="absolute -right-10 -top-10 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+</div>
+<!-- Entry 4 -->
+<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-1">
+<span class="material-symbols-outlined text-slate-400" data-icon="database" style="font-variation-settings: 'FILL' 1;">database</span>
+<h3 class="text-lg font-headline font-bold text-on-surface">Unencrypted Redis Cache</h3>
+</div>
+<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> DB Admin</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> DB-112</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 10 days ago</span>
+</div>
+</div>
+<div class="flex items-center gap-4 lg:ml-auto">
+<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
+<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
+<div class="flex items-center gap-2">
+<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
+<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
+<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Pagination (Minimalist) -->
+<footer class="mt-12 flex justify-center items-center gap-4">
+<button class="p-2 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+</button>
+<div class="flex items-center gap-1">
+<span class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white text-sm font-bold">1</span>
+<span class="w-8 h-8 flex items-center justify-center rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors">2</span>
+<span class="w-8 h-8 flex items-center justify-center rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors">3</span>
+<span class="px-2 text-on-surface-variant">...</span>
+<span class="w-8 h-8 flex items-center justify-center rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors">24</span>
+</div>
+<button class="p-2 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+</button>
+</footer>
+</main>
+</body></html>
