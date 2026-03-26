@@ -176,6 +176,20 @@ Real OpenCode subprocess + real LLM calls. Skipped automatically if OpenCode bin
 - `e2e/test_chat_flow.py` — Send message, verify round-trip
 - `e2e/test_error_handling.py` — Error cases
 
+## Git Workflow
+
+**Direct pushes to `main` are not allowed.** All changes must go through a pull request reviewed and merged by `@galanko`.
+
+When working on any task, follow this workflow:
+
+1. **Create a feature branch** from `main` with a descriptive name (e.g. `feat/add-adapter-api`, `fix/session-timeout`)
+2. **Make changes and commit** using conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`)
+3. **Push the branch** to the remote (`git push -u origin <branch-name>`)
+4. **Create a pull request** targeting `main`. Include a summary of changes and a test plan
+5. **Wait for approval** — `@galanko` is the required code owner and must review and merge the PR. Do NOT merge pull requests yourself
+
+Never commit directly to `main`. Never force-push to `main`. If tests or lint fail, fix them before requesting review.
+
 ## Development Conventions
 
 - **ADRs:** Every architectural decision gets a record in `docs/adr/`. Use the template in `docs/adr/README.md`
