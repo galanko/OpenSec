@@ -1,6 +1,10 @@
-/** Minimal API client for the OpenSec FastAPI backend. */
+/** API client for the OpenSec FastAPI backend. */
 
 const BASE = '';  // Uses Vite proxy in dev
+
+// ---------------------------------------------------------------------------
+// OpenCode session types (Phase 1)
+// ---------------------------------------------------------------------------
 
 export interface SessionSummary {
   id: string;
@@ -25,7 +29,124 @@ export interface HealthStatus {
   model: string;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// ---------------------------------------------------------------------------
+// Domain types (Phase 3+)
+// ---------------------------------------------------------------------------
+
+export type FindingStatus =
+  | 'new' | 'triaged' | 'in_progress' | 'remediated'
+  | 'validated' | 'closed' | 'exception';
+
+export interface Finding {
+  id: string;
+  source_type: string;
+  source_id: string;
+  title: string;
+  description: string | null;
+  raw_severity: string | null;
+  normalized_priority: string | null;
+  asset_id: string | null;
+  asset_label: string | null;
+  status: FindingStatus;
+  likely_owner: string | null;
+  why_this_matters: string | null;
+  raw_payload: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type WorkspaceState =
+  | 'open' | 'waiting' | 'ready_to_close' | 'closed' | 'reopened';
+
+export interface Workspace {
+  id: string;
+  finding_id: string;
+  state: WorkspaceState;
+  current_focus: string | null;
+  active_plan_version: number | null;
+  linked_ticket_id: string | null;
+  validation_state: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceCreate {
+  finding_id: string;
+  state?: WorkspaceState;
+  current_focus?: string;
+}
+
+export type MessageRole = 'user' | 'assistant' | 'system' | 'agent';
+
+export interface Message {
+  id: string;
+  workspace_id: string;
+  role: MessageRole;
+  content_markdown: string | null;
+  linked_agent_run_id: string | null;
+  created_at: string;
+}
+
+export interface MessageCreate {
+  role: MessageRole;
+  content_markdown?: string;
+  linked_agent_run_id?: string;
+}
+
+export type AgentRunStatus =
+  | 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface AgentRun {
+  id: string;
+  workspace_id: string;
+  agent_type: string;
+  status: AgentRunStatus;
+  input_json: Record<string, unknown> | null;
+  summary_markdown: string | null;
+  confidence: number | null;
+  evidence_json: Record<string, unknown> | null;
+  structured_output: Record<string, unknown> | null;
+  next_action_hint: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface AgentRunCreate {
+  agent_type: string;
+  status?: AgentRunStatus;
+  input_json?: Record<string, unknown>;
+}
+
+export interface AgentRunUpdate {
+  status?: AgentRunStatus;
+  summary_markdown?: string;
+  confidence?: number;
+  evidence_json?: Record<string, unknown>;
+  structured_output?: Record<string, unknown>;
+  next_action_hint?: string;
+}
+
+export interface SidebarState {
+  workspace_id: string;
+  summary: Record<string, unknown> | null;
+  evidence: Record<string, unknown> | null;
+  owner: Record<string, unknown> | null;
+  plan: Record<string, unknown> | null;
+  definition_of_done: Record<string, unknown> | null;
+  linked_ticket: Record<string, unknown> | null;
+  validation: Record<string, unknown> | null;
+  similar_cases: Record<string, unknown> | null;
+  updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// HTTP helpers
+// ---------------------------------------------------------------------------
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
   const resp = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
     ...init,
@@ -37,22 +158,123 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return resp.json();
 }
 
+async function requestVoid(
+  path: string,
+  init?: RequestInit,
+): Promise<void> {
+  const resp = await fetch(`${BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json' },
+    ...init,
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${resp.status}: ${text}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// API methods
+// ---------------------------------------------------------------------------
+
 export const api = {
+  // Health
   health: () => request<HealthStatus>('/health'),
 
+  // OpenCode sessions
   createSession: () =>
     request<SessionSummary>('/api/sessions', { method: 'POST' }),
-
   listSessions: () => request<SessionSummary[]>('/api/sessions'),
+  getSession: (id: string) =>
+    request<SessionDetail>(`/api/sessions/${id}`),
 
-  getSession: (id: string) => request<SessionDetail>(`/api/sessions/${id}`),
-
+  // Chat (OpenCode)
   sendMessage: (sessionId: string, content: string) =>
     request<{ session_id: string; status: string }>(
       `/api/chat/${sessionId}/send`,
       { method: 'POST', body: JSON.stringify({ content }) },
     ),
-
   streamEvents: (sessionId: string): EventSource =>
     new EventSource(`/api/chat/${sessionId}/stream`),
+
+  // Findings
+  listFindings: (params?: { status?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set('status', params.status);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.offset) qs.set('offset', String(params.offset));
+    const q = qs.toString();
+    return request<Finding[]>(`/api/findings${q ? `?${q}` : ''}`);
+  },
+  getFinding: (id: string) => request<Finding>(`/api/findings/${id}`),
+
+  // Workspaces
+  createWorkspace: (data: WorkspaceCreate) =>
+    request<Workspace>('/api/workspaces', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  listWorkspaces: (params?: { state?: string; finding_id?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.state) qs.set('state', params.state);
+    if (params?.finding_id) qs.set('finding_id', params.finding_id);
+    const q = qs.toString();
+    return request<Workspace[]>(`/api/workspaces${q ? `?${q}` : ''}`);
+  },
+  getWorkspace: (id: string) =>
+    request<Workspace>(`/api/workspaces/${id}`),
+  updateWorkspace: (id: string, data: Partial<Workspace>) =>
+    request<Workspace>(`/api/workspaces/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  // Messages (nested under workspaces)
+  createMessage: (workspaceId: string, data: MessageCreate) =>
+    request<Message>(`/api/workspaces/${workspaceId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  listMessages: (workspaceId: string) =>
+    request<Message[]>(`/api/workspaces/${workspaceId}/messages`),
+
+  // Agent runs (nested under workspaces)
+  createAgentRun: (workspaceId: string, data: AgentRunCreate) =>
+    request<AgentRun>(
+      `/api/workspaces/${workspaceId}/agent-runs`,
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
+  listAgentRuns: (workspaceId: string) =>
+    request<AgentRun[]>(`/api/workspaces/${workspaceId}/agent-runs`),
+  getAgentRun: (workspaceId: string, runId: string) =>
+    request<AgentRun>(
+      `/api/workspaces/${workspaceId}/agent-runs/${runId}`,
+    ),
+  updateAgentRun: (
+    workspaceId: string,
+    runId: string,
+    data: AgentRunUpdate,
+  ) =>
+    request<AgentRun>(
+      `/api/workspaces/${workspaceId}/agent-runs/${runId}`,
+      { method: 'PATCH', body: JSON.stringify(data) },
+    ),
+
+  // Sidebar state (nested under workspaces)
+  getSidebar: (workspaceId: string) =>
+    request<SidebarState>(`/api/workspaces/${workspaceId}/sidebar`),
+  upsertSidebar: (
+    workspaceId: string,
+    data: Partial<SidebarState>,
+  ) =>
+    request<SidebarState>(`/api/workspaces/${workspaceId}/sidebar`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  // Seed
+  seed: () => request<Finding[]>('/api/seed', { method: 'POST' }),
+
+  // Delete (for cleanup)
+  deleteFinding: (id: string) =>
+    requestVoid(`/api/findings/${id}`, { method: 'DELETE' }),
 };

@@ -18,6 +18,7 @@ from opensec.api.routes import (
     findings,
     health,
     messages,
+    seed,
     sessions,
     sidebar,
     workspaces,
@@ -81,6 +82,7 @@ app.include_router(workspaces.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(agent_runs.router, prefix="/api")
 app.include_router(sidebar.router, prefix="/api")
+app.include_router(seed.router, prefix="/api")
 
 # Serve built frontend in production (when OPENSEC_STATIC_DIR is set)
 _static_dir = Path(settings.static_dir) if settings.static_dir else None

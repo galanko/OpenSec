@@ -7,6 +7,7 @@ frontend/node_modules
 frontend/.vite
 
 # Python
+backend/.venv
 backend/__pycache__
 backend/.pytest_cache
 backend/.ruff_cache

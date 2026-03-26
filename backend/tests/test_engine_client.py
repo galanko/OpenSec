@@ -44,13 +44,21 @@ async def test_get_session_with_messages(oc_client, httpx_mock):
     httpx_mock.add_response(
         url="http://mock:4096/session/ses_test123",
         method="GET",
-        json={
-            "id": "ses_test123",
-            "messages": [
-                {"id": "msg_1", "role": "user", "content": "hello"},
-                {"id": "msg_2", "role": "assistant", "content": "hi there"},
-            ],
-        },
+        json={"id": "ses_test123"},
+    )
+    httpx_mock.add_response(
+        url="http://mock:4096/session/ses_test123/message",
+        method="GET",
+        json=[
+            {
+                "info": {"id": "msg_1", "role": "user", "sessionID": "ses_test123"},
+                "parts": [{"type": "text", "text": "hello"}],
+            },
+            {
+                "info": {"id": "msg_2", "role": "assistant", "sessionID": "ses_test123"},
+                "parts": [{"type": "text", "text": "hi there"}],
+            },
+        ],
     )
     detail = await oc_client.get_session("ses_test123")
     assert detail.id == "ses_test123"
