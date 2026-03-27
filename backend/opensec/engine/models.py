@@ -16,6 +16,7 @@ class SessionDetail(BaseModel):
     id: str
     created_at: datetime | None = None
     messages: list[MessageInfo] = []
+    model: str = ""
 
 
 class MessageInfo(BaseModel):

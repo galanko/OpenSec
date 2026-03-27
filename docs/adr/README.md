@@ -20,6 +20,7 @@ ADRs document significant architectural decisions made during the project. Once 
 | [0010](0010-monorepo-structure.md) | Monorepo structure | Accepted |
 | [0011](0011-stitch-design-system.md) | Stitch design system | Accepted |
 | [0012](0012-runtime-settings-via-opencode-api.md) | Runtime settings via OpenCode API | Accepted |
+| [0013](0013-runtime-model-source-of-truth.md) | Runtime model as source of truth | Accepted |
 
 ## Template
 
