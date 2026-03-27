@@ -244,7 +244,7 @@ export default function ProviderSettings() {
   }
 
   return (
-    <section className="scroll-mt-24" id="providers">
+    <section id="providers">
       <div className="mb-8">
         <h2 className="text-2xl font-bold tracking-tight text-on-surface mb-2">
           Providers
