@@ -4,7 +4,6 @@ const navItems = [
   { to: '/queue', icon: 'assignment_late', title: 'Queue' },
   { to: '/workspace', icon: 'terminal', title: 'Workspace' },
   { to: '/history', icon: 'history', title: 'History' },
-  { to: '/integrations', icon: 'extension', title: 'Integrations' },
 ]
 
 export default function SideNav() {

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -74,6 +75,16 @@ class Settings(BaseSettings):
             except (json.JSONDecodeError, OSError):
                 pass
         return ""
+
+    def write_opencode_config(self, model: str) -> None:
+        """Update the model in opencode.json, preserving other fields."""
+        config_file = self.repo_root / "opencode.json"
+        data: dict = {}
+        if config_file.exists():
+            with contextlib.suppress(json.JSONDecodeError, OSError):
+                data = json.loads(config_file.read_text())
+        data["model"] = model
+        config_file.write_text(json.dumps(data, indent=2) + "\n")
 
     def resolve_data_dir(self) -> Path:
         d = self.data_dir if self.data_dir and str(self.data_dir) else self.repo_root / "data"

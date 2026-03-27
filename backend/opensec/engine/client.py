@@ -214,6 +214,54 @@ class OpenCodeClient:
         except (httpx.ConnectError, httpx.TimeoutException):
             return False
 
+    # --- Config ---
+
+    async def get_config(self) -> dict:
+        """GET /config — current OpenCode configuration."""
+        client = await self._get_client()
+        resp = await client.get("/config")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def update_config(self, config: dict) -> dict:
+        """PATCH /config — update config at runtime (model, providers, etc.)."""
+        client = await self._get_client()
+        resp = await client.patch("/config", json=config)
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- Providers ---
+
+    async def list_providers(self) -> dict:
+        """GET /provider — all available providers with model catalogs."""
+        client = await self._get_client()
+        resp = await client.get("/provider")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_configured_providers(self) -> dict:
+        """GET /config/providers — configured providers with defaults."""
+        client = await self._get_client()
+        resp = await client.get("/config/providers")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_provider_auth(self) -> dict:
+        """GET /provider/auth — which providers have valid credentials."""
+        client = await self._get_client()
+        resp = await client.get("/provider/auth")
+        resp.raise_for_status()
+        return resp.json()
+
+    # --- Auth ---
+
+    async def set_auth(self, provider_id: str, auth: dict) -> bool:
+        """PUT /auth/{provider_id} — set API key or credentials at runtime."""
+        client = await self._get_client()
+        resp = await client.put(f"/auth/{provider_id}", json=auth)
+        resp.raise_for_status()
+        return resp.json()
+
 
 # Singleton instance
 opencode_client = OpenCodeClient()

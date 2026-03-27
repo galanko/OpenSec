@@ -4,16 +4,6 @@ Tracked problems to fix in focused sessions. Remove items once resolved.
 
 ---
 
-### OpenCode server requires full restart to pick up config changes
-
-**Impact:** Changing the model in `opencode.json` requires killing and restarting the entire backend (OpenCode + FastAPI). Hot-reload doesn't propagate config changes to the running OpenCode subprocess.
-
-**Workaround:** Kill all processes and run `scripts/dev.sh` again.
-
-**Fix idea:** Add an API endpoint that restarts the OpenCode subprocess, or use OpenCode's config API to push changes at runtime.
-
----
-
 ### SSE stream uses global event bus — no per-session filtering at source
 
 **Impact:** The OpenCode `/event` endpoint is a global stream. Our backend filters by `sessionID`, but still receives all events for all sessions. With many concurrent sessions this could become a bottleneck.
@@ -31,16 +21,6 @@ Tracked problems to fix in focused sessions. Remove items once resolved.
 **Workaround:** Restart OpenCode to clear sessions.
 
 **Fix idea:** Add session delete API. Add session age/limit management.
-
----
-
-### No error shown when ANTHROPIC_API_KEY or other provider keys are missing
-
-**Impact:** If the configured model's provider has no API key, the error only appears after sending the first message ("Model not found"). The UI should warn at startup.
-
-**Workaround:** Check the status bar — if the model shows but messages fail, you likely need to set the provider's API key.
-
-**Fix idea:** Call OpenCode's `/provider` endpoint on startup to verify the configured model's provider has valid credentials. Show a warning banner if not.
 
 ---
 
@@ -81,3 +61,33 @@ Tracked problems to fix in focused sessions. Remove items once resolved.
 **Workaround:** Always use the full qualified model ID.
 
 **Fix idea:** Document this clearly. Validate the model format in our config loader. Future Settings page should show a dropdown of available models.
+
+---
+
+### opencode.json can drift from runtime config
+
+**Impact:** Model changes made via the Settings UI update OpenCode at runtime via `PUT /config`, but `opencode.json` must also be updated separately. If the write to the file fails silently, the next OpenCode restart will revert to the old model.
+
+**Workaround:** ConfigManager writes to both the API and the file, but check `opencode.json` if the model reverts after a restart.
+
+**Fix idea:** Add a startup check that compares `opencode.json` with the model stored in `app_setting` and reconciles if they differ.
+
+---
+
+### API keys set via Settings are lost on OpenCode restart
+
+**Impact:** Keys set via `PUT /auth/{id}` only live in the OpenCode process memory. If OpenCode restarts (crash, deploy, manual restart), all keys are forgotten until our backend re-injects them.
+
+**Workaround:** Keys are persisted in the `app_setting` table and re-injected on startup via `restore_keys_to_engine()`. If keys stop working after a crash, restart the backend.
+
+**Fix idea:** Add a health-check hook that detects when OpenCode has restarted and automatically re-injects stored keys.
+
+---
+
+### Provider catalog may overwhelm the Settings UI
+
+**Impact:** OpenCode supports 75+ providers. Showing all of them in the model selector or API key list can be noisy and hard to navigate.
+
+**Workaround:** The UI shows providers with valid auth first, then a "show all" toggle for the rest.
+
+**Fix idea:** Add a "favorites" or "pinned providers" feature so users can curate which providers appear by default.
