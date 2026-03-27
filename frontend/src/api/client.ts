@@ -140,6 +140,60 @@ export interface SidebarState {
 }
 
 // ---------------------------------------------------------------------------
+// Settings types
+// ---------------------------------------------------------------------------
+
+export interface ModelConfig {
+  model_full_id: string;
+  provider: string;
+  model_id: string;
+}
+
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  env: string[];
+  models: Record<string, {
+    id: string;
+    name: string;
+    release_date?: string;
+    reasoning?: boolean;
+    tool_call?: boolean;
+    temperature?: boolean;
+    attachment?: boolean;
+  }>;
+}
+
+export interface ApiKeyInfo {
+  provider: string;
+  key_masked: string;
+  has_credentials: boolean;
+  updated_at: string | null;
+}
+
+export interface IntegrationConfigItem {
+  id: string;
+  adapter_type: string;
+  provider_name: string;
+  enabled: boolean;
+  config: Record<string, unknown> | null;
+  last_test_result: Record<string, unknown> | null;
+  updated_at: string;
+}
+
+export interface IntegrationConfigCreate {
+  adapter_type: string;
+  provider_name: string;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+export interface IntegrationConfigUpdate {
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
@@ -277,4 +331,45 @@ export const api = {
   // Delete (for cleanup)
   deleteFinding: (id: string) =>
     requestVoid(`/api/findings/${id}`, { method: 'DELETE' }),
+
+  // Settings — Model
+  getModelConfig: () => request<ModelConfig>('/api/settings/model'),
+  updateModel: (model_full_id: string) =>
+    request<ModelConfig>('/api/settings/model', {
+      method: 'PUT',
+      body: JSON.stringify({ model_full_id }),
+    }),
+
+  // Settings — Providers
+  listProviders: () => request<ProviderInfo[]>('/api/settings/providers'),
+  getConfiguredProviders: () =>
+    request<{ providers: unknown; auth: Record<string, unknown[]> }>(
+      '/api/settings/providers/configured',
+    ),
+
+  // Settings — API Keys
+  listApiKeys: () => request<ApiKeyInfo[]>('/api/settings/api-keys'),
+  setApiKey: (provider: string, key: string) =>
+    request<ApiKeyInfo>(`/api/settings/api-keys/${provider}`, {
+      method: 'PUT',
+      body: JSON.stringify({ provider, key }),
+    }),
+  deleteApiKey: (provider: string) =>
+    requestVoid(`/api/settings/api-keys/${provider}`, { method: 'DELETE' }),
+
+  // Settings — Integrations
+  listIntegrations: () =>
+    request<IntegrationConfigItem[]>('/api/settings/integrations'),
+  createIntegration: (data: IntegrationConfigCreate) =>
+    request<IntegrationConfigItem>('/api/settings/integrations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateIntegration: (id: string, data: IntegrationConfigUpdate) =>
+    request<IntegrationConfigItem>(`/api/settings/integrations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteIntegration: (id: string) =>
+    requestVoid(`/api/settings/integrations/${id}`, { method: 'DELETE' }),
 };

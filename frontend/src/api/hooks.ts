@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from './client'
-import type { AgentRunCreate, AgentRunUpdate, MessageCreate, WorkspaceCreate } from './client'
+import type {
+  AgentRunCreate,
+  AgentRunUpdate,
+  IntegrationConfigCreate,
+  IntegrationConfigUpdate,
+  MessageCreate,
+  WorkspaceCreate,
+} from './client'
 
 // ---------------------------------------------------------------------------
 // Health (Phase 1)
@@ -147,5 +154,122 @@ export function useSidebar(workspaceId: string | undefined) {
     queryFn: () => api.getSidebar(workspaceId!),
     enabled: !!workspaceId,
     retry: false,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Settings — Model (Settings overhaul)
+// ---------------------------------------------------------------------------
+
+export function useModelConfig() {
+  return useQuery({
+    queryKey: ['model-config'],
+    queryFn: () => api.getModelConfig(),
+  })
+}
+
+export function useUpdateModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (model_full_id: string) => api.updateModel(model_full_id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['model-config'] })
+      qc.invalidateQueries({ queryKey: ['health'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Settings — Providers
+// ---------------------------------------------------------------------------
+
+export function useProviders() {
+  return useQuery({
+    queryKey: ['providers'],
+    queryFn: () => api.listProviders(),
+  })
+}
+
+export function useConfiguredProviders() {
+  return useQuery({
+    queryKey: ['configured-providers'],
+    queryFn: () => api.getConfiguredProviders(),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Settings — API Keys
+// ---------------------------------------------------------------------------
+
+export function useApiKeys() {
+  return useQuery({
+    queryKey: ['api-keys'],
+    queryFn: () => api.listApiKeys(),
+  })
+}
+
+export function useSetApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ provider, key }: { provider: string; key: string }) =>
+      api.setApiKey(provider, key),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['api-keys'] })
+      qc.invalidateQueries({ queryKey: ['configured-providers'] })
+      qc.invalidateQueries({ queryKey: ['health'] })
+    },
+  })
+}
+
+export function useDeleteApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (provider: string) => api.deleteApiKey(provider),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['api-keys'] })
+      qc.invalidateQueries({ queryKey: ['configured-providers'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Settings — Integrations
+// ---------------------------------------------------------------------------
+
+export function useIntegrations() {
+  return useQuery({
+    queryKey: ['integrations'],
+    queryFn: () => api.listIntegrations(),
+  })
+}
+
+export function useCreateIntegration() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: IntegrationConfigCreate) => api.createIntegration(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations'] })
+    },
+  })
+}
+
+export function useUpdateIntegration() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: IntegrationConfigUpdate }) =>
+      api.updateIntegration(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations'] })
+    },
+  })
+}
+
+export function useDeleteIntegration() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => api.deleteIntegration(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations'] })
+    },
   })
 }

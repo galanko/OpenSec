@@ -23,9 +23,14 @@ from opensec.api.routes import (
     sidebar,
     workspaces,
 )
+from opensec.api.routes import (
+    settings as settings_routes,
+)
 from opensec.config import settings
+from opensec.db import connection as db_connection
 from opensec.db.connection import close_db, init_db
 from opensec.engine.client import opencode_client
+from opensec.engine.config_manager import config_manager
 from opensec.engine.process import opencode_process
 
 if TYPE_CHECKING:
@@ -48,6 +53,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start AI engine (non-fatal if unavailable).
     try:
         await opencode_process.start()
+        # Restore stored API keys and reconcile model config.
+        try:
+            if db_connection._db is not None:
+                await config_manager.reconcile_model(db_connection._db)
+                await config_manager.restore_keys_to_engine(db_connection._db)
+        except Exception:
+            logger.warning("Could not restore settings to OpenCode engine")
     except Exception:
         logger.exception("Failed to start OpenCode — app will run but engine is unavailable")
     yield
@@ -83,6 +95,7 @@ app.include_router(messages.router, prefix="/api")
 app.include_router(agent_runs.router, prefix="/api")
 app.include_router(sidebar.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
+app.include_router(settings_routes.router, prefix="/api")
 
 # Serve built frontend in production (when OPENSEC_STATIC_DIR is set)
 _static_dir = Path(settings.static_dir) if settings.static_dir else None

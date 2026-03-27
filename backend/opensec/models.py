@@ -232,3 +232,49 @@ class IntegrationConfig(BaseModel):
     config: dict[str, Any] | None = None
     last_test_result: dict[str, Any] | None = None
     updated_at: datetime
+
+
+class IntegrationConfigCreate(BaseModel):
+    adapter_type: str
+    provider_name: str
+    enabled: bool = True
+    config: dict[str, Any] | None = None
+
+
+class IntegrationConfigUpdate(BaseModel):
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Settings API request/response models
+# ---------------------------------------------------------------------------
+
+
+class ModelUpdateRequest(BaseModel):
+    model_full_id: str
+
+
+class ApiKeyCreate(BaseModel):
+    provider: str
+    key: str
+
+
+class ApiKeyResponse(BaseModel):
+    provider: str
+    key_masked: str
+    has_credentials: bool = True
+    updated_at: datetime | None = None
+
+
+class ProviderInfo(BaseModel):
+    id: str
+    name: str
+    env: list[str] = []
+    models: dict[str, Any] = {}
+
+
+class ModelConfig(BaseModel):
+    model_full_id: str
+    provider: str = ""
+    model_id: str = ""

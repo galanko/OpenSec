@@ -68,11 +68,18 @@ def app_client(opencode_server):
 
     Each test gets a fresh TestClient to avoid connection pool issues.
     """
+    from opensec.db.connection import close_db, init_db
     from opensec.engine.client import OpenCodeClient
     from opensec.main import app
 
     # Skip lifespan — OpenCode is already running via session fixture
     app.router.lifespan_context = _noop_lifespan
+
+    # Initialize in-memory DB for settings endpoints
+    loop = asyncio.get_event_loop()
+    if loop.is_closed():
+        loop = asyncio.new_event_loop()
+    loop.run_until_complete(init_db(":memory:"))
 
     # Reset the singleton client to avoid stale connections
     import opensec.api.routes.chat as chat_mod
@@ -84,3 +91,5 @@ def app_client(opencode_server):
 
     with TestClient(app) as client:
         yield client
+
+    loop.run_until_complete(close_db())
