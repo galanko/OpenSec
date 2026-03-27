@@ -46,7 +46,7 @@ export default function IntegrationSettings() {
   }
 
   return (
-    <section className="scroll-mt-24" id="integrations">
+    <section id="integrations">
       <div className="mb-8">
         <h2 className="text-2xl font-bold tracking-tight text-on-surface mb-2">
           Integrations
