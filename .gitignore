@@ -241,5 +241,8 @@ Thumbs.db
 .claude-flow/
 .mcp.json
 
+# Runtime config artifacts
+config.json
+
 # Data directory
 data/
