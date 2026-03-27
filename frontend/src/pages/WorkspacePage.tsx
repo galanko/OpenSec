@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
+import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
 import Markdown from '@/components/Markdown'
 import SeverityBadge from '@/components/SeverityBadge'
@@ -24,10 +25,7 @@ function WorkspaceCard({ ws, onClick }: { ws: { id: string; finding_id: string; 
   const { data: finding } = useFinding(ws.finding_id)
 
   return (
-    <button
-      onClick={onClick}
-      className="w-full text-left bg-surface-container-lowest rounded-xl p-5 hover:shadow-lg hover:border-primary/5 border border-transparent transition-all flex items-center gap-4"
-    >
+    <div className="bg-surface-container-lowest rounded-xl p-5 hover:shadow-md hover:border-primary/5 border border-transparent transition-all flex items-center gap-4">
       <div className="p-2 bg-primary-container rounded-lg">
         <span className="material-symbols-outlined text-primary text-sm">terminal</span>
       </div>
@@ -49,8 +47,8 @@ function WorkspaceCard({ ws, onClick }: { ws: { id: string; finding_id: string; 
           )}
         </div>
       </div>
-      <span className="text-xs font-medium text-primary">{ws.state}</span>
-    </button>
+      <ActionButton label="Continue" icon="login" onClick={onClick} />
+    </div>
   )
 }
 

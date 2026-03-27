@@ -1,4 +1,5 @@
-import type { Finding, Workspace } from '@/api/client'
+import type { Finding } from '@/api/client'
+import ActionButton from './ActionButton'
 import SeverityBadge, { SeverityIcon } from './SeverityBadge'
 
 const statusDisplay: Record<string, { label: string; dot: string }> = {
@@ -14,13 +15,11 @@ const statusDisplay: Record<string, { label: string; dot: string }> = {
 interface FindingRowProps {
   finding: Finding
   onSolve: (finding: Finding) => void
-  existingWorkspace?: Workspace
   disabled?: boolean
 }
 
-export default function FindingRow({ finding, onSolve, existingWorkspace, disabled }: FindingRowProps) {
+export default function FindingRow({ finding, onSolve, disabled }: FindingRowProps) {
   const status = statusDisplay[finding.status] ?? statusDisplay.new
-  const isBlocked = finding.status === 'closed' || finding.status === 'exception'
 
   function timeAgo(dateStr: string): string {
     const diff = Date.now() - new Date(dateStr).getTime()
@@ -32,11 +31,7 @@ export default function FindingRow({ finding, onSolve, existingWorkspace, disabl
   }
 
   return (
-    <div
-      className={`group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/40 border border-transparent hover:border-primary/5 flex flex-col md:flex-row md:items-center gap-6 ${
-        isBlocked ? 'opacity-75 grayscale-[0.5]' : ''
-      }`}
-    >
+    <div className="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/40 border border-transparent hover:border-primary/5 flex flex-col md:flex-row md:items-center gap-6">
       <div className="flex-shrink-0">
         <SeverityIcon severity={finding.raw_severity} />
       </div>
@@ -87,31 +82,12 @@ export default function FindingRow({ finding, onSolve, existingWorkspace, disabl
             {status.label}
           </span>
         </div>
-        {isBlocked ? (
-          <button
-            disabled
-            className="bg-surface-container-highest text-on-surface-variant px-8 py-2.5 rounded-lg font-bold cursor-not-allowed"
-          >
-            Solved
-          </button>
-        ) : existingWorkspace ? (
-          <button
-            onClick={() => onSolve(finding)}
-            disabled={disabled}
-            className="flex items-center gap-2 bg-secondary-container text-on-secondary-container px-6 py-2.5 rounded-lg font-bold transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50"
-          >
-            <span className="material-symbols-outlined text-sm">login</span>
-            Continue
-          </button>
-        ) : (
-          <button
-            onClick={() => onSolve(finding)}
-            disabled={disabled}
-            className="bg-primary hover:bg-primary-dim text-white px-8 py-2.5 rounded-lg font-bold transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50"
-          >
-            Solve
-          </button>
-        )}
+        <ActionButton
+          label="Solve"
+          icon="play_arrow"
+          onClick={() => onSolve(finding)}
+          disabled={disabled}
+        />
       </div>
     </div>
   )

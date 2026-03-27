@@ -109,3 +109,27 @@ async def test_pagination(db_client, finding_payload):
 
     resp = await db_client.get("/api/findings", params={"limit": 2, "offset": 4})
     assert len(resp.json()) == 1
+
+
+async def test_filter_has_workspace(db_client, finding_payload):
+    # Create two findings.
+    r1 = await db_client.post("/api/findings", json=finding_payload)
+    r2 = await db_client.post(
+        "/api/findings", json={**finding_payload, "source_id": "vuln-002"}
+    )
+    f1_id = r1.json()["id"]
+
+    # Create a workspace for finding 1 only.
+    await db_client.post("/api/workspaces", json={"finding_id": f1_id})
+
+    # has_workspace=true → only finding 1
+    resp = await db_client.get("/api/findings", params={"has_workspace": "true"})
+    ids = {f["id"] for f in resp.json()}
+    assert f1_id in ids
+    assert r2.json()["id"] not in ids
+
+    # has_workspace=false → only finding 2
+    resp = await db_client.get("/api/findings", params={"has_workspace": "false"})
+    ids = {f["id"] for f in resp.json()}
+    assert r2.json()["id"] in ids
+    assert f1_id not in ids

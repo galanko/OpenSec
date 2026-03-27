@@ -25,11 +25,14 @@ async def create_finding_endpoint(body: FindingCreate, db=Depends(get_db)):
 @router.get("/findings", response_model=list[Finding])
 async def list_findings_endpoint(
     status: str | None = None,
+    has_workspace: bool | None = None,
     limit: int = 100,
     offset: int = 0,
     db=Depends(get_db),
 ):
-    return await list_findings(db, status=status, limit=limit, offset=offset)
+    return await list_findings(
+        db, status=status, has_workspace=has_workspace, limit=limit, offset=offset,
+    )
 
 
 @router.get("/findings/{finding_id}", response_model=Finding)

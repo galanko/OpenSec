@@ -76,19 +76,33 @@ async def list_findings(
     db: aiosqlite.Connection,
     *,
     status: str | None = None,
+    has_workspace: bool | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[Finding]:
+    conditions: list[str] = []
+    params: list[str | int] = []
+
     if status:
-        cursor = await db.execute(
-            "SELECT * FROM finding WHERE status = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
-            (status, limit, offset),
+        conditions.append("f.status = ?")
+        params.append(status)
+
+    if has_workspace is True:
+        conditions.append(
+            "EXISTS (SELECT 1 FROM workspace w WHERE w.finding_id = f.id)"
         )
-    else:
-        cursor = await db.execute(
-            "SELECT * FROM finding ORDER BY updated_at DESC LIMIT ? OFFSET ?",
-            (limit, offset),
+    elif has_workspace is False:
+        conditions.append(
+            "NOT EXISTS (SELECT 1 FROM workspace w WHERE w.finding_id = f.id)"
         )
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.extend([limit, offset])
+    cursor = await db.execute(
+        f"SELECT f.* FROM finding f {where}"  # noqa: S608
+        " ORDER BY f.updated_at DESC LIMIT ? OFFSET ?",
+        params,
+    )
     return [_row_to_finding(row) for row in await cursor.fetchall()]
 
 

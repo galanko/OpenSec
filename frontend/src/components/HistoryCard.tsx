@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router'
 import type { Workspace } from '@/api/client'
 import { useAgentRuns, useFinding } from '@/api/hooks'
+import ActionButton from './ActionButton'
 
 const stateStyles: Record<string, { label: string; classes: string }> = {
   open: { label: 'Open', classes: 'text-primary bg-primary/10 border border-primary/20' },
@@ -51,14 +52,11 @@ export default function HistoryCard({ workspace, onExport }: HistoryCardProps) {
 
   return (
     <div className="bg-surface-container-lowest rounded-xl border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 p-5 flex flex-col md:flex-row md:items-center gap-4">
-      {/* Finding context */}
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          {/* Status badge — prominent */}
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md ${state.classes}`}>
             {state.label}
           </span>
-          {/* Severity — subtle */}
           {finding?.raw_severity && (
             <span className={`text-[10px] font-medium uppercase tracking-wider ${severityColor}`}>
               {finding.raw_severity}
@@ -91,8 +89,6 @@ export default function HistoryCard({ workspace, onExport }: HistoryCardProps) {
             </span>
           )}
         </div>
-
-        {/* Agent pills */}
         {agentTypes.length > 0 && (
           <div className="flex items-center gap-1 mt-2">
             {agentTypes.map((type) => (
@@ -107,22 +103,13 @@ export default function HistoryCard({ workspace, onExport }: HistoryCardProps) {
         )}
       </div>
 
-      {/* Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          onClick={onExport}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant/30 text-xs font-medium rounded-lg hover:bg-surface-container transition-colors"
-        >
-          <span className="material-symbols-outlined text-sm">download</span>
-          Export
-        </button>
-        <button
+        <ActionButton label="Export" icon="download" variant="outline" onClick={onExport} />
+        <ActionButton
+          label="View"
+          icon="visibility"
           onClick={() => navigate(`/workspace/${workspace.id}`)}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-primary hover:bg-primary-dim text-white text-xs font-bold rounded-lg transition-all shadow-sm"
-        >
-          <span className="material-symbols-outlined text-sm">visibility</span>
-          View
-        </button>
+        />
       </div>
     </div>
   )

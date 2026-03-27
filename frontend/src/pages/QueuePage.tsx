@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
-import { useFindings, useWorkspaces } from '@/api/hooks'
+import { useFindings } from '@/api/hooks'
 import FindingRow from '@/components/FindingRow'
 
 const STATUS_OPTIONS = [
@@ -9,9 +9,6 @@ const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
   { value: 'triaged', label: 'Triaged' },
   { value: 'in_progress', label: 'In progress' },
-  { value: 'remediated', label: 'Remediated' },
-  { value: 'validated', label: 'Validated' },
-  { value: 'closed', label: 'Closed' },
 ]
 
 const SORT_OPTIONS = [
@@ -32,17 +29,11 @@ export default function QueuePage() {
   const [solving, setSolving] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  const { data: findings, isLoading, refetch } = useFindings(
-    statusFilter ? { status: statusFilter } : undefined,
-  )
+  // Only fetch findings that don't have a workspace yet.
+  const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
+  if (statusFilter) params.status = statusFilter
 
-  // Load all workspaces to check which findings already have one.
-  const { data: workspaces } = useWorkspaces()
-
-  // Build a map: finding_id -> workspace
-  const workspaceByFinding = new Map(
-    (workspaces ?? []).map((ws) => [ws.finding_id, ws]),
-  )
+  const { data: findings, isLoading, refetch } = useFindings(params)
 
   // Auto-seed on first load if no findings exist.
   const [seeded, setSeeded] = useState(false)
@@ -65,20 +56,13 @@ export default function QueuePage() {
   const handleSolve = useCallback(async (finding: Finding) => {
     setSolving(finding.id)
     try {
-      // Check if a workspace already exists for this finding.
-      const existing = workspaceByFinding.get(finding.id)
-      if (existing) {
-        navigate(`/workspace/${existing.id}`)
-        return
-      }
-      // Create a new workspace.
       const workspace = await api.createWorkspace({ finding_id: finding.id })
       navigate(`/workspace/${workspace.id}`)
     } catch (err) {
       console.error('Failed to create workspace:', err)
       setSolving(null)
     }
-  }, [navigate, workspaceByFinding])
+  }, [navigate])
 
   return (
     <div className="p-8 lg:p-12">
@@ -90,8 +74,8 @@ export default function QueuePage() {
               Work queue
             </h1>
             <p className="text-on-surface-variant max-w-lg">
-              Prioritized security findings requiring immediate attention or
-              verification. Review and resolve to maintain infrastructure integrity.
+              Security findings waiting to be resolved. Pick one and start a
+              remediation workspace.
             </p>
           </div>
           <div className="flex items-center gap-x-3">
@@ -142,17 +126,11 @@ export default function QueuePage() {
                 assignment_late
               </span>
             </div>
-            <h2 className="text-xl font-bold text-on-surface mb-2">No findings yet</h2>
+            <h2 className="text-xl font-bold text-on-surface mb-2">Queue is clear</h2>
             <p className="text-on-surface-variant text-sm text-center max-w-md mb-8">
-              Connect a vulnerability scanner in Integrations to start importing
-              findings, or wait for your first scan results.
+              All findings are being worked on. Check Workspaces for active
+              remediations or History for completed ones.
             </p>
-            <a
-              href="/integrations"
-              className="bg-primary hover:bg-primary-dim text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-95"
-            >
-              Connect a scanner
-            </a>
           </div>
         ) : (
           <div className="space-y-4">
@@ -161,7 +139,6 @@ export default function QueuePage() {
                 key={finding.id}
                 finding={finding}
                 onSolve={handleSolve}
-                existingWorkspace={workspaceByFinding.get(finding.id)}
                 disabled={solving === finding.id}
               />
             ))}

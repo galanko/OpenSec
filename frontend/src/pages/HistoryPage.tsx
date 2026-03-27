@@ -5,8 +5,6 @@ import HistoryCard from '@/components/HistoryCard'
 import { generateExportMarkdown } from '@/components/HistoryDetail'
 
 const STATE_TABS = [
-  { value: '', label: 'All' },
-  { value: 'open', label: 'Open' },
   { value: 'closed', label: 'Closed' },
   { value: 'ready_to_close', label: 'Ready to close' },
 ]
@@ -17,12 +15,12 @@ const SORT_OPTIONS = [
 ]
 
 export default function HistoryPage() {
-  const [stateFilter, setStateFilter] = useState('')
+  const [stateFilter, setStateFilter] = useState('closed')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('newest')
 
   const { data: workspaces, isLoading } = useWorkspaces(
-    stateFilter ? { state: stateFilter } : undefined,
+    { state: stateFilter },
   )
 
   const sorted = useMemo(() => {
