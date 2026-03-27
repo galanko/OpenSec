@@ -129,6 +129,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
 
   // Chat state
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionModel, setSessionModel] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -157,6 +158,15 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           const detail = await api.getSession(storedSessionId)
           if (!cancelled) {
             setSessionId(detail.id)
+            // Use model from session messages if available, otherwise fall back to runtime.
+            if (detail.model) {
+              setSessionModel(detail.model)
+            } else {
+              try {
+                const mc = await api.getModelConfig()
+                if (mc.model_full_id) setSessionModel(mc.model_full_id)
+              } catch { /* non-critical */ }
+            }
             // Load existing chat history from OpenCode.
             const history: ChatMessage[] = detail.messages
               .filter((m) => m.content.trim())
@@ -176,6 +186,11 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       const session = await api.createSession()
       if (!cancelled) {
         setSessionId(session.id)
+        // Capture the runtime model at session creation time.
+        try {
+          const mc = await api.getModelConfig()
+          if (mc.model_full_id) setSessionModel(mc.model_full_id)
+        } catch { /* non-critical */ }
         // Store the session ID on the workspace for future reconnection.
         api.updateWorkspace(workspaceId, { current_focus: session.id } as Parameters<typeof api.updateWorkspace>[1]).catch(console.error)
       }
@@ -273,7 +288,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   return (
     <div className={`flex flex-col h-[calc(100vh-4rem)] ${isResolved ? 'opacity-80' : ''}`}>
       {/* Top bar with finding context */}
-      <FindingHeader finding={finding} workspaceId={workspaceId} workspaceState={workspace?.state} />
+      <FindingHeader finding={finding} workspaceId={workspaceId} workspaceState={workspace?.state} sessionModel={sessionModel} />
 
       {/* Resolved banner */}
       {isResolved && (
@@ -422,10 +437,12 @@ function FindingHeader({
   finding,
   workspaceId,
   workspaceState,
+  sessionModel,
 }: {
   finding: Finding | undefined
   workspaceId: string
   workspaceState: string | undefined
+  sessionModel: string | null
 }) {
   const navigate = useNavigate()
   const [resolving, setResolving] = useState(false)
@@ -465,6 +482,12 @@ function FindingHeader({
             {finding?.likely_owner && (
               <span className="text-xs text-on-surface-variant">
                 Owner: <span className="text-on-surface font-medium">{finding.likely_owner}</span>
+              </span>
+            )}
+            {sessionModel && (
+              <span className="text-xs text-on-surface-variant flex items-center gap-1">
+                <span className="material-symbols-outlined text-[13px]">neurology</span>
+                <span className="font-mono text-on-surface">{sessionModel}</span>
               </span>
             )}
           </div>

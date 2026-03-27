@@ -308,6 +308,11 @@ export default function ProviderSettings() {
               {(updateModel.error as Error)?.message || 'Failed to update model'}
             </p>
           )}
+
+          <p className="text-[11px] text-on-surface-variant/60 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[12px]">info</span>
+            Model changes apply to new workspaces. Existing workspaces keep their original model.
+          </p>
         </div>
 
         {/* ── Search for different provider / model ── */}

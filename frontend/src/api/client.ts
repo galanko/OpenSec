@@ -13,6 +13,7 @@ export interface SessionSummary {
 
 export interface SessionDetail extends SessionSummary {
   messages: MessageInfo[];
+  model?: string;
 }
 
 export interface MessageInfo {

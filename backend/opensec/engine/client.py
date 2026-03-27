@@ -78,6 +78,7 @@ class OpenCodeClient:
 
         # Fetch messages from the separate /message endpoint.
         messages: list[MessageInfo] = []
+        session_model = ""
         try:
             msg_resp = await client.get(f"/session/{session_id}/message")
             msg_resp.raise_for_status()
@@ -87,6 +88,22 @@ class OpenCodeClient:
                     info = m.get("info", m)
                     role = info.get("role", "")
                     msg_id = info.get("id", "")
+
+                    # Extract model from message metadata.
+                    if not session_model:
+                        if role == "assistant":
+                            provider_id = info.get("providerID", "")
+                            model_id = info.get("modelID", "")
+                            if provider_id and model_id:
+                                session_model = f"{provider_id}/{model_id}"
+                        elif role == "user":
+                            model_info = info.get("model", {})
+                            if isinstance(model_info, dict):
+                                provider_id = model_info.get("providerID", "")
+                                model_id = model_info.get("modelID", "")
+                                if provider_id and model_id:
+                                    session_model = f"{provider_id}/{model_id}"
+
                     # Extract text from parts array.
                     parts = m.get("parts", [])
                     text_parts = [
@@ -110,6 +127,7 @@ class OpenCodeClient:
             id=data.get("id", data.get("sessionID", session_id)),
             created_at=data.get("created_at"),
             messages=messages,
+            model=session_model,
         )
 
     # --- Messages ---
