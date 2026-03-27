@@ -2,7 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useFindings } from '@/api/hooks'
+import EmptyState from '@/components/EmptyState'
 import FindingRow from '@/components/FindingRow'
+import PageShell from '@/components/PageShell'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -17,10 +19,7 @@ const SORT_OPTIONS = [
 ]
 
 const SEVERITY_ORDER: Record<string, number> = {
-  critical: 0,
-  high: 1,
-  medium: 2,
-  low: 3,
+  critical: 0, high: 1, medium: 2, low: 3,
 }
 
 export default function QueuePage() {
@@ -29,13 +28,11 @@ export default function QueuePage() {
   const [solving, setSolving] = useState<string | null>(null)
   const navigate = useNavigate()
 
-  // Only fetch findings that don't have a workspace yet.
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
   if (statusFilter) params.status = statusFilter
 
   const { data: findings, isLoading, refetch } = useFindings(params)
 
-  // Auto-seed on first load if no findings exist.
   const [seeded, setSeeded] = useState(false)
   useEffect(() => {
     if (!isLoading && findings && findings.length === 0 && !seeded) {
@@ -64,87 +61,67 @@ export default function QueuePage() {
     }
   }, [navigate])
 
-  return (
-    <div className="p-8 lg:p-12">
-      <div className="max-w-6xl mx-auto">
-        {/* Page header */}
-        <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-tight text-on-surface mb-2">
-              Work queue
-            </h1>
-            <p className="text-on-surface-variant max-w-lg">
-              Security findings waiting to be resolved. Pick one and start a
-              remediation workspace.
-            </p>
-          </div>
-          <div className="flex items-center gap-x-3">
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
-                filter_list
-              </span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors shadow-sm"
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
-                sort
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors shadow-sm"
-              >
-                {SORT_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Finding list */}
-        {isLoading ? (
-          <div className="flex justify-center py-24">
-            <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24">
-            <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-6">
-              <span className="material-symbols-outlined text-3xl text-on-surface-variant">
-                assignment_late
-              </span>
-            </div>
-            <h2 className="text-xl font-bold text-on-surface mb-2">Queue is clear</h2>
-            <p className="text-on-surface-variant text-sm text-center max-w-md mb-8">
-              All findings are being worked on. Check Workspaces for active
-              remediations or History for completed ones.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {sorted.map((finding) => (
-              <FindingRow
-                key={finding.id}
-                finding={finding}
-                onSolve={handleSolve}
-                disabled={solving === finding.id}
-              />
-            ))}
-          </div>
-        )}
+  const filterActions = (
+    <>
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
+          filter_list
+        </span>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors shadow-sm"
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
       </div>
-    </div>
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
+          sort
+        </span>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value)}
+          className="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors shadow-sm"
+        >
+          {SORT_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+    </>
+  )
+
+  return (
+    <PageShell
+      title="Work queue"
+      subtitle="Security findings waiting to be resolved. Pick one and start a remediation workspace."
+      actions={filterActions}
+    >
+      {isLoading ? (
+        <div className="flex justify-center py-24">
+          <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      ) : sorted.length === 0 ? (
+        <EmptyState
+          icon="assignment_late"
+          title="Queue is clear"
+          subtitle="All findings are being worked on. Check Workspaces for active remediations or History for completed ones."
+        />
+      ) : (
+        <div className="space-y-3">
+          {sorted.map((finding) => (
+            <FindingRow
+              key={finding.id}
+              finding={finding}
+              onSolve={handleSolve}
+              disabled={solving === finding.id}
+            />
+          ))}
+        </div>
+      )}
+    </PageShell>
   )
 }

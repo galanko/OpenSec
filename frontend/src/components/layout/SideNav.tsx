@@ -8,9 +8,9 @@ const navItems = [
 
 export default function SideNav() {
   return (
-    <aside className="fixed left-0 top-0 h-full w-20 border-r border-slate-200/50 bg-slate-50 flex flex-col items-center py-8 gap-y-6 z-50">
+    <aside className="fixed left-0 top-0 h-full w-20 border-r border-outline-variant/20 bg-surface-container-low flex flex-col items-center py-8 gap-y-6 z-50">
       <div className="mb-4">
-        <span className="text-xl font-bold text-slate-900 tracking-tighter">O</span>
+        <span className="text-xl font-bold text-on-surface tracking-tighter">O</span>
       </div>
       <nav className="flex flex-col items-center gap-y-4 w-full">
         {navItems.map((item) => (
@@ -20,8 +20,8 @@ export default function SideNav() {
             title={item.title}
             className={({ isActive }) =>
               isActive
-                ? 'p-3 rounded-xl text-indigo-600 border-r-2 border-indigo-600 bg-indigo-50/50 transition-all duration-200 scale-95'
-                : 'p-3 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-200'
+                ? 'p-3 rounded-xl text-primary border-r-2 border-primary bg-primary-container/30 transition-all duration-200 scale-95'
+                : 'p-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all duration-200'
             }
           >
             <span className="material-symbols-outlined">{item.icon}</span>
@@ -34,8 +34,8 @@ export default function SideNav() {
           title="Settings"
           className={({ isActive }) =>
             isActive
-              ? 'p-3 rounded-xl text-indigo-600 border-r-2 border-indigo-600 bg-indigo-50/50 transition-all duration-200'
-              : 'p-3 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-200'
+              ? 'p-3 rounded-xl text-primary border-r-2 border-primary bg-primary-container/30 transition-all duration-200'
+              : 'p-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all duration-200'
           }
         >
           <span className="material-symbols-outlined">settings</span>

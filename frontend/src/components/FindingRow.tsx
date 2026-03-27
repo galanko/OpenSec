@@ -1,5 +1,6 @@
 import type { Finding } from '@/api/client'
 import ActionButton from './ActionButton'
+import ListCard from './ListCard'
 import SeverityBadge, { SeverityIcon } from './SeverityBadge'
 
 const statusDisplay: Record<string, { label: string; dot: string }> = {
@@ -31,7 +32,7 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
   }
 
   return (
-    <div className="group relative bg-surface-container-lowest rounded-xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-slate-200/40 border border-transparent hover:border-primary/5 flex flex-col md:flex-row md:items-center gap-6">
+    <ListCard>
       <div className="flex-shrink-0">
         <SeverityIcon severity={finding.raw_severity} />
       </div>
@@ -47,7 +48,7 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
             {timeAgo(finding.updated_at)}
           </span>
         </div>
-        <h3 className="text-lg font-bold text-on-surface truncate mb-1">
+        <h3 className="text-base font-bold text-on-surface truncate mb-1">
           {finding.title}
         </h3>
         <div className="flex flex-wrap items-center gap-x-4 text-sm text-on-surface-variant">
@@ -72,7 +73,7 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
         </div>
       </div>
 
-      <div className="flex items-center gap-x-6 flex-shrink-0">
+      <div className="flex items-center gap-x-4 flex-shrink-0">
         <div className="text-right hidden lg:block">
           <span className="block text-xs font-medium text-outline-variant mb-1">
             Status
@@ -89,6 +90,6 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
           disabled={disabled}
         />
       </div>
-    </div>
+    </ListCard>
   )
 }

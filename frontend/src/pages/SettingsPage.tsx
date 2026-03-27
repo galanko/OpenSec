@@ -1,5 +1,6 @@
 import ProviderSettings from '@/components/settings/ProviderSettings'
 import IntegrationSettings from '@/components/settings/IntegrationSettings'
+import PageShell from '@/components/PageShell'
 
 const navSections = [
   { id: 'providers', icon: 'dns', label: 'Providers' },
@@ -9,8 +10,8 @@ const navSections = [
 
 export default function SettingsPage() {
   return (
-    <div className="p-8 lg:p-12">
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-12">
+    <PageShell title="Settings" subtitle="Configure providers, integrations, and preferences.">
+      <div className="flex flex-col md:flex-row gap-12">
         {/* Settings navigation — sticky */}
         <nav className="w-full md:w-64 flex-shrink-0 space-y-1 md:sticky md:top-24 md:self-start">
           {navSections.map((section) => (
@@ -50,6 +51,6 @@ export default function SettingsPage() {
           </section>
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

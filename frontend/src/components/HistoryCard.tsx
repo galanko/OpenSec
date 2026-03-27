@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router'
 import type { Workspace } from '@/api/client'
 import { useAgentRuns, useFinding } from '@/api/hooks'
 import ActionButton from './ActionButton'
+import ListCard from './ListCard'
 
 const stateStyles: Record<string, { label: string; classes: string }> = {
   open: { label: 'Open', classes: 'text-primary bg-primary/10 border border-primary/20' },
@@ -51,7 +52,7 @@ export default function HistoryCard({ workspace, onExport }: HistoryCardProps) {
   const severityColor = severityColors[(finding?.raw_severity ?? 'medium').toLowerCase()] ?? severityColors.medium
 
   return (
-    <div className="bg-surface-container-lowest rounded-xl border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 p-5 flex flex-col md:flex-row md:items-center gap-4">
+    <ListCard>
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md ${state.classes}`}>
@@ -111,6 +112,6 @@ export default function HistoryCard({ workspace, onExport }: HistoryCardProps) {
           onClick={() => navigate(`/workspace/${workspace.id}`)}
         />
       </div>
-    </div>
+    </ListCard>
   )
 }

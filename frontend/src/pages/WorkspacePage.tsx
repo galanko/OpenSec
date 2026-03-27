@@ -4,7 +4,10 @@ import { api, type Finding } from '@/api/client'
 import { useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
+import EmptyState from '@/components/EmptyState'
+import ListCard from '@/components/ListCard'
 import Markdown from '@/components/Markdown'
+import PageShell from '@/components/PageShell'
 import SeverityBadge from '@/components/SeverityBadge'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar'
 
@@ -25,12 +28,12 @@ function WorkspaceCard({ ws, onClick }: { ws: { id: string; finding_id: string; 
   const { data: finding } = useFinding(ws.finding_id)
 
   return (
-    <div className="bg-surface-container-lowest rounded-xl p-5 hover:shadow-md hover:border-primary/5 border border-transparent transition-all flex items-center gap-4">
-      <div className="p-2 bg-primary-container rounded-lg">
+    <ListCard>
+      <div className="p-2 bg-primary-container rounded-lg flex-shrink-0">
         <span className="material-symbols-outlined text-primary text-sm">terminal</span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-bold truncate">
+        <p className="text-base font-bold truncate">
           {finding?.title ?? 'Loading...'}
         </p>
         <div className="flex items-center gap-2 mt-1">
@@ -48,7 +51,7 @@ function WorkspaceCard({ ws, onClick }: { ws: { id: string; finding_id: string; 
         </div>
       </div>
       <ActionButton label="Continue" icon="login" onClick={onClick} />
-    </div>
+    </ListCard>
   )
 }
 
@@ -58,53 +61,39 @@ function WorkspaceLanding() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-        <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
-      </div>
+      <PageShell title="Workspaces" subtitle="Active remediation sessions.">
+        <div className="flex justify-center py-24">
+          <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      </PageShell>
     )
   }
 
   if (!workspaces || workspaces.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)] px-8">
-        <div className="w-16 h-16 rounded-full bg-primary-container flex items-center justify-center mb-6">
-          <span className="material-symbols-outlined text-3xl text-primary">auto_awesome</span>
-        </div>
-        <h2 className="text-2xl font-bold text-on-surface mb-2">Remediation workspace</h2>
-        <p className="text-on-surface-variant text-sm text-center max-w-md mb-8">
-          Open a finding from the Queue to start a remediation session, or pick up
-          where you left off from an existing workspace.
-        </p>
-        <button
-          onClick={() => navigate('/queue')}
-          className="bg-primary hover:bg-primary-dim text-white px-8 py-3 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20 active:scale-95"
-        >
-          Go to Queue
-        </button>
-      </div>
+      <PageShell title="Workspaces" subtitle="Active remediation sessions.">
+        <EmptyState
+          icon="terminal"
+          title="No active workspaces"
+          subtitle="Open a finding from the Queue to start a remediation session."
+          action={{ label: 'Go to Queue', onClick: () => navigate('/queue') }}
+        />
+      </PageShell>
     )
   }
 
   return (
-    <div className="p-8 lg:p-12">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-extrabold tracking-tight text-on-surface mb-2">
-          Open workspaces
-        </h1>
-        <p className="text-on-surface-variant mb-8">
-          Pick up where you left off.
-        </p>
-        <div className="space-y-3">
-          {workspaces.map((ws) => (
-            <WorkspaceCard
-              key={ws.id}
-              ws={ws}
-              onClick={() => navigate(`/workspace/${ws.id}`)}
-            />
-          ))}
-        </div>
+    <PageShell title="Workspaces" subtitle="Pick up where you left off.">
+      <div className="space-y-3">
+        {workspaces.map((ws) => (
+          <WorkspaceCard
+            key={ws.id}
+            ws={ws}
+            onClick={() => navigate(`/workspace/${ws.id}`)}
+          />
+        ))}
       </div>
-    </div>
+    </PageShell>
   )
 }
 
