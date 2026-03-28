@@ -3,7 +3,7 @@ import { api, type Workspace } from '@/api/client'
 import { useFinding, useWorkspaces } from '@/api/hooks'
 import EmptyState from '@/components/EmptyState'
 import HistoryCard from '@/components/HistoryCard'
-import { generateExportMarkdown } from '@/components/HistoryDetail'
+import { generateExportMarkdown } from '@/lib/export-markdown'
 import PageShell from '@/components/PageShell'
 
 const STATE_TABS = [

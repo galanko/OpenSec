@@ -30,7 +30,7 @@ export default function ProviderSettings() {
   const currentProviderId = currentModel.split('/')[0] || ''
   const currentModelId = currentModel.split('/').slice(1).join('/') || ''
 
-  const providerList = (providers || []) as ProviderInfo[]
+  const providerList = useMemo(() => (providers || []) as ProviderInfo[], [providers])
   const storedKeyMap = new Map((apiKeys || []).map((k) => [k.provider, k]))
 
   // Build a set of providers that have active credentials (from env vars or config)
