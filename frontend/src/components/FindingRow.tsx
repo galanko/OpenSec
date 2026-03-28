@@ -19,17 +19,17 @@ interface FindingRowProps {
   disabled?: boolean
 }
 
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const hours = Math.floor(diff / 3_600_000)
+  if (hours < 1) return 'Just now'
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return days === 1 ? 'Yesterday' : `${days}d ago`
+}
+
 export default function FindingRow({ finding, onSolve, disabled }: FindingRowProps) {
   const status = statusDisplay[finding.status] ?? statusDisplay.new
-
-  function timeAgo(dateStr: string): string {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const hours = Math.floor(diff / 3_600_000)
-    if (hours < 1) return 'Just now'
-    if (hours < 24) return `${hours}h ago`
-    const days = Math.floor(hours / 24)
-    return days === 1 ? 'Yesterday' : `${days}d ago`
-  }
 
   return (
     <ListCard>

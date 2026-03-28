@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useFindings } from '@/api/hooks'
@@ -33,13 +33,13 @@ export default function QueuePage() {
 
   const { data: findings, isLoading, refetch } = useFindings(params)
 
-  const [seeded, setSeeded] = useState(false)
+  const seededRef = useRef(false)
   useEffect(() => {
-    if (!isLoading && findings && findings.length === 0 && !seeded) {
-      setSeeded(true)
+    if (!isLoading && findings && findings.length === 0 && !seededRef.current) {
+      seededRef.current = true
       api.seed().then(() => refetch())
     }
-  }, [isLoading, findings, seeded, refetch])
+  }, [isLoading, findings, refetch])
 
   const sorted = [...(findings ?? [])].sort((a, b) => {
     if (sortBy === 'severity') {
