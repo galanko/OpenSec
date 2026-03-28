@@ -21,6 +21,8 @@ def _row_to_workspace(row: aiosqlite.Row) -> Workspace:
         active_plan_version=row["active_plan_version"],
         linked_ticket_id=row["linked_ticket_id"],
         validation_state=row["validation_state"],
+        workspace_dir=row["workspace_dir"],
+        context_version=row["context_version"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -104,3 +106,32 @@ async def delete_workspace(db: aiosqlite.Connection, workspace_id: str) -> bool:
     cursor = await db.execute("DELETE FROM workspace WHERE id = ?", (workspace_id,))
     await db.commit()
     return cursor.rowcount > 0
+
+
+async def update_workspace_dir(
+    db: aiosqlite.Connection, workspace_id: str, workspace_dir: str
+) -> None:
+    """Set the workspace_dir path. Called once after directory creation."""
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE workspace SET workspace_dir = ?, updated_at = ? WHERE id = ?",
+        (workspace_dir, now, workspace_id),
+    )
+    await db.commit()
+
+
+async def increment_context_version(
+    db: aiosqlite.Connection, workspace_id: str
+) -> int:
+    """Atomically increment context_version. Returns the new version."""
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE workspace SET context_version = context_version + 1, updated_at = ? WHERE id = ?",
+        (now, workspace_id),
+    )
+    await db.commit()
+    cursor = await db.execute(
+        "SELECT context_version FROM workspace WHERE id = ?", (workspace_id,)
+    )
+    row = await cursor.fetchone()
+    return row["context_version"] if row else 0
