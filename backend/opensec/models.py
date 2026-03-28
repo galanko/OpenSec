@@ -91,6 +91,8 @@ class Workspace(BaseModel):
     active_plan_version: int | None = None
     linked_ticket_id: str | None = None
     validation_state: str | None = None
+    workspace_dir: str | None = None
+    context_version: int = 0
     created_at: datetime
     updated_at: datetime
 
