@@ -81,16 +81,29 @@ class ConfigManager:
     async def set_api_key(
         self, db: aiosqlite.Connection, provider_id: str, key: str
     ) -> dict:
-        """Set API key via PUT /auth/{id}. Also persist to DB."""
-        # 1. Set in OpenCode at runtime — instant effect
-        await opencode_client.set_auth(provider_id, {"type": "api", "key": key})
+        """Set API key via PUT /auth/{id}. Also persist to DB.
 
-        # 2. Persist masked key to DB
+        Persists to DB first (always works), then pushes to OpenCode as
+        best-effort. If OpenCode rejects the provider (e.g. unknown provider
+        name), the key is still saved and will be restored on next startup
+        when the provider may be configured.
+        """
+        # 1. Persist to DB first — this always succeeds
         masked = mask_key(key)
         await upsert_setting(db, f"api_key:{provider_id}", {
             "key": key,
             "key_masked": masked,
         })
+
+        # 2. Push to OpenCode at runtime — best-effort
+        try:
+            await opencode_client.set_auth(provider_id, {"type": "api", "key": key})
+        except Exception:
+            logger.warning(
+                "Could not push API key to OpenCode for provider %s "
+                "(key is saved and will be restored on restart)",
+                provider_id,
+            )
 
         logger.info("API key set for provider %s", provider_id)
         return {"provider": provider_id, "key_masked": masked, "has_credentials": True}

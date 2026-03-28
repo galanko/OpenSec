@@ -81,10 +81,7 @@ async def list_api_keys(db=Depends(get_db)):
 
 @router.put("/settings/api-keys/{provider}")
 async def set_api_key(provider: str, body: ApiKeyCreate, db=Depends(get_db)):
-    try:
-        return await config_manager.set_api_key(db, provider, body.key)
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Failed to set API key: {exc}") from exc
+    return await config_manager.set_api_key(db, provider, body.key)
 
 
 @router.delete("/settings/api-keys/{provider}", status_code=204)
