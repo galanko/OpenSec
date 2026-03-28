@@ -1,1 +1,1 @@
-"""OpenSec - Self-hosted cybersecurity remediation copilot."""
+"""OpenSec — Self-hosted cybersecurity remediation copilot."""
