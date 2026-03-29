@@ -25,10 +25,15 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
 
-    # OpenCode engine
+    # OpenCode engine (singleton)
     opencode_host: str = "127.0.0.1"
     opencode_port: int = 4096
     opencode_bin: str = ""  # Auto-resolved if empty
+
+    # Workspace process pool
+    opencode_port_range_start: int = 4100
+    opencode_port_range_end: int = 4199
+    workspace_idle_timeout_seconds: int = 600
 
     # Paths
     repo_root: Path = _find_repo_root()

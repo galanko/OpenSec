@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -12,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.api.routes import (
     agent_runs,
     chat,
@@ -31,7 +35,10 @@ from opensec.db import connection as db_connection
 from opensec.db.connection import close_db, init_db
 from opensec.engine.client import opencode_client
 from opensec.engine.config_manager import config_manager
+from opensec.engine.pool import WorkspaceProcessPool
 from opensec.engine.process import opencode_process
+from opensec.workspace.context_builder import WorkspaceContextBuilder
+from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -62,8 +69,38 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.warning("Could not restore settings to OpenCode engine")
     except Exception:
         logger.exception("Failed to start OpenCode — app will run but engine is unavailable")
+
+    # Layer 2: Context builder (workspace directory + agent templates)
+    workspaces_base = settings.resolve_data_dir() / "workspaces"
+    dir_manager = WorkspaceDirManager(base_dir=workspaces_base)
+    template_engine = AgentTemplateEngine()
+    context_builder = WorkspaceContextBuilder(dir_manager, template_engine)
+    app.state.context_builder = context_builder
+
+    # Layer 3: Per-workspace process pool
+    pool = WorkspaceProcessPool()
+    app.state.process_pool = pool
+
+    # Background idle cleanup task
+    async def _idle_cleanup_loop() -> None:
+        idle_timeout = timedelta(seconds=settings.workspace_idle_timeout_seconds)
+        while True:
+            await asyncio.sleep(60)
+            try:
+                await pool.stop_idle(idle_timeout)
+            except Exception:
+                logger.exception("Error in workspace idle cleanup")
+
+    cleanup_task = asyncio.create_task(_idle_cleanup_loop())
+
     yield
+
     logger.info("Shutting down OpenSec...")
+    cleanup_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await cleanup_task
+
+    await pool.stop_all()
     await opencode_client.close()
     await opencode_process.stop()
     await close_db()

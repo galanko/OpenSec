@@ -337,11 +337,13 @@ def test_finding_md_minimal(manager: WorkspaceDirManager, minimal_finding: Findi
 
 
 def test_opencode_json_valid(manager: WorkspaceDirManager, sample_finding: Finding):
-    """opencode.json is valid JSON with $schema."""
+    """opencode.json is valid JSON with $schema and workspace permissions."""
     ws = manager.create("ws-oc", sample_finding)
     data = json.loads(ws.opencode_json.read_text())
     assert "$schema" in data
     assert data["$schema"] == "https://opencode.ai/config.json"
+    assert data["permission"]["bash"] == "allow"
+    assert data["permission"]["edit"] == "allow"
 
 
 def test_finding_json_roundtrip(

@@ -169,17 +169,17 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         }
       }
 
-      // Create a new session and store its ID on the workspace.
-      const session = await api.createSession()
+      // Create a new session on this workspace's isolated OpenCode process.
+      const session = await api.createWorkspaceSession(workspaceId)
       if (!cancelled) {
-        setSessionId(session.id)
+        setSessionId(session.session_id)
         // Capture the runtime model at session creation time.
         try {
           const mc = await api.getModelConfig()
           if (mc.model_full_id) setSessionModel(mc.model_full_id)
         } catch { /* non-critical */ }
         // Store the session ID on the workspace for future reconnection.
-        api.updateWorkspace(workspaceId, { current_focus: session.id } as Parameters<typeof api.updateWorkspace>[1]).catch(console.error)
+        api.updateWorkspace(workspaceId, { current_focus: session.session_id } as Parameters<typeof api.updateWorkspace>[1]).catch(console.error)
       }
     }
 
@@ -192,7 +192,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     if (!sessionId) return
     let active = true
 
-    const es = api.streamEvents(sessionId)
+    const es = api.streamWorkspaceEvents(workspaceId, sessionId)
     eventSourceRef.current = es
 
     es.addEventListener('text', (event) => {
@@ -243,12 +243,12 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     streamingRef.current = ''
 
     try {
-      await api.sendMessage(sessionId, content)
+      await api.sendWorkspaceMessage(workspaceId, sessionId, content)
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'error', content: `Failed to send: ${err}` }])
       setSending(false)
     }
-  }, [sessionId, sending])
+  }, [workspaceId, sessionId, sending])
 
   // Handle text input submit.
   const handleSubmit = useCallback(() => {
