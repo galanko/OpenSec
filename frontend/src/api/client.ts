@@ -235,14 +235,14 @@ export const api = {
   // Health
   health: () => request<HealthStatus>('/health'),
 
-  // OpenCode sessions
+  // OpenCode sessions (legacy — shared singleton process)
   createSession: () =>
     request<SessionSummary>('/api/sessions', { method: 'POST' }),
   listSessions: () => request<SessionSummary[]>('/api/sessions'),
   getSession: (id: string) =>
     request<SessionDetail>(`/api/sessions/${id}`),
 
-  // Chat (OpenCode)
+  // Chat — legacy (shared singleton process)
   sendMessage: (sessionId: string, content: string) =>
     request<{ session_id: string; status: string }>(
       `/api/chat/${sessionId}/send`,
@@ -250,6 +250,22 @@ export const api = {
     ),
   streamEvents: (sessionId: string): EventSource =>
     new EventSource(`/api/chat/${sessionId}/stream`),
+
+  // Workspace-scoped sessions (isolated per-workspace OpenCode process)
+  createWorkspaceSession: (workspaceId: string) =>
+    request<{ session_id: string; workspace_id: string }>(
+      `/api/workspaces/${workspaceId}/sessions`,
+      { method: 'POST' },
+    ),
+
+  // Workspace-scoped chat (isolated per-workspace OpenCode process)
+  sendWorkspaceMessage: (workspaceId: string, sessionId: string, content: string) =>
+    request<{ session_id: string; status: string }>(
+      `/api/workspaces/${workspaceId}/chat/send`,
+      { method: 'POST', body: JSON.stringify({ session_id: sessionId, content }) },
+    ),
+  streamWorkspaceEvents: (workspaceId: string, sessionId: string): EventSource =>
+    new EventSource(`/api/workspaces/${workspaceId}/chat/stream?session_id=${sessionId}`),
 
   // Findings
   listFindings: (params?: { status?: string; has_workspace?: boolean; limit?: number; offset?: number }) => {
