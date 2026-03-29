@@ -70,9 +70,19 @@ class WorkspaceDirManager:
         ws.finding_json.write_text(json.dumps(finding_data, indent=2) + "\n")
         ws.finding_md.write_text(_render_finding_md(finding))
 
-        # Write opencode.json
+        # Write opencode.json — workspace agents need bash + file access
         ws.opencode_json.write_text(
-            json.dumps({"$schema": "https://opencode.ai/config.json"}, indent=2)
+            json.dumps(
+                {
+                    "$schema": "https://opencode.ai/config.json",
+                    "permission": {
+                        "bash": "allow",
+                        "edit": "allow",
+                        "webfetch": "allow",
+                    },
+                },
+                indent=2,
+            )
             + "\n"
         )
 
