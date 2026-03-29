@@ -15,10 +15,11 @@ Built on the [OpenCode](https://github.com/anomalyco/opencode) engine. Single-us
 | Frontend | React + TypeScript + Vite + Tailwind | `frontend/` |
 | Backend | FastAPI (Python 3.11+) | `backend/` |
 | AI Engine | OpenCode (Go) — binary dependency, pinned in `.opencode-version` | managed subprocess |
+| Workspace Runtime | Per-workspace OpenCode processes with isolated context (ADR-0014) | `backend/opensec/workspace/`, `backend/opensec/engine/pool.py` |
 | Database | SQLite (single file) | `data/opensec.db` |
 | Deployment | Single Docker container, port 8000 | `docker/` |
 
-See `docs/architecture/overview.md` for the full system diagram.
+See `docs/architecture/overview.md` for the full system diagram and `docs/adr/0014-workspace-runtime-architecture.md` for the workspace isolation architecture.
 
 ## Design System: "The Serene Sentinel"
 
@@ -50,8 +51,10 @@ backend/              FastAPI app (Python)
   opensec/
     main.py           App entry point, lifespan, CORS
     config.py         Settings via env vars
-    engine/           OpenCode integration (process manager + HTTP client)
-    api/routes/       REST endpoints (health, sessions, chat)
+    engine/           OpenCode integration (process manager, HTTP client, process pool)
+    agents/           Agent template engine (Jinja2 templates for 6 agents)
+    workspace/        Workspace runtime (directory manager, context builder, agent run log)
+    api/routes/       REST endpoints (health, sessions, chat, workspace-scoped chat)
 frontend/             React SPA (TypeScript + Vite + Tailwind)
   src/
     pages/            Page components (Queue, Workspace, History, Integrations, Settings)
@@ -77,7 +80,7 @@ opencode.json         OpenCode project config
 ## Key Domain Concepts
 
 - **Finding** — A vulnerability from a scanner. Flows through: `new` -> `triaged` -> `in_progress` -> `remediated` -> `validated` -> `closed`
-- **Workspace** — A remediation session for one Finding. Contains chat, agent runs, and structured sidebar state
+- **Workspace** — A remediation session for one Finding. Each workspace gets an isolated directory (`data/workspaces/<id>/`) with finding-specific context, rendered agent templates, and its own OpenCode process
 - **AgentRun** — A single sub-agent execution (enricher, owner resolver, planner, etc.)
 - **SidebarState** — Persistent structured context per workspace (summary, evidence, owner, plan, ticket, validation)
 - **Adapter** — Interface to an external system. Four types: FindingSource, OwnershipContext, Ticketing, Validation
@@ -134,10 +137,12 @@ cd frontend && npm test
 
 ### How It Runs
 
-1. FastAPI starts on port 8000 and launches OpenCode as a subprocess on port 4096 (internal)
-2. Vite dev server starts on port 5173 and proxies `/api/*` to FastAPI
-3. Browser talks to Vite (5173) in dev, or FastAPI (8000) in production
-4. All OpenCode communication goes through FastAPI — frontend never talks to OpenCode directly
+1. FastAPI starts on port 8000 and launches a singleton OpenCode process on port 4096 (for health/settings)
+2. When a user opens a workspace, a **per-workspace OpenCode process** starts on a port from range 4100-4199, with `cwd=data/workspaces/<id>/` (isolated context)
+3. Vite dev server starts on port 5173 and proxies `/api/*` to FastAPI
+4. Browser talks to Vite (5173) in dev, or FastAPI (8000) in production
+5. All OpenCode communication goes through FastAPI — frontend never talks to OpenCode directly
+6. Idle workspace processes are automatically stopped after 10 minutes (configurable via `OPENSEC_WORKSPACE_IDLE_TIMEOUT_SECONDS`)
 
 ## Testing
 
@@ -157,7 +162,7 @@ cd backend && uv run pytest -v
 cd backend && uv run ruff check opensec/ tests/
 ```
 
-### Unit tests (28, ~0.1s)
+### Unit tests (187, ~0.9s)
 
 Mocked external dependencies — no real OpenCode needed:
 
@@ -166,8 +171,12 @@ Mocked external dependencies — no real OpenCode needed:
 - `test_engine_client.py` — OpenCode HTTP client (mocked httpx)
 - `test_engine_process.py` — Subprocess lifecycle
 - `test_routes_*.py` — API endpoint behavior with mocked engine
+- `test_workspace_dir.py` — Workspace directory manager (Layer 0, 29 tests)
+- `test_agent_template_engine.py` — Agent template rendering (Layer 1, 18 tests)
+- `test_context_builder.py` — Context builder orchestration (Layer 2, 13 tests)
+- `test_process_pool.py` — Process pool with mocked subprocess (Layer 3, 15 tests)
 
-### E2E tests (10, ~12s)
+### E2E tests (25, ~50s)
 
 Real OpenCode subprocess + real LLM calls. Skipped automatically if OpenCode binary or API key is missing:
 
@@ -175,6 +184,8 @@ Real OpenCode subprocess + real LLM calls. Skipped automatically if OpenCode bin
 - `e2e/test_session_flow.py` — Session create/list/get
 - `e2e/test_chat_flow.py` — Send message, verify round-trip
 - `e2e/test_error_handling.py` — Error cases
+- `e2e/test_settings_e2e.py` — Model/provider/API key management
+- `e2e/test_process_pool_e2e.py` — Real per-workspace OpenCode processes (10 tests: concurrent workspaces, port exhaustion, crash recovery, idle cleanup)
 
 ## Git Workflow
 
@@ -200,6 +211,20 @@ Never commit directly to `main`. Never force-push to `main`. If tests or lint fa
 - **TypeScript style:** ESLint + Prettier, strict mode
 - **Interaction grammar:** Every user action follows `ask -> run -> summarize -> persist -> decide next`
 
+## Workspace Runtime Architecture (ADR-0014)
+
+Each workspace gets an isolated environment. See `docs/adr/0014-workspace-runtime-architecture.md`.
+
+| Layer | Component | Status |
+|-------|-----------|--------|
+| 0 | `WorkspaceDirManager` — filesystem CRUD, CONTEXT.md generation | Complete |
+| 1 | `AgentTemplateEngine` — Jinja2 templates for 6 agents | Complete |
+| 2 | `WorkspaceContextBuilder` — orchestrates L0 + L1 + DB metadata | Complete |
+| 3 | `WorkspaceProcessPool` — per-workspace OpenCode processes | Complete |
+| 4 | API integration — workspace-scoped sessions, chat, context routes | Complete |
+
+Key files: `backend/opensec/workspace/`, `backend/opensec/engine/pool.py`, `backend/opensec/agents/`
+
 ## Current Phase
 
-See `ROADMAP.md` — **Stage 1** complete (Phase 3 merged). Currently in **Stage 2** (Phase 4: Queue, Phase 5: Workspace v1 — complete. Phase 8: History — pending).
+See `ROADMAP.md` — **Stages 1 and 2** complete. Currently in **Stage 3** (Phase 6b: Agent Orchestration — wiring agents into the isolated workspace runtime).
