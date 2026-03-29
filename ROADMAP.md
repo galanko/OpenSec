@@ -63,14 +63,14 @@ Create the product frame — all five pages as navigable shells.
 
 ```
 Stage 1:  Phase 3 ──────────────┐
-          Phase 6a (agents) ─────┤  (parallel — no deps between them)
+          Phase 6a (agents) ─────┤  (parallel — no deps between them)     ✅ ALL COMPLETE
           Phase 9a (docker) ─────┘
                                  │
 Stage 2:  Phase 4 (Queue) ──────┤
-          Phase 5 (Workspace) ───┤  (parallel — all need Phase 3 only)
+          Phase 5 (Workspace) ───┤  (parallel — all need Phase 3 only)    ✅ ALL COMPLETE
           Phase 8 (History) ─────┘
                                  │
-Stage 3:  Phase 6b (orchestr.) ──┤  (needs Phase 5)
+Stage 3:  Phase 6b (orchestr.) ──┤  (needs Phase 5)                       ← CURRENT
           Phase 7 (Tickets) ─────┘  (needs Phase 6b)
                                  │
 Stage 4:  Phase 9b (ship) ───────┘  (needs everything)
@@ -100,13 +100,16 @@ Make the product stateful. Full vertical slice — backend schema, APIs, and tes
 
 **Exit criteria:** Reloading the app preserves all state. All CRUD endpoints tested.
 
-### Phase 6a: Agent Definitions
+### Phase 6a: Agent Definitions (Complete)
 
 Define the five cyber sub-agents. No code dependencies — just configs and prompts.
 
-- [ ] Define OpenCode agent configs for all 5 sub-agents (`.opencode/agents/`)
-- [ ] Define I/O contracts (input schema, output schema, sidebar field mapping)
-- [ ] Write agent prompts for Finding Enricher, Owner Resolver, Exposure Analyzer, Remediation Planner, Validation Checker
+- [x] Define OpenCode agent configs for all 5 sub-agents (`.opencode/agents/`)
+- [x] Define I/O contracts (input schema, output schema, sidebar field mapping)
+- [x] Write agent prompts for Finding Enricher, Owner Resolver, Exposure Analyzer, Remediation Planner, Validation Checker
+- [x] Jinja2 template engine renders agent prompts with finding context at workspace creation
+- [x] Orchestrator template includes pipeline state tracking (`[x]`/`[ ]` checklist)
+- [x] Each sub-agent has strict JSON output contract
 
 **Exit criteria:** All 5 agent configs exist with documented I/O contracts.
 
@@ -143,7 +146,7 @@ First usable page — the entry point for remediation work.
 
 **Exit criteria:** User can land on Queue, browse findings, and open one into a Workspace. All backed by real APIs.
 
-### Phase 5: Solve Workspace v1
+### Phase 5: Solve Workspace v1 (Complete)
 
 The product center — chat-led remediation with persistent structured state.
 
@@ -158,8 +161,13 @@ The product center — chat-led remediation with persistent structured state.
 - [x] Sidebar auto-updates after each agent run
 - [x] Activity timeline (chronological list of actions)
 - [x] Connect chat to OpenCode via FastAPI orchestrator
+- [x] **Isolated workspace runtime** (ADR-0014): each workspace gets its own directory + OpenCode process
+- [x] Workspace directory with finding-specific context files (CONTEXT.md, finding.json, agent definitions)
+- [x] Per-workspace OpenCode process pool with port allocation, idle cleanup, crash recovery
+- [x] Workspace-scoped API routes for sessions, chat, and context
+- [x] Frontend wired to workspace-scoped chat routes
 
-**Exit criteria:** User can run at least one agent from chat, see the running state, get results, and see sidebar update. All state persisted.
+**Exit criteria:** User can run at least one agent from chat, see the running state, get results, and see sidebar update. All state persisted. Each workspace runs in isolation.
 
 ### Phase 8: History
 
@@ -183,9 +191,9 @@ Sequential within this stage — Phase 6b first, then Phase 7. Depends on Stage 
 
 ### Phase 6b: Agent Orchestration
 
-Wire the agent definitions from Phase 6a into the workspace from Phase 5.
+Wire the agent definitions from Phase 6a into the workspace from Phase 5. The workspace runtime infrastructure (ADR-0014 Layers 0-4) is complete — agents now run in isolated workspace directories with finding-specific context.
 
-- [ ] Implement Finding Enricher (sidebar update, chat output)
+- [ ] Implement Finding Enricher (sidebar update, chat output, context file update)
 - [ ] Implement Owner Resolver
 - [ ] Implement Exposure/Context Analyzer
 - [ ] Implement Remediation Planner
