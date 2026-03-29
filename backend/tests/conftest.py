@@ -88,12 +88,42 @@ async def db_client():
 
     Uses httpx.AsyncClient + ASGITransport to keep everything in a single
     event loop — avoids the cross-loop issues with sync TestClient + async db.
+
+    Injects mock process_pool and context_builder on app.state so workspace
+    routes that access request.app.state don't crash.
     """
     from opensec.db.connection import close_db, init_db
     from opensec.main import app
 
     app.router.lifespan_context = _noop_lifespan
     await init_db(":memory:")
+
+    # Mock app.state objects for workspace routes (Layer 3+4).
+    # The mocks must produce real Workspace objects so FastAPI response
+    # validation passes. We delegate to raw DB functions.
+    from opensec.db.repo_workspace import (
+        create_workspace as raw_create,
+    )
+    from opensec.db.repo_workspace import (
+        delete_workspace as raw_delete,
+    )
+    from opensec.models import WorkspaceCreate
+
+    mock_pool = AsyncMock()
+    mock_pool.stop = AsyncMock()
+    app.state.process_pool = mock_pool
+
+    async def _mock_create_workspace(db, finding, **_kwargs):
+        data = WorkspaceCreate(finding_id=finding.id)
+        return await raw_create(db, data)
+
+    async def _mock_delete_workspace(db, workspace_id):
+        return await raw_delete(db, workspace_id)
+
+    mock_builder = AsyncMock()
+    mock_builder.create_workspace = AsyncMock(side_effect=_mock_create_workspace)
+    mock_builder.delete_workspace = AsyncMock(side_effect=_mock_delete_workspace)
+    app.state.context_builder = mock_builder
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
