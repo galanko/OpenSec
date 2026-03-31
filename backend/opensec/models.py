@@ -319,3 +319,18 @@ class WorkspaceIntegration(BaseModel):
     action_tier: int = 0  # 0=read-only, 1=enrichment, 2=mutation
     capabilities: list[str] = []
     status: str = "connected"  # "connected", "missing_credentials", "disabled"
+
+
+# ---------------------------------------------------------------------------
+# Integration health models (Phase I-2)
+# ---------------------------------------------------------------------------
+
+
+class IntegrationHealthStatus(BaseModel):
+    integration_id: str
+    registry_id: str
+    provider_name: str
+    credential_status: str = "unchecked"  # "ok", "missing", "decrypt_error", "unchecked"
+    connection_status: str = "unchecked"  # "ok", "error", "unchecked", "timeout"
+    last_checked: str | None = None
+    error_message: str | None = None

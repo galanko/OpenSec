@@ -16,6 +16,8 @@ from opensec.db.repo_integration import (
 )
 from opensec.engine.config_manager import config_manager
 from opensec.integrations.audit import AuditEvent
+from opensec.integrations.connection_tester import run_connection_test
+from opensec.integrations.health import IntegrationHealthMonitor
 from opensec.integrations.registry import (
     RegistryEntry,
     get_registry_entry,
@@ -29,6 +31,7 @@ from opensec.models import (
     IntegrationConfig,
     IntegrationConfigCreate,
     IntegrationConfigUpdate,
+    IntegrationHealthStatus,
     ModelConfig,
     ModelUpdateRequest,
     TestConnectionResult,
@@ -340,18 +343,66 @@ async def test_connection(
         )
         return result
 
-    # For now, "test" means credentials exist and can be decrypted.
-    # Phase I-1 will add actual connectivity checks per integration type.
-    result = TestConnectionResult(
-        success=True,
-        message=f"Credentials valid ({len(creds)} key(s) decrypted successfully).",
-        details={"credential_keys": list(creds.keys())},
-    )
+    # Dispatch to a real connection tester if one exists for this provider.
+    registry_id = integration.provider_name.lower().replace(" ", "-")
+    result = await run_connection_test(registry_id, creds)
+
+    if result is None:
+        # No tester registered — fall back to "credentials decrypted" check.
+        result = TestConnectionResult(
+            success=True,
+            message=f"Credentials valid ({len(creds)} key(s) decrypted successfully).",
+            details={"credential_keys": list(creds.keys())},
+        )
+
     await _emit_audit(
         request,
         event_type="integration.test",
         integration_id=integration_id,
         provider_name=integration.provider_name,
-        status="success",
+        status="success" if result.success else "error",
+        error_message=result.message if not result.success else None,
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Integration health
+# ---------------------------------------------------------------------------
+
+
+def _get_health_monitor(request: Request) -> IntegrationHealthMonitor:
+    """Build a health monitor from app.state components."""
+    vault = _get_vault(request)
+    audit_logger = getattr(request.app.state, "audit_logger", None)
+    return IntegrationHealthMonitor(vault, audit_logger=audit_logger)
+
+
+@router.get(
+    "/settings/integrations/{integration_id}/health",
+    response_model=IntegrationHealthStatus,
+)
+async def check_integration_health(
+    integration_id: str,
+    request: Request,
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Run a health check for a single integration."""
+    monitor = _get_health_monitor(request)
+    health = await monitor.check_health(db, integration_id)
+    if health is None:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    return health
+
+
+@router.get(
+    "/settings/integrations/health",
+    response_model=list[IntegrationHealthStatus],
+)
+async def check_all_integrations_health(
+    request: Request,
+    db: aiosqlite.Connection = Depends(get_db),
+):
+    """Run health checks for all enabled integrations."""
+    monitor = _get_health_monitor(request)
+    return await monitor.check_all(db)

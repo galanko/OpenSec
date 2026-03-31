@@ -4,7 +4,7 @@
   "adapter_type": "finding_source",
   "description": "Cloud security findings, asset context, and vulnerability status from Wiz via a thin OpenSec MCP wrapper.",
   "icon": "cloud_circle",
-  "status": "coming_soon",
+  "status": "available",
   "setup_guide_md": "## Wiz integration\n\nWiz's official MCP server is cloud-only and proprietary, so OpenSec provides a thin Python MCP wrapper that translates the Wiz REST API into MCP tools.\n\n### Prerequisites\n\n1. A Wiz tenant with API access enabled\n2. A **service account** with Wiz API credentials\n\n### Create API credentials\n\n1. In Wiz, go to **Settings > Service Accounts**\n2. Create a new service account with the `read:resources` and `read:issues` scopes\n3. Copy the **Client ID** and **Client Secret**\n\n### What OpenSec uses\n\n- `wiz_list_findings` — Pull cloud security findings into the queue\n- `wiz_get_finding` — Get detailed finding context for enrichment\n- `wiz_get_asset_context` — Retrieve cloud resource details\n- `wiz_update_finding_status` — Mark findings as resolved after validation\n- `wiz_check_finding_status` — Verify current finding state\n\n*This integration will be available in Phase I-2.*",
   "credentials_schema": [
     {
@@ -33,5 +33,14 @@
     }
   ],
   "capabilities": ["collect", "enrich", "investigate", "update"],
-  "docs_url": null
+  "docs_url": null,
+  "mcp_config": {
+    "command": "python",
+    "args": ["-m", "opensec.integrations.wrappers.wiz"],
+    "env": {
+      "WIZ_CLIENT_ID": "${credential:wiz_client_id}",
+      "WIZ_CLIENT_SECRET": "${credential:wiz_client_secret}",
+      "WIZ_API_URL": "${credential:wiz_api_url}"
+    }
+  }
 }

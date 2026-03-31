@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from opensec.db.repo_integration import list_integrations
 from opensec.integrations.audit import AuditEvent
-from opensec.integrations.registry import get_registry_entry
+from opensec.integrations.registry import RegistryEntry, get_registry_entry
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -156,6 +156,9 @@ class MCPConfigResolver:
                 )
                 continue
 
+            # Apply toolset scoping and read-only adjustments based on action tier.
+            _apply_toolset_scoping(resolved, entry, integration.action_tier)
+
             mcp_configs[entry.id] = resolved
             ws_integrations.append(
                 ResolvedWorkspaceIntegration(
@@ -273,6 +276,38 @@ class MCPConfigResolver:
             )
 
         return resolved
+
+
+def _apply_toolset_scoping(
+    config: dict[str, Any],
+    entry: RegistryEntry,
+    action_tier: int,
+) -> None:
+    """Mutate *config* in-place to apply toolset scoping and read-only rules.
+
+    - If the registry entry defines ``toolsets``, append ``--toolsets <list>``
+      to the resolved ``args`` for the given *action_tier*.
+    - If *action_tier* > 0, remove ``--read-only`` from ``args`` (user opted
+      into writes).
+    """
+    args = config.get("args")
+    if not isinstance(args, list):
+        return
+
+    # Toolset scoping: append --toolsets flag if the entry defines them.
+    if entry.toolsets:
+        tier_key = str(action_tier)
+        toolset_list = entry.toolsets.get(tier_key)
+        if toolset_list:
+            config["args"] = [a for a in args if a != "--toolsets"] + [
+                "--toolsets",
+                ",".join(toolset_list),
+            ]
+            args = config["args"]
+
+    # Read-only removal: if user opted into higher tier, remove --read-only.
+    if action_tier > 0 and "--read-only" in args:
+        config["args"] = [a for a in args if a != "--read-only"]
 
 
 def _find_unresolved_placeholders(config: dict[str, Any]) -> list[str]:

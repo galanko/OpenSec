@@ -20,9 +20,14 @@
   "docs_url": "https://github.com/github/github-mcp-server",
   "mcp_config": {
     "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-github"],
+    "args": ["-y", "@modelcontextprotocol/server-github", "--read-only"],
     "env": {
       "GITHUB_PERSONAL_ACCESS_TOKEN": "${credential:github_personal_access_token}"
     }
+  },
+  "toolsets": {
+    "0": ["repos", "code_security"],
+    "1": ["repos", "code_security", "issues"],
+    "2": ["repos", "code_security", "issues", "pull_requests"]
   }
 }
