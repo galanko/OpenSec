@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     opencode_port: int = 4096
     opencode_bin: str = ""  # Auto-resolved if empty
 
+    # Credential vault
+    credential_key: str = ""  # Base64-encoded 32-byte AES key (or set OPENSEC_CREDENTIAL_KEY)
+
     # Workspace process pool
     opencode_port_range_start: int = 4100
     opencode_port_range_end: int = 4199

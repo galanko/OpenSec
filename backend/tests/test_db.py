@@ -38,6 +38,8 @@ async def test_init_db_creates_tables(db: aiosqlite.Connection):
         "validation_result",
         "app_setting",
         "integration_config",
+        "credential",
+        "audit_log",
         "_migrations",
     }
     assert expected.issubset(tables)
