@@ -233,6 +233,7 @@ class IntegrationConfig(BaseModel):
     enabled: bool = True
     config: dict[str, Any] | None = None
     last_test_result: dict[str, Any] | None = None
+    action_tier: int = 0  # 0=read-only, 1=enrichment, 2=mutation
     updated_at: datetime
 
 
@@ -241,11 +242,13 @@ class IntegrationConfigCreate(BaseModel):
     provider_name: str
     enabled: bool = True
     config: dict[str, Any] | None = None
+    action_tier: int = 0
 
 
 class IntegrationConfigUpdate(BaseModel):
     enabled: bool | None = None
     config: dict[str, Any] | None = None
+    action_tier: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -302,3 +305,17 @@ class TestConnectionResult(BaseModel):
     success: bool
     message: str
     details: dict[str, Any] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Workspace integration models (Phase I-1)
+# ---------------------------------------------------------------------------
+
+
+class WorkspaceIntegration(BaseModel):
+    integration_id: str
+    provider_name: str
+    registry_id: str
+    action_tier: int = 0  # 0=read-only, 1=enrichment, 2=mutation
+    capabilities: list[str] = []
+    status: str = "connected"  # "connected", "missing_credentials", "disabled"

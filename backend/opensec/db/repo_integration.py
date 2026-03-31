@@ -21,6 +21,7 @@ def _row_to_integration(row: aiosqlite.Row) -> IntegrationConfig:
         enabled=bool(row["enabled"]),
         config=json.loads(row["config"]) if row["config"] else None,
         last_test_result=json.loads(row["last_test_result"]) if row["last_test_result"] else None,
+        action_tier=row["action_tier"],
         updated_at=row["updated_at"],
     )
 
@@ -33,8 +34,8 @@ async def create_integration(
     await db.execute(
         """
         INSERT INTO integration_config
-            (id, adapter_type, provider_name, enabled, config, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (id, adapter_type, provider_name, enabled, config, action_tier, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             integration_id,
@@ -42,6 +43,7 @@ async def create_integration(
             data.provider_name,
             int(data.enabled),
             json.dumps(data.config) if data.config is not None else None,
+            data.action_tier,
             now,
         ),
     )

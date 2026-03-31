@@ -18,7 +18,7 @@ from opensec.db.repo_workspace import (
     list_workspaces,
     update_workspace,
 )
-from opensec.models import Workspace, WorkspaceCreate, WorkspaceUpdate
+from opensec.models import Workspace, WorkspaceCreate, WorkspaceIntegration, WorkspaceUpdate
 
 if TYPE_CHECKING:
     from opensec.engine.pool import WorkspaceProcessPool
@@ -231,3 +231,30 @@ async def workspace_pool_status(workspace_id: str, request: Request):
     if ws_status is None:
         return {"workspace_id": workspace_id, "process_running": False}
     return {"workspace_id": workspace_id, "process_running": True, **ws_status}
+
+
+@router.get(
+    "/workspaces/{workspace_id}/integrations",
+    response_model=list[WorkspaceIntegration],
+)
+async def get_workspace_integrations(
+    workspace_id: str, request: Request, db=Depends(get_db)
+):
+    """Return the active MCP integrations for a workspace."""
+    workspace = await get_workspace(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    if not workspace.workspace_dir:
+        return []
+
+    manifest_path = Path(workspace.workspace_dir) / "workspace-integrations.json"
+    if not manifest_path.exists():
+        return []
+
+    try:
+        data = json.loads(manifest_path.read_text())
+        return [WorkspaceIntegration(**entry) for entry in data]
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Failed to read workspace integrations manifest for %s", workspace_id)
+        return []

@@ -47,6 +47,7 @@ class RegistryEntry(BaseModel):
     capabilities: list[str] = []  # "collect", "enrich", "investigate", "update"
     docs_url: str | None = None
     mcp_config: dict | None = None  # MCP server config template (Phase I-1)
+    default_action_tier: int = 0  # 0=read-only, 1=enrichment, 2=mutation
 
 
 # ---------------------------------------------------------------------------
