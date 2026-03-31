@@ -13,9 +13,11 @@ job is purely **config generation**.
 from __future__ import annotations
 
 import copy
+import json
 import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from opensec.db.repo_integration import list_integrations
@@ -51,6 +53,14 @@ class WorkspaceMCPResult:
 
     mcp_configs: dict[str, dict[str, Any]]
     integrations: list[ResolvedWorkspaceIntegration]
+
+
+@dataclass
+class ConfigFreshnessResult:
+    """Result of checking whether a workspace's MCP config is stale."""
+
+    stale: bool = False
+    reason: str = ""
 
 
 class MCPConfigResolver:
@@ -174,6 +184,70 @@ class MCPConfigResolver:
             )
 
         return WorkspaceMCPResult(mcp_configs=mcp_configs, integrations=ws_integrations)
+
+    async def check_config_freshness(
+        self,
+        db: aiosqlite.Connection,
+        workspace_dir: str | Path,
+    ) -> ConfigFreshnessResult:
+        """Check if a workspace's MCP config is stale.
+
+        Compares the workspace's ``workspace-integrations.json`` manifest
+        against the current state of integrations and credentials.
+
+        Returns a :class:`ConfigFreshnessResult` indicating whether the
+        config needs regeneration (workspace restart required).
+        """
+        workspace_path = Path(workspace_dir)
+        manifest_path = workspace_path / "workspace-integrations.json"
+
+        # No manifest = no integrations were configured at creation time.
+        if not manifest_path.exists():
+            # Check if there are now integrations that should be there.
+            current = await self.resolve_workspace(db)
+            if current.mcp_configs:
+                return ConfigFreshnessResult(
+                    stale=True,
+                    reason="New integrations available since workspace was created",
+                )
+            return ConfigFreshnessResult(stale=False)
+
+        try:
+            manifest = json.loads(manifest_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return ConfigFreshnessResult(stale=True, reason="Manifest unreadable")
+
+        manifest_ids = {entry["integration_id"] for entry in manifest}
+
+        # Resolve current state.
+        current = await self.resolve_workspace(db)
+        current_ids = {i.integration_id for i in current.integrations}
+
+        # Check for added/removed integrations.
+        added = current_ids - manifest_ids
+        removed = manifest_ids - current_ids
+
+        if added:
+            return ConfigFreshnessResult(
+                stale=True,
+                reason=f"New integrations added: {added}",
+            )
+        if removed:
+            return ConfigFreshnessResult(
+                stale=True,
+                reason=f"Integrations removed or disabled: {removed}",
+            )
+
+        # Check for tier changes.
+        manifest_tiers = {e["integration_id"]: e.get("action_tier", 0) for e in manifest}
+        for ci in current.integrations:
+            if manifest_tiers.get(ci.integration_id) != ci.action_tier:
+                return ConfigFreshnessResult(
+                    stale=True,
+                    reason=f"Action tier changed for {ci.provider_name}",
+                )
+
+        return ConfigFreshnessResult(stale=False)
 
     @staticmethod
     def resolve_placeholders(
