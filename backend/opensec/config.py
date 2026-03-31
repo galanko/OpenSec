@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Credential vault
     credential_key: str = ""  # Base64-encoded 32-byte AES key (or set OPENSEC_CREDENTIAL_KEY)
 
+    # Audit logging
+    audit_retention_days: int = 90
+
     # Workspace process pool
     opencode_port_range_start: int = 4100
     opencode_port_range_end: int = 4199

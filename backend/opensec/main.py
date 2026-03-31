@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.api.routes import (
     agent_runs,
+    audit,
     chat,
     findings,
     health,
@@ -37,6 +38,7 @@ from opensec.engine.client import opencode_client
 from opensec.engine.config_manager import config_manager
 from opensec.engine.pool import WorkspaceProcessPool
 from opensec.engine.process import opencode_process
+from opensec.integrations.audit import AuditLogger
 from opensec.workspace.context_builder import WorkspaceContextBuilder
 from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
 
@@ -70,6 +72,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception:
         logger.exception("Failed to start OpenCode — app will run but engine is unavailable")
 
+    # Audit logger (non-blocking, queue-based)
+    if db_connection._db is not None:
+        audit_logger = AuditLogger(db_connection._db)
+        await audit_logger.start()
+        app.state.audit_logger = audit_logger
+    else:
+        app.state.audit_logger = None
+
     # Layer 2: Context builder (workspace directory + agent templates)
     workspaces_base = settings.resolve_data_dir() / "workspaces"
     dir_manager = WorkspaceDirManager(base_dir=workspaces_base)
@@ -101,6 +111,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await cleanup_task
 
     await pool.stop_all()
+    if app.state.audit_logger is not None:
+        await app.state.audit_logger.stop()
     await opencode_client.close()
     await opencode_process.stop()
     await close_db()
@@ -133,6 +145,7 @@ app.include_router(agent_runs.router, prefix="/api")
 app.include_router(sidebar.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
+app.include_router(audit.router, prefix="/api")
 
 # Serve built frontend in production (when OPENSEC_STATIC_DIR is set)
 _static_dir = Path(settings.static_dir) if settings.static_dir else None
