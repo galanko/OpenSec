@@ -125,6 +125,10 @@ async def db_client():
     mock_builder.delete_workspace = AsyncMock(side_effect=_mock_delete_workspace)
     app.state.context_builder = mock_builder
 
+    # Reset integration layer state (may be stale from other tests).
+    app.state.vault = None
+    app.state.audit_logger = None
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

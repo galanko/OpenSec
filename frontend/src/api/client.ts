@@ -195,6 +195,45 @@ export interface IntegrationConfigUpdate {
 }
 
 // ---------------------------------------------------------------------------
+// Integration registry & credential types (Phase I-0)
+// ---------------------------------------------------------------------------
+
+export interface CredentialField {
+  key_name: string;
+  label: string;
+  type: 'password' | 'text' | 'url';
+  required: boolean;
+  help_text: string | null;
+  placeholder: string | null;
+}
+
+export interface RegistryEntry {
+  id: string;
+  name: string;
+  adapter_type: string;
+  description: string;
+  icon: string;
+  status: 'available' | 'coming_soon' | 'community';
+  setup_guide_md: string;
+  credentials_schema: CredentialField[];
+  capabilities: string[];
+  docs_url: string | null;
+  mcp_config: Record<string, unknown> | null;
+}
+
+export interface CredentialInfo {
+  key_name: string;
+  created_at: string;
+  rotated_at: string | null;
+}
+
+export interface TestConnectionResult {
+  success: boolean;
+  message: string;
+  details: Record<string, unknown> | null;
+}
+
+// ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
@@ -390,4 +429,33 @@ export const api = {
     }),
   deleteIntegration: (id: string) =>
     requestVoid(`/api/settings/integrations/${id}`, { method: 'DELETE' }),
+
+  // Settings — Integration Registry
+  getRegistry: () =>
+    request<RegistryEntry[]>('/api/settings/integrations/registry'),
+  getRegistryEntry: (id: string) =>
+    request<RegistryEntry>(`/api/settings/integrations/registry/${id}`),
+
+  // Settings — Credentials (per integration)
+  listCredentials: (integrationId: string) =>
+    request<CredentialInfo[]>(
+      `/api/settings/integrations/${integrationId}/credentials`,
+    ),
+  storeCredential: (integrationId: string, keyName: string, value: string) =>
+    request<CredentialInfo>(
+      `/api/settings/integrations/${integrationId}/credentials`,
+      { method: 'POST', body: JSON.stringify({ key_name: keyName, value }) },
+    ),
+  deleteCredential: (integrationId: string, keyName: string) =>
+    requestVoid(
+      `/api/settings/integrations/${integrationId}/credentials/${keyName}`,
+      { method: 'DELETE' },
+    ),
+
+  // Settings — Test Connection
+  testIntegration: (integrationId: string) =>
+    request<TestConnectionResult>(
+      `/api/settings/integrations/${integrationId}/test`,
+      { method: 'POST' },
+    ),
 };

@@ -1,0 +1,29 @@
+{
+  "id": "sonarqube",
+  "name": "SonarQube",
+  "adapter_type": "finding_source",
+  "description": "Import code quality and security findings from SonarQube static analysis.",
+  "icon": "verified_user",
+  "status": "coming_soon",
+  "setup_guide_md": "## SonarQube integration\n\nImport code quality and security hotspot findings from SonarQube.\n\n### Prerequisites\n\n1. A SonarQube server (Community, Developer, or Enterprise edition)\n2. A **user token** with analysis permissions\n\n### Create a user token\n\n1. In SonarQube, go to **My Account > Security**\n2. Under **Generate Tokens**, enter a name and click **Generate**\n3. Copy the token\n\n*This integration will be available in a future release.*",
+  "credentials_schema": [
+    {
+      "key_name": "sonarqube_url",
+      "label": "SonarQube URL",
+      "type": "url",
+      "required": true,
+      "help_text": "Your SonarQube server URL.",
+      "placeholder": "https://sonarqube.yourcompany.com"
+    },
+    {
+      "key_name": "sonarqube_token",
+      "label": "User token",
+      "type": "password",
+      "required": true,
+      "help_text": "SonarQube user token with analysis permissions.",
+      "placeholder": "squ_..."
+    }
+  ],
+  "capabilities": ["collect", "enrich"],
+  "docs_url": null
+}

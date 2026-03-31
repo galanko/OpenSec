@@ -273,3 +273,64 @@ export function useDeleteIntegration() {
     },
   })
 }
+
+// ---------------------------------------------------------------------------
+// Integration Registry (Phase I-0)
+// ---------------------------------------------------------------------------
+
+export function useRegistry() {
+  return useQuery({
+    queryKey: ['registry'],
+    queryFn: () => api.getRegistry(),
+  })
+}
+
+export function useRegistryEntry(id: string | undefined) {
+  return useQuery({
+    queryKey: ['registry', id],
+    queryFn: () => api.getRegistryEntry(id!),
+    enabled: !!id,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Integration Credentials (Phase I-0)
+// ---------------------------------------------------------------------------
+
+export function useCredentials(integrationId: string | undefined) {
+  return useQuery({
+    queryKey: ['credentials', integrationId],
+    queryFn: () => api.listCredentials(integrationId!),
+    enabled: !!integrationId,
+  })
+}
+
+export function useStoreCredential() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ integrationId, keyName, value }: {
+      integrationId: string; keyName: string; value: string
+    }) => api.storeCredential(integrationId, keyName, value),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['credentials', variables.integrationId] })
+    },
+  })
+}
+
+export function useDeleteCredential() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ integrationId, keyName }: {
+      integrationId: string; keyName: string
+    }) => api.deleteCredential(integrationId, keyName),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['credentials', variables.integrationId] })
+    },
+  })
+}
+
+export function useTestIntegration() {
+  return useMutation({
+    mutationFn: (integrationId: string) => api.testIntegration(integrationId),
+  })
+}
