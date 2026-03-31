@@ -86,9 +86,12 @@ class WorkspaceContextBuilder:
 
         # 2. Resolve MCP configs (if vault is configured)
         mcp_servers = None
+        ws_integrations = None
         if self._mcp_resolver is not None:
             try:
-                mcp_servers = await self._mcp_resolver.resolve_workspace_mcp_configs(db)
+                result = await self._mcp_resolver.resolve_workspace(db)
+                mcp_servers = result.mcp_configs or None
+                ws_integrations = result.integrations
             except Exception:
                 logger.warning(
                     "Failed to resolve MCP configs for workspace %s", workspace.id,
@@ -97,6 +100,15 @@ class WorkspaceContextBuilder:
 
         # 3. Filesystem directory
         ws_dir = self._dir_manager.create(workspace.id, finding, mcp_servers=mcp_servers)
+
+        # 3b. Write workspace integrations manifest
+        if ws_integrations:
+            from dataclasses import asdict
+
+            manifest = [asdict(i) for i in ws_integrations]
+            (ws_dir.root / "workspace-integrations.json").write_text(
+                json.dumps(manifest, indent=2) + "\n"
+            )
 
         # 4. Render agent templates (finding only — no enrichment yet)
         finding_dict = finding.model_dump(mode="json")

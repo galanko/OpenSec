@@ -34,6 +34,7 @@
   ],
   "capabilities": ["investigate", "update"],
   "docs_url": "https://github.com/atlassian/atlassian-mcp-server",
+  "default_action_tier": 1,
   "mcp_config": {
     "command": "npx",
     "args": ["-y", "@anthropic/atlassian-mcp-server", "--jira"],
