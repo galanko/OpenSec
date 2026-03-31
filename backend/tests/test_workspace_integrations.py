@@ -282,10 +282,11 @@ async def test_workspace_integrations_api(
         resp = await ac.get(f"/api/workspaces/{workspace.id}/integrations")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["provider_name"] == "GitHub"
-        assert data[0]["action_tier"] == 0
-        assert data[0]["status"] == "connected"
+        assert len(data["integrations"]) == 1
+        assert data["integrations"][0]["provider_name"] == "GitHub"
+        assert data["integrations"][0]["action_tier"] == 0
+        assert data["integrations"][0]["status"] == "connected"
+        assert "config_stale" in data
 
 
 async def test_workspace_integrations_api_empty(db: aiosqlite.Connection, tmp_path):
@@ -323,7 +324,9 @@ async def test_workspace_integrations_api_empty(db: aiosqlite.Connection, tmp_pa
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.get(f"/api/workspaces/{workspace.id}/integrations")
         assert resp.status_code == 200
-        assert resp.json() == []
+        data = resp.json()
+        assert data["integrations"] == []
+        assert data["config_stale"] is False
 
 
 async def test_workspace_integrations_api_404(db: aiosqlite.Connection):

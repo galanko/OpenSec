@@ -18,7 +18,7 @@ from opensec.db.repo_workspace import (
     list_workspaces,
     update_workspace,
 )
-from opensec.models import Workspace, WorkspaceCreate, WorkspaceIntegration, WorkspaceUpdate
+from opensec.models import Workspace, WorkspaceCreate, WorkspaceUpdate
 
 if TYPE_CHECKING:
     from opensec.engine.pool import WorkspaceProcessPool
@@ -233,28 +233,42 @@ async def workspace_pool_status(workspace_id: str, request: Request):
     return {"workspace_id": workspace_id, "process_running": True, **ws_status}
 
 
-@router.get(
-    "/workspaces/{workspace_id}/integrations",
-    response_model=list[WorkspaceIntegration],
-)
+@router.get("/workspaces/{workspace_id}/integrations")
 async def get_workspace_integrations(
     workspace_id: str, request: Request, db=Depends(get_db)
 ):
-    """Return the active MCP integrations for a workspace."""
+    """Return the active MCP integrations for a workspace with config freshness."""
     workspace = await get_workspace(db, workspace_id)
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-    if not workspace.workspace_dir:
-        return []
+    integrations: list[dict] = []
+    if workspace.workspace_dir:
+        manifest_path = Path(workspace.workspace_dir) / "workspace-integrations.json"
+        if manifest_path.exists():
+            try:
+                integrations = json.loads(manifest_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                logger.warning(
+                    "Failed to read workspace integrations manifest for %s",
+                    workspace_id,
+                )
 
-    manifest_path = Path(workspace.workspace_dir) / "workspace-integrations.json"
-    if not manifest_path.exists():
-        return []
+    # Check config freshness if resolver is available.
+    config_stale = False
+    stale_reason = ""
+    context_builder = _get_context_builder(request)
+    resolver = getattr(context_builder, "_mcp_resolver", None)
+    if resolver is not None and workspace.workspace_dir:
+        try:
+            freshness = await resolver.check_config_freshness(db, workspace.workspace_dir)
+            config_stale = freshness.stale
+            stale_reason = freshness.reason
+        except Exception:
+            logger.warning("Failed to check config freshness for %s", workspace_id)
 
-    try:
-        data = json.loads(manifest_path.read_text())
-        return [WorkspaceIntegration(**entry) for entry in data]
-    except (json.JSONDecodeError, OSError):
-        logger.warning("Failed to read workspace integrations manifest for %s", workspace_id)
-        return []
+    return {
+        "integrations": integrations,
+        "config_stale": config_stale,
+        "stale_reason": stale_reason,
+    }
