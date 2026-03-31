@@ -39,8 +39,20 @@ class WorkspaceDirManager:
     # Create
     # ------------------------------------------------------------------
 
-    def create(self, workspace_id: str, finding: Finding) -> WorkspaceDir:
+    def create(
+        self,
+        workspace_id: str,
+        finding: Finding,
+        *,
+        mcp_servers: dict[str, dict] | None = None,
+    ) -> WorkspaceDir:
         """Create the full directory structure and initial files for a workspace.
+
+        Args:
+            workspace_id: Unique workspace identifier.
+            finding: The finding this workspace remediates.
+            mcp_servers: Optional MCP server configs (from MCPConfigResolver)
+                to include in the workspace's opencode.json.
 
         Raises:
             FileExistsError: If the workspace directory already exists.
@@ -71,20 +83,17 @@ class WorkspaceDirManager:
         ws.finding_md.write_text(_render_finding_md(finding))
 
         # Write opencode.json — workspace agents need bash + file access
-        ws.opencode_json.write_text(
-            json.dumps(
-                {
-                    "$schema": "https://opencode.ai/config.json",
-                    "permission": {
-                        "bash": "allow",
-                        "edit": "allow",
-                        "webfetch": "allow",
-                    },
-                },
-                indent=2,
-            )
-            + "\n"
-        )
+        opencode_config: dict = {
+            "$schema": "https://opencode.ai/config.json",
+            "permission": {
+                "bash": "allow",
+                "edit": "allow",
+                "webfetch": "allow",
+            },
+        }
+        if mcp_servers:
+            opencode_config["mcp"] = mcp_servers
+        ws.opencode_json.write_text(json.dumps(opencode_config, indent=2) + "\n")
 
         # Create empty agent-runs log
         ws.agent_runs_log.touch()

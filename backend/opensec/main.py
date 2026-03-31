@@ -39,6 +39,7 @@ from opensec.engine.config_manager import config_manager
 from opensec.engine.pool import WorkspaceProcessPool
 from opensec.engine.process import opencode_process
 from opensec.integrations.audit import AuditLogger
+from opensec.integrations.gateway import MCPConfigResolver
 from opensec.integrations.vault import CredentialVault
 from opensec.workspace.context_builder import WorkspaceContextBuilder
 from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
@@ -90,11 +91,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         except Exception:
             logger.warning("Credential vault not available — set OPENSEC_CREDENTIAL_KEY to enable")
 
-    # Layer 2: Context builder (workspace directory + agent templates)
+    # MCP config resolver (requires vault)
+    mcp_resolver = None
+    if app.state.vault is not None:
+        mcp_resolver = MCPConfigResolver(app.state.vault, app.state.audit_logger)
+        logger.info("MCP config resolver initialized")
+
+    # Layer 2: Context builder (workspace directory + agent templates + MCP resolver)
     workspaces_base = settings.resolve_data_dir() / "workspaces"
     dir_manager = WorkspaceDirManager(base_dir=workspaces_base)
     template_engine = AgentTemplateEngine()
-    context_builder = WorkspaceContextBuilder(dir_manager, template_engine)
+    context_builder = WorkspaceContextBuilder(
+        dir_manager, template_engine, mcp_resolver=mcp_resolver
+    )
     app.state.context_builder = context_builder
 
     # Layer 3: Per-workspace process pool
