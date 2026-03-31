@@ -21,6 +21,13 @@ ADRs document significant architectural decisions made during the project. Once 
 | [0011](0011-stitch-design-system.md) | Stitch design system | Accepted |
 | [0012](0012-runtime-settings-via-opencode-api.md) | Runtime settings via OpenCode API | Accepted |
 | [0013](0013-runtime-model-source-of-truth.md) | Runtime model as source of truth | Accepted |
+| [0014](0014-workspace-runtime-architecture.md) | Workspace runtime architecture — isolated context environments | Proposed |
+| [0015](0015-mcp-native-integration-architecture.md) | MCP-native integration architecture | Accepted |
+| [0016](0016-credential-vault.md) | Credential vault for encrypted secret storage | Accepted |
+| [0017](0017-integration-audit-logging.md) | Integration audit logging | Accepted |
+| [0018](0018-mcp-gateway.md) | MCP Gateway — build inline, informed by ecosystem | Accepted |
+| [0019](0019-community-mcp-servers-over-custom-adapters.md) | Community MCP servers over custom adapters | Accepted |
+| [0020](0020-two-plane-integration-architecture.md) | Two-plane integration architecture (operational + agentic) | Accepted |
 
 ## Template
 
