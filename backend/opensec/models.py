@@ -280,3 +280,25 @@ class ModelConfig(BaseModel):
     model_full_id: str
     provider: str = ""
     model_id: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Integration credential models (Phase I-0)
+# ---------------------------------------------------------------------------
+
+
+class CredentialCreate(BaseModel):
+    key_name: str
+    value: str
+
+
+class CredentialInfo(BaseModel):
+    key_name: str
+    created_at: str
+    rotated_at: str | None = None
+
+
+class TestConnectionResult(BaseModel):
+    success: bool
+    message: str
+    details: dict[str, Any] | None = None

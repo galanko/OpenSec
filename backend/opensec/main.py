@@ -39,6 +39,7 @@ from opensec.engine.config_manager import config_manager
 from opensec.engine.pool import WorkspaceProcessPool
 from opensec.engine.process import opencode_process
 from opensec.integrations.audit import AuditLogger
+from opensec.integrations.vault import CredentialVault
 from opensec.workspace.context_builder import WorkspaceContextBuilder
 from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
 
@@ -79,6 +80,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.audit_logger = audit_logger
     else:
         app.state.audit_logger = None
+
+    # Credential vault (non-fatal if key not configured)
+    app.state.vault = None
+    if db_connection._db is not None:
+        try:
+            app.state.vault = CredentialVault(db_connection._db)
+            logger.info("Credential vault initialized")
+        except Exception:
+            logger.warning("Credential vault not available — set OPENSEC_CREDENTIAL_KEY to enable")
 
     # Layer 2: Context builder (workspace directory + agent templates)
     workspaces_base = settings.resolve_data_dir() / "workspaces"

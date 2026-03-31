@@ -1,0 +1,29 @@
+{
+  "id": "tenable",
+  "name": "Tenable",
+  "adapter_type": "finding_source",
+  "description": "Import vulnerability findings from Tenable.io or Nessus for infrastructure and web application scanning.",
+  "icon": "shield",
+  "status": "coming_soon",
+  "setup_guide_md": "## Tenable integration\n\nImport vulnerability findings from Tenable.io or Tenable.sc.\n\n### Prerequisites\n\n1. A Tenable.io account with API access\n2. **API keys** (access key + secret key)\n\n### Generate API keys\n\n1. In Tenable.io, go to **Settings > My Account > API Keys**\n2. Click **Generate** to create a new key pair\n3. Copy both the **Access Key** and **Secret Key**\n\n*This integration will be available in a future release.*",
+  "credentials_schema": [
+    {
+      "key_name": "tenable_access_key",
+      "label": "Access key",
+      "type": "password",
+      "required": true,
+      "help_text": "Tenable.io API access key.",
+      "placeholder": null
+    },
+    {
+      "key_name": "tenable_secret_key",
+      "label": "Secret key",
+      "type": "password",
+      "required": true,
+      "help_text": "Tenable.io API secret key.",
+      "placeholder": null
+    }
+  ],
+  "capabilities": ["collect", "enrich"],
+  "docs_url": null
+}
