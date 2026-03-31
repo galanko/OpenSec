@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     import aiosqlite
 
     from opensec.agents.template_engine import AgentTemplateEngine
+    from opensec.integrations.gateway import MCPConfigResolver
     from opensec.models import Finding, Workspace
     from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
 
@@ -46,9 +47,12 @@ class WorkspaceContextBuilder:
         self,
         dir_manager: WorkspaceDirManager,
         template_engine: AgentTemplateEngine,
+        *,
+        mcp_resolver: MCPConfigResolver | None = None,
     ) -> None:
         self._dir_manager = dir_manager
         self._template_engine = template_engine
+        self._mcp_resolver = mcp_resolver
 
     # ------------------------------------------------------------------
     # Create
@@ -65,9 +69,10 @@ class WorkspaceContextBuilder:
 
         Steps:
             1. Create DB row
-            2. Create directory structure with finding context
-            3. Render and write agent templates
-            4. Store directory path in DB
+            2. Resolve MCP configs from vault (if configured)
+            3. Create directory structure with finding context + MCP configs
+            4. Render and write agent templates
+            5. Store directory path in DB
 
         Returns the fully populated Workspace model.
         """
@@ -79,14 +84,25 @@ class WorkspaceContextBuilder:
         )
         workspace = await create_workspace(db, ws_data)
 
-        # 2. Filesystem directory
-        ws_dir = self._dir_manager.create(workspace.id, finding)
+        # 2. Resolve MCP configs (if vault is configured)
+        mcp_servers = None
+        if self._mcp_resolver is not None:
+            try:
+                mcp_servers = await self._mcp_resolver.resolve_workspace_mcp_configs(db)
+            except Exception:
+                logger.warning(
+                    "Failed to resolve MCP configs for workspace %s", workspace.id,
+                    exc_info=True,
+                )
 
-        # 3. Render agent templates (finding only — no enrichment yet)
+        # 3. Filesystem directory
+        ws_dir = self._dir_manager.create(workspace.id, finding, mcp_servers=mcp_servers)
+
+        # 4. Render agent templates (finding only — no enrichment yet)
         finding_dict = finding.model_dump(mode="json")
         self._template_engine.write_agents(ws_dir.agents_dir, finding=finding_dict)
 
-        # 4. Store path in DB
+        # 5. Store path in DB
         await update_workspace_dir(db, workspace.id, str(ws_dir.root))
 
         logger.info("Created workspace %s at %s", workspace.id, ws_dir.root)
