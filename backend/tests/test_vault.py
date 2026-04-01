@@ -108,6 +108,7 @@ def test_unicode_plaintext_handled():
 
 
 def test_env_var_key_provider(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("opensec.integrations.vault._try_keyring", lambda: None)
     monkeypatch.setenv("OPENSEC_CREDENTIAL_KEY", TEST_KEY_B64)
     key = resolve_key()
     assert key == TEST_KEY
@@ -122,6 +123,7 @@ def test_env_var_key_provider_missing_raises(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_key_must_be_32_bytes(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr("opensec.integrations.vault._try_keyring", lambda: None)
     short_key = base64.b64encode(b"too-short").decode()
     monkeypatch.setenv("OPENSEC_CREDENTIAL_KEY", short_key)
     with pytest.raises(CredentialKeyError, match="32 bytes"):

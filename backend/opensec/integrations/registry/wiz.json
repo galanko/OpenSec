@@ -35,6 +35,8 @@
   "capabilities": ["collect", "enrich", "investigate", "update"],
   "docs_url": null,
   "mcp_config": {
+    "type": "local",
+    "enabled": true,
     "command": "python",
     "args": ["-m", "opensec.integrations.wrappers.wiz"],
     "env": {

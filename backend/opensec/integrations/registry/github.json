@@ -19,6 +19,8 @@
   "capabilities": ["collect", "enrich", "investigate"],
   "docs_url": "https://github.com/github/github-mcp-server",
   "mcp_config": {
+    "type": "local",
+    "enabled": true,
     "command": "npx",
     "args": ["-y", "@modelcontextprotocol/server-github", "--read-only"],
     "env": {
