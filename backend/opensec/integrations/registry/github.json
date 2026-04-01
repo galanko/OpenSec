@@ -21,8 +21,7 @@
   "mcp_config": {
     "type": "local",
     "enabled": true,
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-github", "--read-only"],
+    "command": ["npx", "-y", "@modelcontextprotocol/server-github", "--read-only"],
     "env": {
       "GITHUB_PERSONAL_ACCESS_TOKEN": "${credential:github_personal_access_token}"
     }

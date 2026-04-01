@@ -160,7 +160,7 @@ async def test_resolve_one_enabled_integration(
     configs = await resolver.resolve_workspace_mcp_configs(db)
 
     assert "github" in configs
-    assert configs["github"]["command"] == "npx"
+    assert configs["github"]["command"][0] == "npx"
     assert configs["github"]["env"]["GITHUB_PERSONAL_ACCESS_TOKEN"] == "ghp_test123"
 
 

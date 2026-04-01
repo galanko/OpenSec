@@ -37,8 +37,7 @@
   "mcp_config": {
     "type": "local",
     "enabled": true,
-    "command": "python",
-    "args": ["-m", "opensec.integrations.wrappers.wiz"],
+    "command": ["python", "-m", "opensec.integrations.wrappers.wiz"],
     "env": {
       "WIZ_CLIENT_ID": "${credential:wiz_client_id}",
       "WIZ_CLIENT_SECRET": "${credential:wiz_client_secret}",

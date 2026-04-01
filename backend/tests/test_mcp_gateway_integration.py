@@ -89,7 +89,7 @@ async def test_full_gateway_flow(db: aiosqlite.Connection, vault: CredentialVaul
     oc_config = json.loads((ws_dir / "opencode.json").read_text())
     assert "mcp" in oc_config
     assert "github" in oc_config["mcp"]
-    assert oc_config["mcp"]["github"]["command"] == "npx"
+    assert oc_config["mcp"]["github"]["command"][0] == "npx"
     assert oc_config["mcp"]["github"]["env"]["GITHUB_PERSONAL_ACCESS_TOKEN"] == "ghp_e2e_test_token"
     # Permissions still present.
     assert oc_config["permission"]["bash"] == "allow"

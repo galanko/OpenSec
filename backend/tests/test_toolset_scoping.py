@@ -32,7 +32,7 @@ class TestGitHubRegistryEntry:
     def test_github_has_read_only_flag(self):
         entry = get_registry_entry("github")
         assert entry is not None
-        assert "--read-only" in entry.mcp_config["args"]
+        assert "--read-only" in entry.mcp_config["command"]
 
     def test_github_has_toolsets(self):
         entry = get_registry_entry("github")
@@ -181,10 +181,10 @@ class TestGatewayToolsetIntegration:
 
             result = await resolver.resolve_workspace(db)
             config = result.mcp_configs["github"]
-            assert "--read-only" in config["args"]
-            assert "--toolsets" in config["args"]
-            idx = config["args"].index("--toolsets")
-            assert config["args"][idx + 1] == "repos,code_security"
+            assert "--read-only" in config["command"]
+            assert "--toolsets" in config["command"]
+            idx = config["command"].index("--toolsets")
+            assert config["command"][idx + 1] == "repos,code_security"
         finally:
             await close_db()
 
@@ -215,10 +215,10 @@ class TestGatewayToolsetIntegration:
 
             result = await resolver.resolve_workspace(db)
             config = result.mcp_configs["github"]
-            assert "--read-only" not in config["args"]
-            assert "--toolsets" in config["args"]
-            idx = config["args"].index("--toolsets")
-            assert "pull_requests" in config["args"][idx + 1]
+            assert "--read-only" not in config["command"]
+            assert "--toolsets" in config["command"]
+            idx = config["command"].index("--toolsets")
+            assert "pull_requests" in config["command"][idx + 1]
         finally:
             await close_db()
 
@@ -250,6 +250,6 @@ class TestGatewayToolsetIntegration:
 
             result = await resolver.resolve_workspace(db)
             config = result.mcp_configs["jira-cloud"]
-            assert "--toolsets" not in config["args"]
+            assert "--toolsets" not in config["command"]
         finally:
             await close_db()

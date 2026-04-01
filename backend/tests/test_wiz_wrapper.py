@@ -392,9 +392,9 @@ class TestWizRegistryIntegration:
         entry = get_registry_entry("wiz")
         assert entry is not None
         assert entry.mcp_config is not None
-        assert entry.mcp_config["command"] == "python"
-        assert "-m" in entry.mcp_config["args"]
-        assert "opensec.integrations.wrappers.wiz" in entry.mcp_config["args"]
+        assert entry.mcp_config["command"][0] == "python"
+        assert "-m" in entry.mcp_config["command"]
+        assert "opensec.integrations.wrappers.wiz" in entry.mcp_config["command"]
 
     def test_wiz_status_is_available(self):
         from opensec.integrations.registry import clear_cache, get_registry_entry
@@ -448,7 +448,7 @@ class TestWizRegistryIntegration:
             result = await resolver.resolve_workspace(db)
             assert "wiz" in result.mcp_configs
             config = result.mcp_configs["wiz"]
-            assert config["command"] == "python"
+            assert config["command"][0] == "python"
             # Credentials should be resolved (no placeholders).
             assert config["env"]["WIZ_CLIENT_ID"] == "test_id"
             assert config["env"]["WIZ_CLIENT_SECRET"] == "test_secret"

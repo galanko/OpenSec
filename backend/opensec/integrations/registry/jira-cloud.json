@@ -38,8 +38,7 @@
   "mcp_config": {
     "type": "local",
     "enabled": true,
-    "command": "npx",
-    "args": ["-y", "@anthropic/atlassian-mcp-server", "--jira"],
+    "command": ["npx", "-y", "@anthropic/atlassian-mcp-server", "--jira"],
     "env": {
       "JIRA_URL": "${credential:jira_url}",
       "JIRA_EMAIL": "${credential:jira_email}",

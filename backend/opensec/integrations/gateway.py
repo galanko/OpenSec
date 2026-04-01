@@ -286,28 +286,37 @@ def _apply_toolset_scoping(
     """Mutate *config* in-place to apply toolset scoping and read-only rules.
 
     - If the registry entry defines ``toolsets``, append ``--toolsets <list>``
-      to the resolved ``args`` for the given *action_tier*.
-    - If *action_tier* > 0, remove ``--read-only`` from ``args`` (user opted
-      into writes).
+      to the resolved ``command`` array for the given *action_tier*.
+    - If *action_tier* > 0, remove ``--read-only`` from ``command`` (user
+      opted into writes).
+
+    Works with both legacy format (separate ``args`` key) and the OpenCode
+    format (``command`` is the full argument array).
     """
-    args = config.get("args")
-    if not isinstance(args, list):
+    # Support both formats: "command" (array) or legacy "args" (array).
+    if isinstance(config.get("command"), list):
+        key = "command"
+    elif isinstance(config.get("args"), list):
+        key = "args"
+    else:
         return
+
+    cmd = config[key]
 
     # Toolset scoping: append --toolsets flag if the entry defines them.
     if entry.toolsets:
         tier_key = str(action_tier)
         toolset_list = entry.toolsets.get(tier_key)
         if toolset_list:
-            config["args"] = [a for a in args if a != "--toolsets"] + [
+            config[key] = [a for a in cmd if a != "--toolsets"] + [
                 "--toolsets",
                 ",".join(toolset_list),
             ]
-            args = config["args"]
+            cmd = config[key]
 
     # Read-only removal: if user opted into higher tier, remove --read-only.
-    if action_tier > 0 and "--read-only" in args:
-        config["args"] = [a for a in args if a != "--read-only"]
+    if action_tier > 0 and "--read-only" in cmd:
+        config[key] = [a for a in cmd if a != "--read-only"]
 
 
 def _find_unresolved_placeholders(config: dict[str, Any]) -> list[str]:
