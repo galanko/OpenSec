@@ -15,8 +15,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from opensec.agents.executor import AgentExecutor
 from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.api.routes import (
+    agent_execution,
     agent_runs,
     audit,
     chat,
@@ -110,6 +112,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     pool = WorkspaceProcessPool()
     app.state.process_pool = pool
 
+    # Agent executor (Layer 5: orchestration)
+    app.state.agent_executor = AgentExecutor(pool, context_builder)
+
     # Background idle cleanup task
     async def _idle_cleanup_loop() -> None:
         idle_timeout = timedelta(seconds=settings.workspace_idle_timeout_seconds)
@@ -161,6 +166,7 @@ app.include_router(findings.router, prefix="/api")
 app.include_router(workspaces.router, prefix="/api")
 app.include_router(messages.router, prefix="/api")
 app.include_router(agent_runs.router, prefix="/api")
+app.include_router(agent_execution.router, prefix="/api")
 app.include_router(sidebar.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
