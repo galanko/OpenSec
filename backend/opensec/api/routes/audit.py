@@ -49,17 +49,3 @@ async def query_audit_log(
         until=until,
     )
     return {"events": events, "total": total, "limit": limit, "offset": offset}
-
-
-@router.get("/audit/verify")
-async def verify_audit_chain(
-    request: Request,
-    db: aiosqlite.Connection = Depends(get_db),
-    limit: int = Query(1000, ge=1, le=10000),
-) -> dict[str, Any]:
-    """Verify hash-chain integrity of the audit log."""
-    audit_logger = getattr(request.app.state, "audit_logger", None)
-    if audit_logger is None:
-        return {"valid": True, "events_checked": 0, "message": "Audit logger not initialized"}
-    is_valid, events_checked = await audit_logger.verify_chain(limit=limit)
-    return {"valid": is_valid, "events_checked": events_checked}

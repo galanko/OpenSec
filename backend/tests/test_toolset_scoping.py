@@ -14,7 +14,6 @@ import pytest
 from opensec.integrations.gateway import _apply_toolset_scoping
 from opensec.integrations.registry import (
     RegistryEntry,
-    clear_cache,
     get_registry_entry,
 )
 
@@ -25,9 +24,6 @@ from opensec.integrations.registry import (
 
 class TestGitHubRegistryEntry:
     """Verify the updated github.json has read-only and toolsets."""
-
-    def setup_method(self):
-        clear_cache()
 
     def test_github_has_read_only_flag(self):
         entry = get_registry_entry("github")
@@ -163,7 +159,6 @@ class TestGatewayToolsetIntegration:
         from opensec.integrations.vault import CredentialVault
         from opensec.models import IntegrationConfigCreate
 
-        clear_cache()
         db = await init_db(":memory:")
         try:
             vault = CredentialVault(db, key=os.urandom(32))
@@ -197,7 +192,6 @@ class TestGatewayToolsetIntegration:
         from opensec.integrations.vault import CredentialVault
         from opensec.models import IntegrationConfigCreate
 
-        clear_cache()
         db = await init_db(":memory:")
         try:
             vault = CredentialVault(db, key=os.urandom(32))
@@ -231,7 +225,6 @@ class TestGatewayToolsetIntegration:
         from opensec.integrations.vault import CredentialVault
         from opensec.models import IntegrationConfigCreate
 
-        clear_cache()
         db = await init_db(":memory:")
         try:
             vault = CredentialVault(db, key=os.urandom(32))
