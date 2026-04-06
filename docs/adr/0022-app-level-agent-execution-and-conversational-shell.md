@@ -34,10 +34,13 @@ Use the existing singleton OpenCode process for lightweight, stateless agent tas
 - The normalizer agent is a structured extraction task, not open-ended reasoning. The prompt should be tight: schema definition + raw data in, JSON out — no chain-of-thought, no tool use
 - Use the cheapest available model. The singleton process inherits the app's configured model, but the normalizer prompt should be designed to work well even with smaller/faster models (e.g., GPT-4.1-mini, Claude Haiku)
 - Batch-friendly: the route should accept a list of raw findings in a single call to amortize prompt overhead when ingesting bulk exports
+- **For bulk ingest (>50 findings), the synchronous endpoint is replaced by an async chunked job system. See [ADR-0023](0023-async-chunked-finding-ingestion.md)**
 - The prompt template should include 1-2 few-shot examples of normalized output to reduce tokens wasted on format negotiation
+- **[ADR-0023](0023-async-chunked-finding-ingestion.md) extends this** with pre-processing token estimation, per-request model override, and dry-run mode for cost preview before committing to a bulk ingest
 
 **Constraints:**
 - App-level tasks must be lightweight (normalization, classification, summarization)
+- **Long-running tasks (bulk normalization of 50+ findings) must use the async job system ([ADR-0023](0023-async-chunked-finding-ingestion.md)) to avoid blocking the singleton process for extended periods**
 - Heavy multi-step workflows belong in workspaces
 - No MCP tools in the singleton process — it doesn't have per-integration configs
 - If a task needs MCP tools (e.g., fetching findings from Wiz), it needs a temporary process with resolved MCP configs — design this when the need becomes concrete
