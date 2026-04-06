@@ -1,7 +1,8 @@
 # ADR-0017: Integration Audit Logging
 
 **Date:** 2026-03-31
-**Status:** Accepted
+**Status:** Accepted (with simplification note)
+**Note:** Hash-chain tamper evidence (prev_hash, event_hash, verify_chain) is over-engineered for a single-user community edition (ADR-0009). Structured audit logging is valuable and stays. The hash-chain should be removed — it solves an enterprise compliance requirement we don't have yet. Re-add when building multi-user/enterprise edition.
 
 ## Context
 

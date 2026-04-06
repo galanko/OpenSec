@@ -1,7 +1,8 @@
 # ADR-0020: Two-Plane Integration Architecture
 
 **Date:** 2026-03-31
-**Status:** Accepted
+**Status:** Proposed
+**Note:** Downgraded from Accepted (2026-04-06). The agentic plane is implemented and working. The operational plane (polling, webhooks, sync) has zero implementation and no concrete timeline. Designing the shared contract now creates phantom constraints — revisit when operational plane work begins.
 
 ## Context
 
