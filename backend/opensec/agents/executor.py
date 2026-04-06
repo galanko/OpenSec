@@ -9,10 +9,13 @@ persists results to context files, sidebar state, and the DB.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
+
+import httpx
 
 from opensec.agents.errors import (
     AgentBusyError,
@@ -44,11 +47,12 @@ DEFAULT_TIMEOUT: float = 120.0
 # Prompt template sent to OpenCode to invoke a sub-agent.
 _AGENT_PROMPT = (
     "Run the {agent_type} analysis on this finding. "
-    "Read the workspace context files (CONTEXT.md, context/finding.json) "
-    "for full details. Return your analysis as a JSON block with these fields: "
-    "summary (string), result_card_markdown (markdown string), "
+    "The workspace context files (CONTEXT.md, context/finding.json) contain "
+    "the full details. Respond directly with your analysis as a JSON block "
+    "with these fields: summary (string), result_card_markdown (markdown string), "
     "structured_output (object with your analysis), confidence (0.0-1.0), "
-    "evidence_sources (list of strings), suggested_next_action (string)."
+    "evidence_sources (list of strings), suggested_next_action (string). "
+    "Do not use any tools — just analyze based on the context already available."
 )
 
 
@@ -139,14 +143,28 @@ class AgentExecutor:
             # 4. Create fresh session
             session = await client.create_session()
 
-            # 5. Send prompt
+            # 5+6. Subscribe to SSE event stream FIRST, then send the
+            # message. OpenCode's POST /message may block for the entire
+            # LLM call, so we need the stream connected before sending
+            # to avoid missing early events.
             prompt = _AGENT_PROMPT.format(agent_type=agent_type)
-            await client.send_message(session.id, prompt)
 
-            # 6. Collect response with timeout
-            response_text = await self._collect_response(
-                client, session.id, timeout=timeout, on_progress=on_progress
-            )
+            async def _send_after_delay() -> None:
+                """Send message after a brief delay to let the stream connect."""
+                await asyncio.sleep(0.5)
+                with contextlib.suppress(httpx.ReadTimeout):
+                    await client.send_message(session.id, prompt)
+
+            send_task = asyncio.create_task(_send_after_delay())
+            try:
+                response_text = await self._collect_response(
+                    client, session.id, timeout=timeout, on_progress=on_progress
+                )
+            finally:
+                if not send_task.done():
+                    send_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await send_task
 
             # 7. Parse response
             parse_result = parse_agent_response(
@@ -285,17 +303,23 @@ class AgentExecutor:
         *,
         timeout: float,
         on_progress: Callable[[str], None] | None = None,
+        stall_timeout: float = 60.0,
     ) -> str:
         """Collect the full response from OpenCode via SSE stream.
 
-        Accumulates text events until ``done``. Raises AgentTimeoutError
-        if the timeout is exceeded.
+        Accumulates text events until ``done`` or until no new events
+        arrive for ``stall_timeout`` seconds (stall detection — OpenCode
+        may not emit ``session.idle`` if the agent uses tools).
+
+        Raises AgentTimeoutError if the overall timeout is exceeded.
         """
         collected_text = ""
+        last_event_time = time.monotonic()
 
         async def _stream() -> str:
-            nonlocal collected_text
+            nonlocal collected_text, last_event_time
             async for event in client.stream_events(session_id):
+                last_event_time = time.monotonic()
                 if event["type"] == "text":
                     collected_text = event["content"]
                     if on_progress:
@@ -306,10 +330,34 @@ class AgentExecutor:
                     )
                 elif event["type"] == "done":
                     return collected_text
+                # "activity" events (tool calls, etc.) also reset the timer
+                # via last_event_time update above.
             return collected_text
 
+        async def _stream_with_stall_detection() -> str:
+            """Wrap stream with stall detection."""
+            stream_task = asyncio.create_task(_stream())
+            try:
+                while not stream_task.done():
+                    await asyncio.sleep(2.0)
+                    idle = time.monotonic() - last_event_time
+                    if idle > stall_timeout and collected_text:
+                        # Stream stalled with content — treat as complete
+                        stream_task.cancel()
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await stream_task
+                        return collected_text
+                return stream_task.result()
+            except asyncio.CancelledError:
+                stream_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await stream_task
+                raise
+
         try:
-            return await asyncio.wait_for(_stream(), timeout=timeout)
+            return await asyncio.wait_for(
+                _stream_with_stall_detection(), timeout=timeout
+            )
         except TimeoutError as exc:
             raise AgentTimeoutError(
                 f"Agent did not complete within {timeout:.0f}s. "
