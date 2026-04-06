@@ -26,9 +26,15 @@ Use the existing singleton OpenCode process for lightweight, stateless agent tas
 **Design:**
 - The singleton process on port 4096 handles app-level agent tasks
 - Tasks are stateless — no persistent session, no sidebar, no agent run log
-- A prompt template defines the extraction contract (input: raw vendor data, output: `FindingCreate` JSON)
+- A **dedicated normalizer agent** (`.opencode/agents/finding-normalizer.md`) defines the extraction contract — a focused prompt that takes raw vendor data and outputs `FindingCreate` JSON. This follows the same pattern as workspace agents (Phase 6a) but lives at the app level
 - The FastAPI route (`POST /api/findings/ingest`) sends the prompt, parses the structured response, and calls the existing `create_finding` DB function
 - No new process pool, no new architecture — reuse what exists
+
+**Cost optimization:**
+- The normalizer agent is a structured extraction task, not open-ended reasoning. The prompt should be tight: schema definition + raw data in, JSON out — no chain-of-thought, no tool use
+- Use the cheapest available model. The singleton process inherits the app's configured model, but the normalizer prompt should be designed to work well even with smaller/faster models (e.g., GPT-4.1-mini, Claude Haiku)
+- Batch-friendly: the route should accept a list of raw findings in a single call to amortize prompt overhead when ingesting bulk exports
+- The prompt template should include 1-2 few-shot examples of normalized output to reduce tokens wasted on format negotiation
 
 **Constraints:**
 - App-level tasks must be lightweight (normalization, classification, summarization)
