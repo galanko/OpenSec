@@ -386,9 +386,8 @@ class TestWizRegistryIntegration:
     """Verify the updated wiz.json registry entry."""
 
     def test_wiz_registry_has_mcp_config(self):
-        from opensec.integrations.registry import clear_cache, get_registry_entry
+        from opensec.integrations.registry import get_registry_entry
 
-        clear_cache()
         entry = get_registry_entry("wiz")
         assert entry is not None
         assert entry.mcp_config is not None
@@ -397,17 +396,15 @@ class TestWizRegistryIntegration:
         assert "opensec.integrations.wrappers.wiz" in entry.mcp_config["command"]
 
     def test_wiz_status_is_available(self):
-        from opensec.integrations.registry import clear_cache, get_registry_entry
+        from opensec.integrations.registry import get_registry_entry
 
-        clear_cache()
         entry = get_registry_entry("wiz")
         assert entry is not None
         assert entry.status == "available"
 
     def test_wiz_credentials_schema_complete(self):
-        from opensec.integrations.registry import clear_cache, get_registry_entry
+        from opensec.integrations.registry import get_registry_entry
 
-        clear_cache()
         entry = get_registry_entry("wiz")
         assert entry is not None
         key_names = {f.key_name for f in entry.credentials_schema}
@@ -419,11 +416,9 @@ class TestWizRegistryIntegration:
         from opensec.db.connection import close_db, init_db
         from opensec.db.repo_integration import create_integration
         from opensec.integrations.gateway import MCPConfigResolver
-        from opensec.integrations.registry import clear_cache
         from opensec.integrations.vault import CredentialVault
         from opensec.models import IntegrationConfigCreate
 
-        clear_cache()
         test_key = os.urandom(32)
         db = await init_db(":memory:")
         try:
@@ -462,11 +457,9 @@ class TestWizRegistryIntegration:
         from opensec.db.connection import close_db, init_db
         from opensec.db.repo_integration import create_integration
         from opensec.integrations.gateway import MCPConfigResolver
-        from opensec.integrations.registry import clear_cache
         from opensec.integrations.vault import CredentialVault
         from opensec.models import IntegrationConfigCreate
 
-        clear_cache()
         test_key = os.urandom(32)
         db = await init_db(":memory:")
         try:

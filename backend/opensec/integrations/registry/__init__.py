@@ -1,7 +1,7 @@
 """Integration registry — catalog of available integrations with setup guides.
 
 Builtin entries are stored as JSON files in this directory. The registry is
-loaded once at import time and cached in memory.
+loaded once at import time.
 """
 
 from __future__ import annotations
@@ -55,40 +55,30 @@ class RegistryEntry(BaseModel):
 # Registry loader
 # ---------------------------------------------------------------------------
 
-_cache: list[RegistryEntry] | None = None
 
-
-def load_registry(*, registry_dir: Path | None = None) -> list[RegistryEntry]:
-    """Load all JSON registry entries from *registry_dir*."""
-    global _cache  # noqa: PLW0603
-    if _cache is not None and registry_dir is None:
-        return _cache
-
-    target_dir = registry_dir or _REGISTRY_DIR
+def _load_entries() -> list[RegistryEntry]:
+    """Load all JSON registry entries from the builtin registry directory."""
     entries: list[RegistryEntry] = []
-
-    for path in sorted(target_dir.glob("*.json")):
+    for path in sorted(_REGISTRY_DIR.glob("*.json")):
         try:
             data = json.loads(path.read_text())
             entries.append(RegistryEntry(**data))
         except Exception:
             logger.warning("Failed to load registry entry %s", path.name, exc_info=True)
-
-    if registry_dir is None:
-        _cache = entries
-
     return entries
 
 
-def get_registry_entry(entry_id: str, *, registry_dir: Path | None = None) -> RegistryEntry | None:
+REGISTRY: list[RegistryEntry] = _load_entries()
+
+
+def load_registry() -> list[RegistryEntry]:
+    """Return all registry entries."""
+    return REGISTRY
+
+
+def get_registry_entry(entry_id: str) -> RegistryEntry | None:
     """Look up a single registry entry by ID."""
-    for entry in load_registry(registry_dir=registry_dir):
+    for entry in REGISTRY:
         if entry.id == entry_id:
             return entry
     return None
-
-
-def clear_cache() -> None:
-    """Clear the registry cache (useful for testing)."""
-    global _cache  # noqa: PLW0603
-    _cache = None

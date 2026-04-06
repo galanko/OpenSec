@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -13,7 +11,6 @@ import pytest
 from opensec.db.connection import close_db, init_db
 from opensec.integrations.registry import (
     RegistryEntry,
-    clear_cache,
     get_registry_entry,
     load_registry,
 )
@@ -21,25 +18,14 @@ from opensec.integrations.registry import (
 if TYPE_CHECKING:
     import aiosqlite
 
-# Use the real registry directory for most tests.
-_REGISTRY_DIR = Path(__file__).parent.parent / "opensec" / "integrations" / "registry"
-
-
-@pytest.fixture(autouse=True)
-def _clear_registry_cache():
-    """Clear registry cache before each test."""
-    clear_cache()
-    yield
-    clear_cache()
-
 
 def test_load_registry_returns_entries():
-    entries = load_registry(registry_dir=_REGISTRY_DIR)
+    entries = load_registry()
     assert len(entries) >= 6
 
 
 def test_registry_entry_schema_valid():
-    entries = load_registry(registry_dir=_REGISTRY_DIR)
+    entries = load_registry()
     for entry in entries:
         assert isinstance(entry, RegistryEntry)
         assert entry.id
@@ -49,19 +35,19 @@ def test_registry_entry_schema_valid():
 
 
 def test_get_entry_by_id():
-    entry = get_registry_entry("github", registry_dir=_REGISTRY_DIR)
+    entry = get_registry_entry("github")
     assert entry is not None
     assert entry.name == "GitHub"
     assert entry.status == "available"
 
 
 def test_get_entry_not_found():
-    entry = get_registry_entry("nonexistent", registry_dir=_REGISTRY_DIR)
+    entry = get_registry_entry("nonexistent")
     assert entry is None
 
 
 def test_credentials_schema_present():
-    entries = load_registry(registry_dir=_REGISTRY_DIR)
+    entries = load_registry()
     for entry in entries:
         assert isinstance(entry.credentials_schema, list)
         assert len(entry.credentials_schema) > 0, f"{entry.id} has no credentials_schema"
@@ -71,49 +57,38 @@ def test_credentials_schema_present():
 
 
 def test_setup_guide_not_empty():
-    entries = load_registry(registry_dir=_REGISTRY_DIR)
+    entries = load_registry()
     for entry in entries:
         assert entry.setup_guide_md, f"{entry.id} has empty setup_guide_md"
 
 
 def test_capabilities_present():
-    entries = load_registry(registry_dir=_REGISTRY_DIR)
+    entries = load_registry()
     for entry in entries:
         assert isinstance(entry.capabilities, list)
         assert len(entry.capabilities) > 0, f"{entry.id} has no capabilities"
 
 
 def test_github_entry_has_mcp_config():
-    entry = get_registry_entry("github", registry_dir=_REGISTRY_DIR)
+    entry = get_registry_entry("github")
     assert entry is not None
     assert entry.mcp_config is not None
     assert "command" in entry.mcp_config
 
 
 def test_coming_soon_entries():
-    entries = load_registry(registry_dir=_REGISTRY_DIR)
+    entries = load_registry()
     coming_soon = [e for e in entries if e.status == "coming_soon"]
     assert len(coming_soon) >= 3  # wiz, snyk, sonarqube, tenable
 
 
-def test_load_registry_custom_dir():
-    """Load from a custom directory with a single entry."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        entry_data = {
-            "id": "test-tool",
-            "name": "Test Tool",
-            "adapter_type": "validation",
-            "description": "A test integration.",
-            "credentials_schema": [
-                {"key_name": "token", "label": "Token", "type": "password", "required": True}
-            ],
-            "capabilities": ["investigate"],
-        }
-        Path(tmpdir, "test-tool.json").write_text(json.dumps(entry_data))
+def test_load_registry_returns_module_level_list(monkeypatch):
+    """Verify load_registry() returns the module-level REGISTRY list."""
+    import opensec.integrations.registry as reg
 
-        entries = load_registry(registry_dir=Path(tmpdir))
-        assert len(entries) == 1
-        assert entries[0].id == "test-tool"
+    fake = [RegistryEntry(id="fake", name="Fake", adapter_type="validation", description="test")]
+    monkeypatch.setattr(reg, "REGISTRY", fake)
+    assert load_registry() is fake
 
 
 # ---------------------------------------------------------------------------

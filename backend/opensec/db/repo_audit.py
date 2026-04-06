@@ -22,8 +22,8 @@ async def insert_audit_event(db: aiosqlite.Connection, event: dict[str, Any]) ->
             workspace_id, integration_id, provider_name,
             tool_name, verb, action_tier, status,
             duration_ms, parameters_hash, error_message,
-            correlation_id, prev_hash, event_hash
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            correlation_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             event["timestamp"],
@@ -41,21 +41,10 @@ async def insert_audit_event(db: aiosqlite.Connection, event: dict[str, Any]) ->
             event.get("parameters_hash"),
             event.get("error_message"),
             event.get("correlation_id"),
-            event.get("prev_hash"),
-            event["event_hash"],
         ),
     )
     await db.commit()
     return cursor.lastrowid  # type: ignore[return-value]
-
-
-async def get_last_event_hash(db: aiosqlite.Connection) -> str | None:
-    """Return the event_hash of the most recent audit event, or None if empty."""
-    cursor = await db.execute(
-        "SELECT event_hash FROM audit_log ORDER BY id DESC LIMIT 1"
-    )
-    row = await cursor.fetchone()
-    return row["event_hash"] if row else None
 
 
 async def query_audit_log(
@@ -141,17 +130,6 @@ async def count_audit_events(
     )
     row = await cursor.fetchone()
     return row[0]
-
-
-async def get_events_for_verification(
-    db: aiosqlite.Connection, *, since_id: int = 0, limit: int = 1000
-) -> list[dict[str, Any]]:
-    """Fetch events in insertion order for hash-chain verification."""
-    cursor = await db.execute(
-        "SELECT * FROM audit_log WHERE id > ? ORDER BY id ASC LIMIT ?",
-        (since_id, limit),
-    )
-    return [dict(row) for row in await cursor.fetchall()]
 
 
 async def cleanup_old_events(db: aiosqlite.Connection, retention_days: int = 90) -> int:
