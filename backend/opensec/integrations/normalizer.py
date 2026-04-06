@@ -11,12 +11,17 @@ import logging
 import re
 from typing import Any
 
+from pydantic import ValidationError
+
 from opensec.engine.client import opencode_client
 from opensec.models import FindingCreate
 
 logger = logging.getLogger(__name__)
 
 MAX_BATCH_SIZE = 50
+
+_RE_FENCED = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)
+_RE_TRAILING_COMMA = re.compile(r",\s*([}\]])")
 
 # ---------------------------------------------------------------------------
 # Normalizer prompt — tight extraction, few-shot, no chain-of-thought
@@ -137,35 +142,19 @@ def _extract_json_array(text: str) -> list[dict[str, Any]] | None:
     Handles: bare JSON arrays, ```json fenced blocks, trailing commas.
     Returns None if no valid array is found.
     """
-    # Strip markdown fences if present
-    fenced = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
+    fenced = _RE_FENCED.search(text)
     candidate = fenced.group(1).strip() if fenced else text.strip()
 
-    # Try to find array bounds
     start = candidate.find("[")
     if start == -1:
         return None
-    # Find matching closing bracket
-    depth = 0
-    end = -1
-    for i in range(start, len(candidate)):
-        if candidate[i] == "[":
-            depth += 1
-        elif candidate[i] == "]":
-            depth -= 1
-            if depth == 0:
-                end = i
-                break
-    if end == -1:
-        return None
 
-    raw = candidate[start : end + 1]
+    # Fix trailing commas before attempting parse (common LLM quirk)
+    cleaned = _RE_TRAILING_COMMA.sub(r"\1", candidate[start:])
 
-    # Remove trailing commas before ] or } (common LLM quirk)
-    raw = re.sub(r",\s*([}\]])", r"\1", raw)
-
+    # Use raw_decode to correctly handle brackets inside JSON strings
     try:
-        parsed = json.loads(raw)
+        parsed, _ = json.JSONDecoder().raw_decode(cleaned)
     except json.JSONDecodeError:
         return None
 
@@ -193,24 +182,26 @@ async def normalize_findings(
     if len(raw_data) > MAX_BATCH_SIZE:
         return [], [f"Batch too large: {len(raw_data)} items (max {MAX_BATCH_SIZE})"]
 
-    # Build prompt
-    raw_json = json.dumps(raw_data, indent=2)
+    # Build prompt — compact JSON to minimize token cost
+    raw_json = json.dumps(raw_data, separators=(",", ":"))
     prompt = _build_prompt(source, raw_json)
 
     # Call singleton OpenCode process
     session = await opencode_client.create_session()
-    await opencode_client.send_message(session.id, prompt)
+    try:
+        await opencode_client.send_message(session.id, prompt)
 
-    # Collect full response — last "text" event has the complete content
-    # TODO: consider session cleanup for high-volume ingest
-    full_text = ""
-    async for event in opencode_client.stream_events(session.id):
-        if event["type"] == "text":
-            full_text = event["content"]
-        elif event["type"] == "error":
-            return [], [f"LLM error: {event.get('message', 'unknown')}"]
-        elif event["type"] == "done":
-            break
+        # Collect full response — each "text" event is a cumulative snapshot
+        full_text = ""
+        async for event in opencode_client.stream_events(session.id):
+            if event["type"] == "text":
+                full_text = event["content"]
+            elif event["type"] == "error":
+                return [], [f"LLM error: {event.get('message', 'unknown')}"]
+            elif event["type"] == "done":
+                break
+    finally:
+        logger.debug("Normalizer session %s finished", session.id)
 
     if not full_text:
         return [], ["LLM returned empty response"]
@@ -228,12 +219,11 @@ async def normalize_findings(
         if not isinstance(item, dict):
             errors.append(f"Finding {i + 1}: expected object, got {type(item).__name__}")
             continue
-        # Inject source_type from the request if the LLM omitted it
         if "source_type" not in item:
             item["source_type"] = source
         try:
             findings.append(FindingCreate.model_validate(item))
-        except Exception as exc:
+        except ValidationError as exc:
             errors.append(f"Finding {i + 1}: {exc}")
 
     return findings, errors

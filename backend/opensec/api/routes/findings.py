@@ -79,6 +79,6 @@ async def ingest_findings_endpoint(body: IngestRequest, db=Depends(get_db)):
             created.append(finding)
         except Exception as exc:
             logger.warning("Failed to persist normalized finding: %s", exc)
-            errors.append(f"DB error: {exc}")
+            errors.append(f"DB error: failed to persist finding {len(created) + 1}")
 
     return IngestResult(created=created, errors=errors)
