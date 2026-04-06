@@ -29,6 +29,7 @@ ADRs document significant architectural decisions made during the project. Once 
 | [0019](0019-community-mcp-servers-over-custom-adapters.md) | Community MCP servers over custom adapters | Accepted |
 | [0020](0020-two-plane-integration-architecture.md) | Two-plane integration architecture (operational + agentic) | Accepted |
 | [0021](0021-agent-execution-model.md) | Agent execution model — direct invocation, advisory pipeline, filesystem checkpoints | Accepted |
+| [0022](0022-app-level-agent-execution-and-conversational-shell.md) | App-level agent execution and conversational shell | Proposed |
 
 ## Template
 
