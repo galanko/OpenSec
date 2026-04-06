@@ -43,7 +43,7 @@ These clean up over-engineering identified during the integration strategy revie
 
 These wire integrations into the workspace runtime so agents can use MCP tools during remediation.
 
-- [ ] Integrations page: connection status indicators and test-from-UI flow (uses existing health monitor + connection testers)
+- [x] Integrations page: connection status indicators and test-from-UI flow (uses existing health monitor + connection testers)
 - [ ] Finding normalization pipeline (raw source -> normalized Finding). Start with Wiz format, keep it simple — a single `normalize(source, raw_data) -> Finding` function, not an abstract pipeline
 - [ ] Jira write-back workflow: ticket creation from workspace using Jira MCP server (zero custom code — registry entry + credential schema only)
 - [ ] Status write-back from workspace to source system (Wiz `wiz_update_finding_status` tool already exists)

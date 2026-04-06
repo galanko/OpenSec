@@ -7,8 +7,57 @@ import {
   useCredentials,
   useStoreCredential,
   useTestIntegration,
+  useAllIntegrationsHealth,
 } from '@/api/hooks'
-import type { RegistryEntry, CredentialField, IntegrationConfigItem } from '@/api/client'
+import type {
+  RegistryEntry,
+  CredentialField,
+  IntegrationConfigItem,
+  IntegrationHealthStatus,
+} from '@/api/client'
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return ''
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (seconds < 10) return 'just now'
+  if (seconds < 60) return `${seconds}s ago`
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
+type HealthLevel = 'ok' | 'warn' | 'error' | 'unknown'
+
+function resolveHealthLevel(health: IntegrationHealthStatus | undefined): HealthLevel {
+  if (!health) return 'unknown'
+  if (health.credential_status !== 'ok') return 'error'
+  if (health.connection_status === 'ok') return 'ok'
+  if (health.connection_status === 'unchecked') return 'warn'
+  return 'error'
+}
+
+function healthLabel(health: IntegrationHealthStatus | undefined, level: HealthLevel): string {
+  if (!health || level === 'unknown') return 'Not checked'
+  if (level === 'ok') return 'Connected'
+  if (level === 'warn') return 'Credentials ok'
+  // Error states
+  if (health.credential_status === 'missing') return 'No credentials'
+  if (health.credential_status === 'decrypt_error') return 'Key error'
+  return health.error_message || 'Connection failed'
+}
+
+const DOT_STYLES: Record<HealthLevel, string> = {
+  ok: 'bg-green-500',
+  warn: 'bg-amber-400',
+  error: 'bg-error',
+  unknown: 'bg-outline-variant',
+}
 
 // ---------------------------------------------------------------------------
 // Status badge
@@ -26,6 +75,37 @@ function StatusBadge({ status }: { status: string }) {
     <span className="inline-flex items-center gap-1 text-xs font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">
       Coming soon
     </span>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Health indicator (dot + label + timestamp)
+// ---------------------------------------------------------------------------
+
+function HealthIndicator({ health }: { health: IntegrationHealthStatus | undefined }) {
+  const level = resolveHealthLevel(health)
+  const label = healthLabel(health, level)
+  const ago = timeAgo(health?.last_checked ?? null)
+
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="relative flex h-2 w-2 flex-shrink-0">
+        {level === 'ok' && (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-40" />
+        )}
+        <span className={`relative inline-flex h-2 w-2 rounded-full ${DOT_STYLES[level]}`} />
+      </span>
+      <span
+        className={`text-xs font-medium truncate ${
+          level === 'error' ? 'text-error' : 'text-on-surface-variant'
+        }`}
+      >
+        {label}
+      </span>
+      {ago && (
+        <span className="text-[10px] text-outline-variant flex-shrink-0">{ago}</span>
+      )}
+    </div>
   )
 }
 
@@ -207,66 +287,85 @@ function SetupPanel({
 }
 
 // ---------------------------------------------------------------------------
-// Configured integration card
+// Configured integration card (with health status)
 // ---------------------------------------------------------------------------
 
 function ConfiguredCard({
   integration,
   registryEntry,
+  health,
 }: {
   integration: IntegrationConfigItem
   registryEntry: RegistryEntry | undefined
+  health: IntegrationHealthStatus | undefined
 }) {
   const deleteIntegration = useDeleteIntegration()
   const testIntegration = useTestIntegration()
   const { data: credentials } = useCredentials(integration.id)
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [testing, setTesting] = useState(false)
 
   const handleTest = async () => {
     setTesting(true)
-    setTestResult(null)
     try {
-      const result = await testIntegration.mutateAsync(integration.id)
-      setTestResult(result)
-    } catch (err) {
-      setTestResult({ success: false, message: String(err) })
+      await testIntegration.mutateAsync(integration.id)
+    } catch {
+      // Health query will refresh and show the error state
     } finally {
       setTesting(false)
     }
   }
 
+  const level = resolveHealthLevel(health)
+
   return (
-    <div className="bg-surface-container-low rounded-lg px-4 py-3">
+    <div className="bg-surface-container-low rounded-lg px-4 py-3 transition-colors">
       <div className="flex items-center gap-4">
+        {/* Icon */}
         <div className="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
           <span className="material-symbols-outlined text-lg text-on-surface-variant">
             {registryEntry?.icon || 'extension'}
           </span>
         </div>
+
+        {/* Name + health status */}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-on-surface">
             {integration.provider_name}
           </div>
-          <div className="text-xs text-on-surface-variant flex items-center gap-2">
-            <span>{integration.adapter_type.replace('_', ' ')}</span>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="text-xs text-on-surface-variant">
+              {integration.adapter_type.replace('_', ' ')}
+            </span>
             {credentials && credentials.length > 0 && (
-              <span className="text-green-600">
+              <span className="text-xs text-on-surface-variant">
                 {credentials.length} credential{credentials.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
         </div>
+
+        {/* Health indicator */}
+        <div className="flex-shrink-0 hidden sm:block">
+          <HealthIndicator health={health} />
+        </div>
+
+        {/* Test button */}
         <button
           onClick={handleTest}
           disabled={testing}
-          className="p-1.5 text-on-surface-variant hover:text-primary rounded-md transition-colors"
+          className="p-1.5 text-on-surface-variant hover:text-primary rounded-md transition-all"
           title="Test connection"
         >
-          <span className="material-symbols-outlined text-base">
-            {testing ? 'hourglass_top' : 'sync'}
+          <span
+            className={`material-symbols-outlined text-base ${
+              testing ? 'animate-spin' : ''
+            }`}
+          >
+            {testing ? 'progress_activity' : 'sync'}
           </span>
         </button>
+
+        {/* Delete button */}
         <button
           onClick={() => deleteIntegration.mutate(integration.id)}
           className="p-1.5 text-on-surface-variant hover:text-error rounded-md transition-colors"
@@ -275,15 +374,16 @@ function ConfiguredCard({
           <span className="material-symbols-outlined text-base">delete</span>
         </button>
       </div>
-      {testResult && (
-        <div
-          className={`mt-2 rounded-md px-3 py-2 text-xs ${
-            testResult.success
-              ? 'bg-green-50 text-green-700'
-              : 'bg-red-50 text-red-700'
-          }`}
-        >
-          {testResult.message}
+
+      {/* Mobile health indicator row */}
+      <div className="sm:hidden mt-2">
+        <HealthIndicator health={health} />
+      </div>
+
+      {/* Expanded error detail for error state */}
+      {level === 'error' && health?.error_message && (
+        <div className="mt-2 rounded-md bg-error-container/15 px-3 py-2 text-xs text-on-error-container">
+          {health.error_message}
         </div>
       )}
     </div>
@@ -297,6 +397,9 @@ function ConfiguredCard({
 export default function IntegrationSettings() {
   const { data: integrations, isLoading: loadingIntegrations } = useIntegrations()
   const { data: registry, isLoading: loadingRegistry } = useRegistry()
+  const { data: healthStatuses } = useAllIntegrationsHealth(
+    (integrations?.length ?? 0) > 0,
+  )
   const [setupEntry, setSetupEntry] = useState<RegistryEntry | null>(null)
 
   const configuredIds = new Set(
@@ -307,6 +410,9 @@ export default function IntegrationSettings() {
     registry?.find(
       (r) => r.name.toLowerCase() === integration.provider_name.toLowerCase(),
     )
+
+  const getHealthForIntegration = (integration: IntegrationConfigItem) =>
+    healthStatuses?.find((h) => h.integration_id === integration.id)
 
   const isConfigured = (entry: RegistryEntry) =>
     configuredIds.has(entry.name.toLowerCase())
@@ -349,6 +455,7 @@ export default function IntegrationSettings() {
                 key={integration.id}
                 integration={integration}
                 registryEntry={getRegistryForIntegration(integration)}
+                health={getHealthForIntegration(integration)}
               />
             ))}
           </div>

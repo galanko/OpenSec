@@ -233,6 +233,16 @@ export interface TestConnectionResult {
   details: Record<string, unknown> | null;
 }
 
+export interface IntegrationHealthStatus {
+  integration_id: string;
+  registry_id: string;
+  provider_name: string;
+  credential_status: string;
+  connection_status: string;
+  last_checked: string | null;
+  error_message: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
@@ -458,4 +468,8 @@ export const api = {
       `/api/settings/integrations/${integrationId}/test`,
       { method: 'POST' },
     ),
+
+  // Settings — Integration Health
+  getAllIntegrationsHealth: () =>
+    request<IntegrationHealthStatus[]>('/api/settings/integrations/health'),
 };

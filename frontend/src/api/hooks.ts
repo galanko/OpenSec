@@ -330,7 +330,25 @@ export function useDeleteCredential() {
 }
 
 export function useTestIntegration() {
+  const qc = useQueryClient()
   return useMutation({
     mutationFn: (integrationId: string) => api.testIntegration(integrationId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['integrations-health'] })
+    },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Integration Health (Priority 3)
+// ---------------------------------------------------------------------------
+
+export function useAllIntegrationsHealth(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ['integrations-health'],
+    queryFn: () => api.getAllIntegrationsHealth(),
+    enabled,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   })
 }
