@@ -193,15 +193,16 @@ Sequential within this stage — Phase 6b first, then Phase 7. Depends on Stage 
 
 Wire the agent definitions from Phase 6a into the workspace from Phase 5. The workspace runtime infrastructure (ADR-0014 Layers 0-4) is complete — agents now run in isolated workspace directories with finding-specific context.
 
-- [ ] Implement Finding Enricher (sidebar update, chat output, context file update)
-- [ ] Implement Owner Resolver
-- [ ] Implement Exposure/Context Analyzer
-- [ ] Implement Remediation Planner
-- [ ] Implement Validation Checker
-- [ ] Build orchestrator logic ("what should we do next?")
-- [ ] Handle missing data gracefully (agent suggests what's needed)
-- [ ] Support rerun / retry / cancel for agent runs
-- [ ] End-to-end test: finding -> enrichment -> owner -> plan -> validation
+- [x] Agent output parser — extract structured JSON from LLM responses with lenient fallbacks
+- [x] Per-agent Pydantic schemas — validate enrichment, ownership, exposure, plan, validation output
+- [x] Sidebar mapper — read-merge-write pattern maps agent output to sidebar without data loss
+- [x] Agent executor — core engine: send prompt, collect SSE response, parse, persist to context + sidebar + DB
+- [x] Pipeline orchestrator — `suggest_next()` with remediate-verify-retry loop (max 3)
+- [x] Execution API — POST execute (202 + background), GET suggest-next, POST cancel
+- [x] ADR-0021: Agent execution model (direct invocation, advisory pipeline, filesystem checkpoints)
+- [x] Stall detection + activity events for SSE streaming (handles tool-call scenarios)
+- [x] E2E tests — 5 tests with real OpenCode + real LLM (enricher execution, pipeline advance, progress callback)
+- [ ] Handle `permission.asked` events — surface agent tool-use approval to the user (trust-building UX)
 
 **Exit criteria:** A single finding can flow through all five agents and reach validated closure.
 

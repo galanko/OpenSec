@@ -205,6 +205,11 @@ class OpenCodeClient:
                         yield {"type": "done"}
                         return
 
+                    elif event_session == session_id:
+                        # Any other session-scoped event (tool calls, etc.)
+                        # signals the agent is still active.
+                        yield {"type": "activity", "event_type": event_type}
+
     @staticmethod
     def _parse_sse(raw: str) -> dict | None:
         """Parse a single SSE event block into a dict."""

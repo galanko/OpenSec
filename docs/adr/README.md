@@ -28,6 +28,7 @@ ADRs document significant architectural decisions made during the project. Once 
 | [0018](0018-mcp-gateway.md) | MCP Gateway — build inline, informed by ecosystem | Accepted |
 | [0019](0019-community-mcp-servers-over-custom-adapters.md) | Community MCP servers over custom adapters | Accepted |
 | [0020](0020-two-plane-integration-architecture.md) | Two-plane integration architecture (operational + agentic) | Accepted |
+| [0021](0021-agent-execution-model.md) | Agent execution model — direct invocation, advisory pipeline, filesystem checkpoints | Accepted |
 
 ## Template
 

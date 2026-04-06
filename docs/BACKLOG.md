@@ -6,16 +6,16 @@
 
 Phase 6b — Wire sub-agents into the isolated workspace runtime:
 
-- [ ] Implement agent execution entry point (orchestrator delegates to sub-agent via OpenCode process)
-- [ ] Implement Finding Enricher execution (run agent, parse JSON output, update sidebar + chat)
-- [ ] Implement Owner Resolver execution
-- [ ] Implement Exposure/Context Analyzer execution
-- [ ] Implement Remediation Planner execution
-- [ ] Implement Validation Checker execution
-- [ ] Build orchestrator "what should we do next?" logic
-- [ ] Handle missing data gracefully (agent suggests what's needed)
-- [ ] Support rerun / retry / cancel for agent runs
-- [ ] E2E test: finding -> enrichment -> owner -> plan -> validation -> closure
+- [x] Agent output parser + per-agent Pydantic schemas (PR 1+2)
+- [x] Sidebar mapper with read-merge-write (PR 1+2)
+- [x] Agent executor core engine (PR 3)
+- [x] Execution API endpoints — execute, suggest-next, cancel (PR 4+5)
+- [x] Pipeline orchestrator with retry loop (PR 4+5)
+- [x] Error handling and resilience — stall detection, activity events (PR 6)
+- [x] ADR-0021: Agent execution model
+- [x] E2E tests with real OpenCode + LLM (PR 7)
+- [ ] Handle `permission.asked` events — when the agent wants to use a tool (bash, MCP, scanner), surface the approval request to the user in the workspace chat. Three tiers: auto-approve (read files), user-approve (scan/query tools), explicit-approve (write-back actions like ticket creation, status updates). Inspired by Claude Code's "ask before acting" pattern — builds trust with security teams
+- [ ] Executor prompt refinement — the orchestrator agent in workspaces with existing session history behaves differently than fresh workspaces (tries to read files instead of responding with JSON directly). Tune the prompt or use a dedicated session with a system prompt override so the executor always gets structured JSON back, regardless of workspace state
 
 Phase 7 — Ticket workflow (depends on Phase 6b):
 
@@ -78,4 +78,4 @@ These are parked until the operational plane is needed. ADR-0020 has been downgr
 
 ## Cross-cutting
 
-- [ ] ADR for agent execution model (if Phase 6b approach warrants one)
+- [x] ADR-0021: Agent execution model (direct invocation, advisory pipeline, filesystem checkpoints)
