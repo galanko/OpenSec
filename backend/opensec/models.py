@@ -334,3 +334,18 @@ class IntegrationHealthStatus(BaseModel):
     connection_status: str = "unchecked"  # "ok", "error", "unchecked", "timeout"
     last_checked: str | None = None
     error_message: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Finding ingest models (ADR-0022)
+# ---------------------------------------------------------------------------
+
+
+class IngestRequest(BaseModel):
+    source: str
+    raw_data: list[dict[str, Any]]
+
+
+class IngestResult(BaseModel):
+    created: list[Finding]
+    errors: list[str]

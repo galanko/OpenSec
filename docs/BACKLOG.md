@@ -44,7 +44,7 @@ These clean up over-engineering identified during the integration strategy revie
 These wire integrations into the workspace runtime so agents can use MCP tools during remediation.
 
 - [x] Integrations page: connection status indicators and test-from-UI flow (uses existing health monitor + connection testers)
-- [ ] Finding normalization via dedicated agent: create `finding-normalizer` agent (`.opencode/agents/`), `POST /api/findings/ingest` route accepts `{ source, raw_data[] }`, uses singleton OpenCode process to extract structured fields into `FindingCreate`. Low-cost design: tight prompt with few-shot examples, no tool use, batch support. Works with any scanner format. See ADR-0022
+- [x] Finding normalization via dedicated agent: create `finding-normalizer` agent (`.opencode/agents/`), `POST /api/findings/ingest` route accepts `{ source, raw_data[] }`, uses singleton OpenCode process to extract structured fields into `FindingCreate`. Low-cost design: tight prompt with few-shot examples, no tool use, batch support. Works with any scanner format. See ADR-0022
 - [ ] Jira write-back workflow: ticket creation from workspace using Jira MCP server (zero custom code — registry entry + credential schema only)
 - [ ] Status write-back from workspace to source system (Wiz `wiz_update_finding_status` tool already exists)
 
