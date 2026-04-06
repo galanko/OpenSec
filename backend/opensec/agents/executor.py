@@ -41,11 +41,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default timeout for a single agent run (seconds).
 DEFAULT_TIMEOUT: float = 120.0
-
-# Maximum number of retry attempts when the LLM fails to return valid JSON.
-MAX_PARSE_RETRIES: int = 1
 
 # ---------------------------------------------------------------------------
 # Per-agent output contracts (inlined in the prompt so the LLM always sees
@@ -236,10 +232,6 @@ class AgentExecutor:
             # 4. Create fresh session
             session = await client.create_session()
 
-            # 5+6. Subscribe to SSE event stream FIRST, then send the
-            # message. OpenCode's POST /message may block for the entire
-            # LLM call, so we need the stream connected before sending
-            # to avoid missing early events.
             prompt = build_agent_prompt(agent_type)
 
             response_text = await self._send_and_collect(
@@ -262,6 +254,7 @@ class AgentExecutor:
                 retry_text = await self._send_and_collect(
                     client, session.id, _RETRY_PROMPT,
                     timeout=timeout, on_progress=on_progress,
+                    send_delay=0.0,
                 )
                 retry_result = parse_agent_response(
                     retry_text, agent_type=agent_type
@@ -390,15 +383,22 @@ class AgentExecutor:
         *,
         timeout: float,
         on_progress: Callable[[str], None] | None = None,
+        send_delay: float = 0.5,
     ) -> str:
-        """Send a prompt and collect the streamed response."""
+        """Send a prompt and collect the streamed response.
 
-        async def _send_after_delay() -> None:
-            await asyncio.sleep(0.5)
+        The send_delay gives the SSE stream time to connect before the
+        message is sent. Set to 0 for follow-up messages on an already-
+        connected session.
+        """
+
+        async def _send() -> None:
+            if send_delay > 0:
+                await asyncio.sleep(send_delay)
             with contextlib.suppress(httpx.ReadTimeout):
                 await client.send_message(session_id, prompt)
 
-        send_task = asyncio.create_task(_send_after_delay())
+        send_task = asyncio.create_task(_send())
         try:
             return await self._collect_response(
                 client, session_id, timeout=timeout, on_progress=on_progress
