@@ -44,16 +44,109 @@ logger = logging.getLogger(__name__)
 # Default timeout for a single agent run (seconds).
 DEFAULT_TIMEOUT: float = 120.0
 
-# Prompt template sent to OpenCode to invoke a sub-agent.
-_AGENT_PROMPT = (
-    "Run the {agent_type} analysis on this finding. "
-    "The workspace context files (CONTEXT.md, context/finding.json) contain "
-    "the full details. Respond directly with your analysis as a JSON block "
-    "with these fields: summary (string), result_card_markdown (markdown string), "
-    "structured_output (object with your analysis), confidence (0.0-1.0), "
-    "evidence_sources (list of strings), suggested_next_action (string). "
-    "Do not use any tools — just analyze based on the context already available."
-)
+# Maximum number of retry attempts when the LLM fails to return valid JSON.
+MAX_PARSE_RETRIES: int = 1
+
+# ---------------------------------------------------------------------------
+# Per-agent output contracts (inlined in the prompt so the LLM always sees
+# the exact schema, regardless of workspace state or session history).
+# ---------------------------------------------------------------------------
+
+_STRUCTURED_OUTPUT_CONTRACTS: dict[str, str] = {
+    "finding_enricher": """\
+"structured_output": {
+    "normalized_title": "string — clear, jargon-free title",
+    "cve_ids": ["CVE-YYYY-NNNNN"] or [],
+    "cvss_score": 0.0-10.0 or null,
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/..." or null,
+    "description": "what the vulnerability is and how it works",
+    "affected_versions": "version range, e.g. '< 2.3.1'" or null,
+    "fixed_version": "minimum fixed version" or null,
+    "known_exploits": true/false,
+    "exploit_details": "exploit maturity info" or null,
+    "references": ["https://..."] or []
+}""",
+    "owner_resolver": """\
+"structured_output": {
+    "recommended_owner": "string — team or person name",
+    "candidates": [{"name": "...", "confidence": 0.0-1.0, "reason": "..."}],
+    "reasoning": "why this owner was chosen"
+}""",
+    "exposure_analyzer": """\
+"structured_output": {
+    "recommended_urgency": "critical/high/medium/low",
+    "environment": "production/staging/development" or null,
+    "internet_facing": true/false or null,
+    "reachable": "description of reachability" or null,
+    "reachability_evidence": "evidence for reachability assessment" or null,
+    "business_criticality": "description" or null,
+    "blast_radius": "description of impact scope" or null
+}""",
+    "remediation_planner": """\
+"structured_output": {
+    "plan_steps": ["step 1", "step 2", ...],
+    "definition_of_done": ["criterion 1", ...],
+    "interim_mitigation": "immediate mitigation" or null,
+    "dependencies": ["dependency 1", ...],
+    "estimated_effort": "e.g. 2-4 hours" or null,
+    "validation_method": "how to verify the fix" or null
+}""",
+    "validation_checker": """\
+"structured_output": {
+    "verdict": "fixed/not_fixed/partially_fixed/inconclusive",
+    "recommendation": "close/reopen/needs_more_info",
+    "evidence": "what evidence supports the verdict" or null,
+    "remaining_concerns": ["concern 1", ...]
+}""",
+}
+
+_AGENT_TYPE_LABELS: dict[str, str] = {
+    "finding_enricher": "vulnerability enrichment",
+    "owner_resolver": "ownership resolution",
+    "exposure_analyzer": "exposure and context analysis",
+    "remediation_planner": "remediation planning",
+    "validation_checker": "validation checking",
+}
+
+
+def build_agent_prompt(agent_type: str) -> str:
+    """Build the execution prompt for a specific agent type.
+
+    The prompt is self-contained: it includes the full output contract so the
+    LLM produces structured JSON regardless of workspace state or session
+    history from the orchestrator agent.
+    """
+    label = _AGENT_TYPE_LABELS.get(agent_type, agent_type)
+    contract = _STRUCTURED_OUTPUT_CONTRACTS.get(agent_type, "")
+    structured_block = f",\n    {contract}" if contract else ""
+
+    return f"""\
+IMPORTANT: This is a programmatic agent execution request. Respond with ONLY \
+a JSON code block — no tool calls, no file reads, no conversation. The \
+workspace context files (CONTEXT.md, context/finding.json) are already loaded \
+into your context window. Do not attempt to read them.
+
+Run {label} on the finding described in your context. Respond with a single \
+```json code block matching this exact schema:
+
+```json
+{{
+    "summary": "one-line summary of your analysis",
+    "result_card_markdown": "## Heading\\n\\nMarkdown-formatted detailed results",
+    "confidence": 0.0-1.0,
+    "evidence_sources": ["source1", "source2"],
+    "suggested_next_action": "next agent type or action to take"{structured_block}
+}}
+```
+
+Respond with ONLY the JSON block above. No preamble, no explanation, no tool use."""
+
+
+_RETRY_PROMPT = """\
+Your previous response could not be parsed as valid JSON. This is a \
+programmatic execution — the output MUST be a single ```json code block and \
+nothing else. Do not use tools, do not read files, do not add explanation \
+text. Respond now with ONLY the JSON block in the exact schema requested."""
 
 
 @dataclass
@@ -147,29 +240,34 @@ class AgentExecutor:
             # message. OpenCode's POST /message may block for the entire
             # LLM call, so we need the stream connected before sending
             # to avoid missing early events.
-            prompt = _AGENT_PROMPT.format(agent_type=agent_type)
+            prompt = build_agent_prompt(agent_type)
 
-            async def _send_after_delay() -> None:
-                """Send message after a brief delay to let the stream connect."""
-                await asyncio.sleep(0.5)
-                with contextlib.suppress(httpx.ReadTimeout):
-                    await client.send_message(session.id, prompt)
-
-            send_task = asyncio.create_task(_send_after_delay())
-            try:
-                response_text = await self._collect_response(
-                    client, session.id, timeout=timeout, on_progress=on_progress
-                )
-            finally:
-                if not send_task.done():
-                    send_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await send_task
+            response_text = await self._send_and_collect(
+                client, session.id, prompt, timeout=timeout, on_progress=on_progress
+            )
 
             # 7. Parse response
             parse_result = parse_agent_response(
                 response_text, agent_type=agent_type
             )
+
+            # 7b. Retry once if parse failed — send a corrective follow-up
+            # on the same session so the LLM sees its own bad output.
+            if not parse_result.success and response_text.strip():
+                logger.info(
+                    "Agent %s parse failed (error=%s), retrying with corrective prompt",
+                    agent_type,
+                    parse_result.error,
+                )
+                retry_text = await self._send_and_collect(
+                    client, session.id, _RETRY_PROMPT,
+                    timeout=timeout, on_progress=on_progress,
+                )
+                retry_result = parse_agent_response(
+                    retry_text, agent_type=agent_type
+                )
+                if retry_result.success:
+                    parse_result = retry_result
 
             # 8. Persist results
             sidebar_updated = False
@@ -283,6 +381,33 @@ class AgentExecutor:
                 error=str(exc),
                 duration_seconds=duration,
             )
+
+    async def _send_and_collect(
+        self,
+        client: Any,
+        session_id: str,
+        prompt: str,
+        *,
+        timeout: float,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> str:
+        """Send a prompt and collect the streamed response."""
+
+        async def _send_after_delay() -> None:
+            await asyncio.sleep(0.5)
+            with contextlib.suppress(httpx.ReadTimeout):
+                await client.send_message(session_id, prompt)
+
+        send_task = asyncio.create_task(_send_after_delay())
+        try:
+            return await self._collect_response(
+                client, session_id, timeout=timeout, on_progress=on_progress
+            )
+        finally:
+            if not send_task.done():
+                send_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await send_task
 
     async def _check_not_busy(
         self, db: aiosqlite.Connection, workspace_id: str

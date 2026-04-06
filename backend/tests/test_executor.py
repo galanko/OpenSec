@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from opensec.agents.errors import AgentBusyError
-from opensec.agents.executor import AgentExecutor
+from opensec.agents.executor import AgentExecutor, build_agent_prompt
 from opensec.models import AgentRun
 
 # ---------------------------------------------------------------------------
@@ -363,3 +363,108 @@ class TestAgentExecutor:
 
         assert result.status == "completed"
         assert result.parse_result.summary == "Owner identified"
+
+    @pytest.mark.asyncio
+    async def test_retry_on_parse_failure(self, mock_pool, mock_context_builder, mock_db):
+        """When first attempt returns no JSON, retry with corrective prompt."""
+        bad_response = "Let me read the context files to analyze this finding..."
+        good_response = _make_agent_response()
+
+        # Client that returns bad response first, then good on retry
+        call_count = 0
+        client = AsyncMock()
+        client.create_session.return_value = MagicMock(id="session-1")
+        client.send_message.return_value = None
+
+        async def multi_stream(session_id):
+            nonlocal call_count
+            call_count += 1
+            text = bad_response if call_count == 1 else good_response
+            yield {"type": "text", "content": text}
+            yield {"type": "done"}
+
+        client.stream_events = multi_stream
+        mock_pool.get_or_start.return_value = client
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert"),
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+            )
+
+        assert result.status == "completed"
+        assert result.parse_result.success is True
+        assert result.sidebar_updated is True
+        # Two send_message calls: initial prompt + retry
+        assert client.send_message.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_still_fails(self, mock_pool, mock_context_builder, mock_db):
+        """When both attempts fail to produce JSON, result is completed but not parsed."""
+        bad_response = "I'll try to read the files instead of returning JSON."
+        mock_pool.get_or_start.return_value = _make_mock_client(bad_response)
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+            )
+
+        assert result.status == "completed"
+        assert result.parse_result.success is False
+        assert result.sidebar_updated is False
+        mock_sidebar.assert_not_called()
+
+
+class TestBuildAgentPrompt:
+    def test_includes_output_contract(self):
+        """Prompt includes the per-agent structured_output schema."""
+        prompt = build_agent_prompt("finding_enricher")
+        assert "normalized_title" in prompt
+        assert "cve_ids" in prompt
+        assert "cvss_score" in prompt
+
+    def test_includes_json_instruction(self):
+        """Prompt explicitly requests JSON-only output."""
+        prompt = build_agent_prompt("finding_enricher")
+        assert "programmatic agent execution" in prompt.lower()
+        assert "no tool calls" in prompt.lower()
+        assert "no file reads" in prompt.lower()
+
+    def test_all_agent_types_have_contracts(self):
+        """Every known agent type produces a prompt with its output contract."""
+        agent_types = [
+            "finding_enricher",
+            "owner_resolver",
+            "exposure_analyzer",
+            "remediation_planner",
+            "validation_checker",
+        ]
+        for agent_type in agent_types:
+            prompt = build_agent_prompt(agent_type)
+            assert "structured_output" in prompt, f"Missing contract for {agent_type}"
+            assert "```json" in prompt
+
+    def test_unknown_agent_type_still_works(self):
+        """Unknown agent types produce a valid prompt without a specific contract."""
+        prompt = build_agent_prompt("unknown_agent")
+        assert "```json" in prompt
+        assert "summary" in prompt
