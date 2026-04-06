@@ -36,9 +36,10 @@
   "docs_url": "https://github.com/atlassian/atlassian-mcp-server",
   "default_action_tier": 1,
   "mcp_config": {
-    "command": "npx",
-    "args": ["-y", "@anthropic/atlassian-mcp-server", "--jira"],
-    "env": {
+    "type": "local",
+    "enabled": true,
+    "command": ["npx", "-y", "@anthropic/atlassian-mcp-server", "--jira"],
+    "environment": {
       "JIRA_URL": "${credential:jira_url}",
       "JIRA_EMAIL": "${credential:jira_email}",
       "JIRA_API_TOKEN": "${credential:jira_api_token}"

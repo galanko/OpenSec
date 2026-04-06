@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from opensec.db.repo_integration import list_integrations
 from opensec.integrations.audit import AuditEvent
-from opensec.integrations.registry import get_registry_entry
+from opensec.integrations.registry import RegistryEntry, get_registry_entry
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -156,6 +156,9 @@ class MCPConfigResolver:
                 )
                 continue
 
+            # Apply toolset scoping and read-only adjustments based on action tier.
+            _apply_toolset_scoping(resolved, entry, integration.action_tier)
+
             mcp_configs[entry.id] = resolved
             ws_integrations.append(
                 ResolvedWorkspaceIntegration(
@@ -260,7 +263,8 @@ class MCPConfigResolver:
         original template is never mutated.
         """
         resolved = copy.deepcopy(mcp_config)
-        env = resolved.get("env")
+        # Support both "environment" (OpenCode format) and "env" (legacy).
+        env = resolved.get("environment") or resolved.get("env")
         if not isinstance(env, dict):
             return resolved
 
@@ -275,9 +279,50 @@ class MCPConfigResolver:
         return resolved
 
 
+def _apply_toolset_scoping(
+    config: dict[str, Any],
+    entry: RegistryEntry,
+    action_tier: int,
+) -> None:
+    """Mutate *config* in-place to apply toolset scoping and read-only rules.
+
+    - If the registry entry defines ``toolsets``, append ``--toolsets <list>``
+      to the resolved ``command`` array for the given *action_tier*.
+    - If *action_tier* > 0, remove ``--read-only`` from ``command`` (user
+      opted into writes).
+
+    Works with both legacy format (separate ``args`` key) and the OpenCode
+    format (``command`` is the full argument array).
+    """
+    # Support both formats: "command" (array) or legacy "args" (array).
+    if isinstance(config.get("command"), list):
+        key = "command"
+    elif isinstance(config.get("args"), list):
+        key = "args"
+    else:
+        return
+
+    cmd = config[key]
+
+    # Toolset scoping: append --toolsets flag if the entry defines them.
+    if entry.toolsets:
+        tier_key = str(action_tier)
+        toolset_list = entry.toolsets.get(tier_key)
+        if toolset_list:
+            config[key] = [a for a in cmd if a != "--toolsets"] + [
+                "--toolsets",
+                ",".join(toolset_list),
+            ]
+            cmd = config[key]
+
+    # Read-only removal: if user opted into higher tier, remove --read-only.
+    if action_tier > 0 and "--read-only" in cmd:
+        config[key] = [a for a in cmd if a != "--read-only"]
+
+
 def _find_unresolved_placeholders(config: dict[str, Any]) -> list[str]:
     """Return any ``${credential:...}`` placeholders still present in env values."""
-    env = config.get("env")
+    env = config.get("environment") or config.get("env")
     if not isinstance(env, dict):
         return []
     unresolved = []
