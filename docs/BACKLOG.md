@@ -37,7 +37,7 @@ These clean up over-engineering identified during the integration strategy revie
 
 ### Priority 2: Merge and stabilize current branch
 
-- [ ] Merge connection testing framework branch (`feat/connection-testing-framework`) into main via PR
+- [x] Merge connection testing framework branch (`feat/connection-testing-framework`) into main via PR
 
 ### Priority 3: Core integration wiring (agentic plane only)
 
