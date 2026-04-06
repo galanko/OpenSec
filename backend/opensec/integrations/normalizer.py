@@ -180,7 +180,10 @@ async def normalize_findings(
         return [], []
 
     if len(raw_data) > MAX_BATCH_SIZE:
-        return [], [f"Batch too large: {len(raw_data)} items (max {MAX_BATCH_SIZE})"]
+        return [], [
+            f"Batch too large: {len(raw_data)} items (max {MAX_BATCH_SIZE}). "
+            "Use the async ingest endpoint for larger batches."
+        ]
 
     # Build prompt — compact JSON to minimize token cost
     raw_json = json.dumps(raw_data, separators=(",", ":"))

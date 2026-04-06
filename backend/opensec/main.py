@@ -42,6 +42,7 @@ from opensec.engine.pool import WorkspaceProcessPool
 from opensec.engine.process import opencode_process
 from opensec.integrations.audit import AuditLogger
 from opensec.integrations.gateway import MCPConfigResolver
+from opensec.integrations.ingest_worker import ingest_worker_loop
 from opensec.integrations.vault import CredentialVault
 from opensec.workspace.context_builder import WorkspaceContextBuilder
 from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
@@ -127,12 +128,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     cleanup_task = asyncio.create_task(_idle_cleanup_loop())
 
+    # Background ingest worker (ADR-0023)
+    ingest_task: asyncio.Task[None] | None = None
+    if db_connection._db is not None:
+        ingest_task = asyncio.create_task(ingest_worker_loop(db_connection._db))
+
     yield
 
     logger.info("Shutting down OpenSec...")
     cleanup_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await cleanup_task
+
+    if ingest_task is not None:
+        ingest_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await ingest_task
 
     await pool.stop_all()
     if app.state.audit_logger is not None:
