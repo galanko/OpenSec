@@ -44,7 +44,7 @@ These clean up over-engineering identified during the integration strategy revie
 These wire integrations into the workspace runtime so agents can use MCP tools during remediation.
 
 - [x] Integrations page: connection status indicators and test-from-UI flow (uses existing health monitor + connection testers)
-- [ ] Finding normalization pipeline (raw source -> normalized Finding). Start with Wiz format, keep it simple — a single `normalize(source, raw_data) -> Finding` function, not an abstract pipeline
+- [ ] Finding normalization via dedicated agent: create `finding-normalizer` agent (`.opencode/agents/`), `POST /api/findings/ingest` route accepts `{ source, raw_data[] }`, uses singleton OpenCode process to extract structured fields into `FindingCreate`. Low-cost design: tight prompt with few-shot examples, no tool use, batch support. Works with any scanner format. See ADR-0022
 - [ ] Jira write-back workflow: ticket creation from workspace using Jira MCP server (zero custom code — registry entry + credential schema only)
 - [ ] Status write-back from workspace to source system (Wiz `wiz_update_finding_status` tool already exists)
 
@@ -75,6 +75,7 @@ These are parked until the operational plane is needed. ADR-0020 has been downgr
 - Operational plane: scheduled sync/polling jobs (revisit when ADR-0020 is re-accepted)
 - Webhook ingestion handlers for finding sources
 - Hash-chain tamper evidence for audit log (re-add for enterprise/multi-user edition)
+- App-level conversational interface: chat-as-shell for the main app (finding upload via conversation, collector configuration, integration setup, natural-language queries across findings). Requires ADR-0022 accepted + Phase 6b complete. Revisit after v0.1.0-alpha
 
 ## Cross-cutting
 
