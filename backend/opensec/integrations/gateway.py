@@ -263,7 +263,8 @@ class MCPConfigResolver:
         original template is never mutated.
         """
         resolved = copy.deepcopy(mcp_config)
-        env = resolved.get("env")
+        # Support both "environment" (OpenCode format) and "env" (legacy).
+        env = resolved.get("environment") or resolved.get("env")
         if not isinstance(env, dict):
             return resolved
 
@@ -321,7 +322,7 @@ def _apply_toolset_scoping(
 
 def _find_unresolved_placeholders(config: dict[str, Any]) -> list[str]:
     """Return any ``${credential:...}`` placeholders still present in env values."""
-    env = config.get("env")
+    env = config.get("environment") or config.get("env")
     if not isinstance(env, dict):
         return []
     unresolved = []

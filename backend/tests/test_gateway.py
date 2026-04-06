@@ -161,7 +161,7 @@ async def test_resolve_one_enabled_integration(
 
     assert "github" in configs
     assert configs["github"]["command"][0] == "npx"
-    assert configs["github"]["env"]["GITHUB_PERSONAL_ACCESS_TOKEN"] == "ghp_test123"
+    assert configs["github"]["environment"]["GITHUB_PERSONAL_ACCESS_TOKEN"] == "ghp_test123"
 
 
 async def test_disabled_integration_skipped(
@@ -217,7 +217,7 @@ async def test_multiple_integrations(
     configs = await resolver.resolve_workspace_mcp_configs(db)
     assert "github" in configs
     assert "jira-cloud" in configs
-    assert configs["jira-cloud"]["env"]["JIRA_API_TOKEN"] == "ATATT3xtest"
+    assert configs["jira-cloud"]["environment"]["JIRA_API_TOKEN"] == "ATATT3xtest"
 
 
 async def test_empty_when_no_integrations(

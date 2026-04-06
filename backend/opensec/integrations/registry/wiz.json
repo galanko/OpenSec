@@ -38,7 +38,7 @@
     "type": "local",
     "enabled": true,
     "command": ["python", "-m", "opensec.integrations.wrappers.wiz"],
-    "env": {
+    "environment": {
       "WIZ_CLIENT_ID": "${credential:wiz_client_id}",
       "WIZ_CLIENT_SECRET": "${credential:wiz_client_secret}",
       "WIZ_API_URL": "${credential:wiz_api_url}"

@@ -450,9 +450,9 @@ class TestWizRegistryIntegration:
             config = result.mcp_configs["wiz"]
             assert config["command"][0] == "python"
             # Credentials should be resolved (no placeholders).
-            assert config["env"]["WIZ_CLIENT_ID"] == "test_id"
-            assert config["env"]["WIZ_CLIENT_SECRET"] == "test_secret"
-            assert config["env"]["WIZ_API_URL"] == "https://api.us20.app.wiz.io/graphql"
+            assert config["environment"]["WIZ_CLIENT_ID"] == "test_id"
+            assert config["environment"]["WIZ_CLIENT_SECRET"] == "test_secret"
+            assert config["environment"]["WIZ_API_URL"] == "https://api.us20.app.wiz.io/graphql"
         finally:
             await close_db()
 

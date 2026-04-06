@@ -39,7 +39,7 @@
     "type": "local",
     "enabled": true,
     "command": ["npx", "-y", "@anthropic/atlassian-mcp-server", "--jira"],
-    "env": {
+    "environment": {
       "JIRA_URL": "${credential:jira_url}",
       "JIRA_EMAIL": "${credential:jira_email}",
       "JIRA_API_TOKEN": "${credential:jira_api_token}"
