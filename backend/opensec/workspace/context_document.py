@@ -36,8 +36,8 @@ class ContextDocument:
         """
         sections = [
             "# Workspace context\n",
-            ContextDocument._finding_section(finding),
-            ContextDocument._knowledge_section(enrichment, ownership, exposure),
+            ContextDocument.finding_section(finding),
+            ContextDocument.knowledge_section(enrichment, ownership, exposure),
             ContextDocument._plan_section(plan),
             ContextDocument._validation_section(validation),
             ContextDocument._next_steps_section(
@@ -50,7 +50,7 @@ class ContextDocument:
         return "\n".join(s for s in sections if s)
 
     @staticmethod
-    def _finding_section(finding: dict[str, Any]) -> str:
+    def finding_section(finding: dict[str, Any]) -> str:
         lines = ["## Finding", ""]
         title = finding.get("title", "Unknown finding")
         lines.append(f"- **Title:** {title}")
@@ -90,7 +90,7 @@ class ContextDocument:
         return "\n".join(lines)
 
     @staticmethod
-    def _knowledge_section(
+    def knowledge_section(
         enrichment: dict[str, Any] | None,
         ownership: dict[str, Any] | None,
         exposure: dict[str, Any] | None,

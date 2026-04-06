@@ -13,6 +13,7 @@ import contextlib
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
@@ -30,6 +31,8 @@ from opensec.db.repo_agent_run import (
     update_agent_run,
 )
 from opensec.models import AgentRunCreate, AgentRunUpdate
+from opensec.workspace.context_document import ContextDocument
+from opensec.workspace.workspace_dir import AGENT_TYPE_TO_SECTION, CONTEXT_SECTIONS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -105,24 +108,78 @@ _AGENT_TYPE_LABELS: dict[str, str] = {
 }
 
 
-def build_agent_prompt(agent_type: str) -> str:
+def _load_workspace_data(
+    workspace_dir: str, agent_type: str
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """Read finding data and prior agent results from the workspace directory.
+
+    Returns (finding_dict, prior_context_dict). Prior context only includes
+    sections from agents earlier in the pipeline than the current one.
+    """
+    import json
+
+    ctx_dir = Path(workspace_dir) / "context"
+
+    # Read finding — must exist
+    finding_path = ctx_dir / "finding.json"
+    if not finding_path.exists():
+        raise AgentProcessError(
+            f"finding.json missing from workspace: {workspace_dir}"
+        )
+    finding = json.loads(finding_path.read_text())
+
+    # Read prior context — only sections before this agent in the pipeline
+    current_section = AGENT_TYPE_TO_SECTION.get(agent_type)
+    if current_section:
+        cutoff = CONTEXT_SECTIONS.index(current_section)
+        prior_sections = CONTEXT_SECTIONS[:cutoff]
+    else:
+        prior_sections = CONTEXT_SECTIONS
+
+    prior_context: dict[str, dict[str, Any]] = {}
+    for section in prior_sections:
+        section_path = ctx_dir / f"{section}.json"
+        if section_path.exists():
+            prior_context[section] = json.loads(section_path.read_text())
+
+    return finding, prior_context
+
+
+def build_agent_prompt(
+    agent_type: str,
+    *,
+    finding: dict[str, Any],
+    prior_context: dict[str, dict[str, Any]] | None = None,
+) -> str:
     """Build the execution prompt for a specific agent type.
 
-    The prompt is self-contained: it includes the full output contract so the
-    LLM produces structured JSON regardless of workspace state or session
-    history from the orchestrator agent.
+    Includes the actual finding data and any prior agent results inline,
+    so the LLM has everything it needs without reading files.
     """
     label = _AGENT_TYPE_LABELS.get(agent_type, agent_type)
     contract = _STRUCTURED_OUTPUT_CONTRACTS.get(agent_type, "")
     structured_block = f",\n    {contract}" if contract else ""
 
+    # Format finding data using the same renderer as CONTEXT.md
+    finding_text = ContextDocument.finding_section(finding)
+
+    # Format prior context if available
+    prior_text = ""
+    if prior_context:
+        knowledge = ContextDocument.knowledge_section(
+            prior_context.get("enrichment"),
+            prior_context.get("ownership"),
+            prior_context.get("exposure"),
+        )
+        if knowledge:
+            prior_text = f"\n{knowledge}\n"
+
     return f"""\
 IMPORTANT: This is a programmatic agent execution request. Respond with ONLY \
-a JSON code block — no tool calls, no file reads, no conversation. The \
-workspace context files (CONTEXT.md, context/finding.json) are already loaded \
-into your context window. Do not attempt to read them.
+a JSON code block — no tool calls, no file reads, no conversation.
 
-Run {label} on the finding described in your context. Respond with a single \
+{finding_text}{prior_text}
+Run {label} on the finding above. Respond with a single \
 ```json code block matching this exact schema:
 
 ```json
@@ -221,8 +278,6 @@ class AgentExecutor:
         try:
             # 3. Get or start workspace OpenCode process
             try:
-                from pathlib import Path
-
                 client = await self._pool.get_or_start(
                     workspace_id, Path(workspace_dir)
                 )
@@ -232,7 +287,12 @@ class AgentExecutor:
             # 4. Create fresh session
             session = await client.create_session()
 
-            prompt = build_agent_prompt(agent_type)
+            finding_data, prior_ctx = _load_workspace_data(
+                workspace_dir, agent_type
+            )
+            prompt = build_agent_prompt(
+                agent_type, finding=finding_data, prior_context=prior_ctx
+            )
 
             response_text = await self._send_and_collect(
                 client, session.id, prompt, timeout=timeout, on_progress=on_progress
