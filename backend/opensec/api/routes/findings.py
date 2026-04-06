@@ -22,6 +22,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["findings"])
 
 
+@router.post("/findings/ingest", response_model=IngestResult)
+async def ingest_findings_endpoint(body: IngestRequest, db=Depends(get_db)):
+    """Normalize raw scanner findings via LLM and create Finding records.
+
+    Accepts raw data from any scanner format. The LLM extracts structured
+    fields into FindingCreate schema. See ADR-0022.
+    """
+    valid, errors = await normalize_findings(body.source, body.raw_data)
+
+    created: list[Finding] = []
+    for fc in valid:
+        try:
+            finding = await create_finding(db, fc)
+            created.append(finding)
+        except Exception as exc:
+            logger.warning("Failed to persist normalized finding: %s", exc)
+            errors.append(f"DB error: failed to persist finding {len(created) + 1}")
+
+    return IngestResult(created=created, errors=errors)
+
+
 @router.post("/findings", response_model=Finding, status_code=201)
 async def create_finding_endpoint(body: FindingCreate, db=Depends(get_db)):
     return await create_finding(db, body)
@@ -61,24 +82,3 @@ async def delete_finding_endpoint(finding_id: str, db=Depends(get_db)):
     deleted = await delete_finding(db, finding_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Finding not found")
-
-
-@router.post("/findings/ingest", response_model=IngestResult)
-async def ingest_findings_endpoint(body: IngestRequest, db=Depends(get_db)):
-    """Normalize raw scanner findings via LLM and create Finding records.
-
-    Accepts raw data from any scanner format. The LLM extracts structured
-    fields into FindingCreate schema. See ADR-0022.
-    """
-    valid, errors = await normalize_findings(body.source, body.raw_data)
-
-    created: list[Finding] = []
-    for fc in valid:
-        try:
-            finding = await create_finding(db, fc)
-            created.append(finding)
-        except Exception as exc:
-            logger.warning("Failed to persist normalized finding: %s", exc)
-            errors.append(f"DB error: failed to persist finding {len(created) + 1}")
-
-    return IngestResult(created=created, errors=errors)

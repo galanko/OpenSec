@@ -142,7 +142,7 @@ class OpenCodeClient:
         resp = await client.post(
             f"/session/{session_id}/message",
             json={"parts": [{"type": "text", "text": content}]},
-            timeout=httpx.Timeout(10.0, connect=5.0),
+            timeout=httpx.Timeout(120.0, connect=5.0),
         )
         resp.raise_for_status()
 
