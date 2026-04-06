@@ -188,6 +188,15 @@ async def workspace_stream_events(
                             {"message": event.get("message", "Unknown error")}
                         ),
                     }
+                elif event_type == "permission_request":
+                    yield {
+                        "event": "permission_request",
+                        "data": json.dumps({
+                            "id": event.get("id", ""),
+                            "tool": event.get("tool", "unknown"),
+                            "patterns": event.get("patterns", []),
+                        }),
+                    }
                 elif event_type == "done":
                     yield {"event": "done", "data": "{}"}
                     return
