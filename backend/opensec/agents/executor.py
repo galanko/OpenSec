@@ -13,6 +13,7 @@ import contextlib
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
@@ -30,6 +31,8 @@ from opensec.db.repo_agent_run import (
     update_agent_run,
 )
 from opensec.models import AgentRunCreate, AgentRunUpdate
+from opensec.workspace.context_document import ContextDocument
+from opensec.workspace.workspace_dir import AGENT_TYPE_TO_SECTION, CONTEXT_SECTIONS
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -41,19 +44,162 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Default timeout for a single agent run (seconds).
 DEFAULT_TIMEOUT: float = 120.0
 
-# Prompt template sent to OpenCode to invoke a sub-agent.
-_AGENT_PROMPT = (
-    "Run the {agent_type} analysis on this finding. "
-    "The workspace context files (CONTEXT.md, context/finding.json) contain "
-    "the full details. Respond directly with your analysis as a JSON block "
-    "with these fields: summary (string), result_card_markdown (markdown string), "
-    "structured_output (object with your analysis), confidence (0.0-1.0), "
-    "evidence_sources (list of strings), suggested_next_action (string). "
-    "Do not use any tools — just analyze based on the context already available."
-)
+# ---------------------------------------------------------------------------
+# Per-agent output contracts (inlined in the prompt so the LLM always sees
+# the exact schema, regardless of workspace state or session history).
+# ---------------------------------------------------------------------------
+
+_STRUCTURED_OUTPUT_CONTRACTS: dict[str, str] = {
+    "finding_enricher": """\
+"structured_output": {
+    "normalized_title": "string — clear, jargon-free title",
+    "cve_ids": ["CVE-YYYY-NNNNN"] or [],
+    "cvss_score": 0.0-10.0 or null,
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/..." or null,
+    "description": "what the vulnerability is and how it works",
+    "affected_versions": "version range, e.g. '< 2.3.1'" or null,
+    "fixed_version": "minimum fixed version" or null,
+    "known_exploits": true/false,
+    "exploit_details": "exploit maturity info" or null,
+    "references": ["https://..."] or []
+}""",
+    "owner_resolver": """\
+"structured_output": {
+    "recommended_owner": "string — team or person name",
+    "candidates": [{"name": "...", "confidence": 0.0-1.0, "reason": "..."}],
+    "reasoning": "why this owner was chosen"
+}""",
+    "exposure_analyzer": """\
+"structured_output": {
+    "recommended_urgency": "critical/high/medium/low",
+    "environment": "production/staging/development" or null,
+    "internet_facing": true/false or null,
+    "reachable": "description of reachability" or null,
+    "reachability_evidence": "evidence for reachability assessment" or null,
+    "business_criticality": "description" or null,
+    "blast_radius": "description of impact scope" or null
+}""",
+    "remediation_planner": """\
+"structured_output": {
+    "plan_steps": ["step 1", "step 2", ...],
+    "definition_of_done": ["criterion 1", ...],
+    "interim_mitigation": "immediate mitigation" or null,
+    "dependencies": ["dependency 1", ...],
+    "estimated_effort": "e.g. 2-4 hours" or null,
+    "validation_method": "how to verify the fix" or null
+}""",
+    "validation_checker": """\
+"structured_output": {
+    "verdict": "fixed/not_fixed/partially_fixed/inconclusive",
+    "recommendation": "close/reopen/needs_more_info",
+    "evidence": "what evidence supports the verdict" or null,
+    "remaining_concerns": ["concern 1", ...]
+}""",
+}
+
+_AGENT_TYPE_LABELS: dict[str, str] = {
+    "finding_enricher": "vulnerability enrichment",
+    "owner_resolver": "ownership resolution",
+    "exposure_analyzer": "exposure and context analysis",
+    "remediation_planner": "remediation planning",
+    "validation_checker": "validation checking",
+}
+
+
+def _load_workspace_data(
+    workspace_dir: str, agent_type: str
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    """Read finding data and prior agent results from the workspace directory.
+
+    Returns (finding_dict, prior_context_dict). Prior context only includes
+    sections from agents earlier in the pipeline than the current one.
+    """
+    import json
+
+    ctx_dir = Path(workspace_dir) / "context"
+
+    # Read finding — must exist
+    finding_path = ctx_dir / "finding.json"
+    if not finding_path.exists():
+        raise AgentProcessError(
+            f"finding.json missing from workspace: {workspace_dir}"
+        )
+    finding = json.loads(finding_path.read_text())
+
+    # Read prior context — only sections before this agent in the pipeline
+    current_section = AGENT_TYPE_TO_SECTION.get(agent_type)
+    if current_section:
+        cutoff = CONTEXT_SECTIONS.index(current_section)
+        prior_sections = CONTEXT_SECTIONS[:cutoff]
+    else:
+        prior_sections = CONTEXT_SECTIONS
+
+    prior_context: dict[str, dict[str, Any]] = {}
+    for section in prior_sections:
+        section_path = ctx_dir / f"{section}.json"
+        if section_path.exists():
+            prior_context[section] = json.loads(section_path.read_text())
+
+    return finding, prior_context
+
+
+def build_agent_prompt(
+    agent_type: str,
+    *,
+    finding: dict[str, Any],
+    prior_context: dict[str, dict[str, Any]] | None = None,
+) -> str:
+    """Build the execution prompt for a specific agent type.
+
+    Includes the actual finding data and any prior agent results inline,
+    so the LLM has everything it needs without reading files.
+    """
+    label = _AGENT_TYPE_LABELS.get(agent_type, agent_type)
+    contract = _STRUCTURED_OUTPUT_CONTRACTS.get(agent_type, "")
+    structured_block = f",\n    {contract}" if contract else ""
+
+    # Format finding data using the same renderer as CONTEXT.md
+    finding_text = ContextDocument.finding_section(finding)
+
+    # Format prior context if available
+    prior_text = ""
+    if prior_context:
+        knowledge = ContextDocument.knowledge_section(
+            prior_context.get("enrichment"),
+            prior_context.get("ownership"),
+            prior_context.get("exposure"),
+        )
+        if knowledge:
+            prior_text = f"\n{knowledge}\n"
+
+    return f"""\
+IMPORTANT: This is a programmatic agent execution request. Respond with ONLY \
+a JSON code block — no tool calls, no file reads, no conversation.
+
+{finding_text}{prior_text}
+Run {label} on the finding above. Respond with a single \
+```json code block matching this exact schema:
+
+```json
+{{
+    "summary": "one-line summary of your analysis",
+    "result_card_markdown": "## Heading\\n\\nMarkdown-formatted detailed results",
+    "confidence": 0.0-1.0,
+    "evidence_sources": ["source1", "source2"],
+    "suggested_next_action": "next agent type or action to take"{structured_block}
+}}
+```
+
+Respond with ONLY the JSON block above. No preamble, no explanation, no tool use."""
+
+
+_RETRY_PROMPT = """\
+Your previous response could not be parsed as valid JSON. This is a \
+programmatic execution — the output MUST be a single ```json code block and \
+nothing else. Do not use tools, do not read files, do not add explanation \
+text. Respond now with ONLY the JSON block in the exact schema requested."""
 
 
 @dataclass
@@ -132,8 +278,6 @@ class AgentExecutor:
         try:
             # 3. Get or start workspace OpenCode process
             try:
-                from pathlib import Path
-
                 client = await self._pool.get_or_start(
                     workspace_id, Path(workspace_dir)
                 )
@@ -143,33 +287,40 @@ class AgentExecutor:
             # 4. Create fresh session
             session = await client.create_session()
 
-            # 5+6. Subscribe to SSE event stream FIRST, then send the
-            # message. OpenCode's POST /message may block for the entire
-            # LLM call, so we need the stream connected before sending
-            # to avoid missing early events.
-            prompt = _AGENT_PROMPT.format(agent_type=agent_type)
+            finding_data, prior_ctx = _load_workspace_data(
+                workspace_dir, agent_type
+            )
+            prompt = build_agent_prompt(
+                agent_type, finding=finding_data, prior_context=prior_ctx
+            )
 
-            async def _send_after_delay() -> None:
-                """Send message after a brief delay to let the stream connect."""
-                await asyncio.sleep(0.5)
-                with contextlib.suppress(httpx.ReadTimeout):
-                    await client.send_message(session.id, prompt)
-
-            send_task = asyncio.create_task(_send_after_delay())
-            try:
-                response_text = await self._collect_response(
-                    client, session.id, timeout=timeout, on_progress=on_progress
-                )
-            finally:
-                if not send_task.done():
-                    send_task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await send_task
+            response_text = await self._send_and_collect(
+                client, session.id, prompt, timeout=timeout, on_progress=on_progress
+            )
 
             # 7. Parse response
             parse_result = parse_agent_response(
                 response_text, agent_type=agent_type
             )
+
+            # 7b. Retry once if parse failed — send a corrective follow-up
+            # on the same session so the LLM sees its own bad output.
+            if not parse_result.success and response_text.strip():
+                logger.info(
+                    "Agent %s parse failed (error=%s), retrying with corrective prompt",
+                    agent_type,
+                    parse_result.error,
+                )
+                retry_text = await self._send_and_collect(
+                    client, session.id, _RETRY_PROMPT,
+                    timeout=timeout, on_progress=on_progress,
+                    send_delay=0.0,
+                )
+                retry_result = parse_agent_response(
+                    retry_text, agent_type=agent_type
+                )
+                if retry_result.success:
+                    parse_result = retry_result
 
             # 8. Persist results
             sidebar_updated = False
@@ -283,6 +434,40 @@ class AgentExecutor:
                 error=str(exc),
                 duration_seconds=duration,
             )
+
+    async def _send_and_collect(
+        self,
+        client: Any,
+        session_id: str,
+        prompt: str,
+        *,
+        timeout: float,
+        on_progress: Callable[[str], None] | None = None,
+        send_delay: float = 0.5,
+    ) -> str:
+        """Send a prompt and collect the streamed response.
+
+        The send_delay gives the SSE stream time to connect before the
+        message is sent. Set to 0 for follow-up messages on an already-
+        connected session.
+        """
+
+        async def _send() -> None:
+            if send_delay > 0:
+                await asyncio.sleep(send_delay)
+            with contextlib.suppress(httpx.ReadTimeout):
+                await client.send_message(session_id, prompt)
+
+        send_task = asyncio.create_task(_send())
+        try:
+            return await self._collect_response(
+                client, session_id, timeout=timeout, on_progress=on_progress
+            )
+        finally:
+            if not send_task.done():
+                send_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await send_task
 
     async def _check_not_busy(
         self, db: aiosqlite.Connection, workspace_id: str

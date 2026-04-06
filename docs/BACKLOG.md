@@ -15,7 +15,7 @@ Phase 6b — Wire sub-agents into the isolated workspace runtime:
 - [x] ADR-0021: Agent execution model
 - [x] E2E tests with real OpenCode + LLM (PR 7)
 - [ ] Handle `permission.asked` events — when the agent wants to use a tool (bash, MCP, scanner), surface the approval request to the user in the workspace chat. Three tiers: auto-approve (read files), user-approve (scan/query tools), explicit-approve (write-back actions like ticket creation, status updates). Inspired by Claude Code's "ask before acting" pattern — builds trust with security teams
-- [ ] Executor prompt refinement — the orchestrator agent in workspaces with existing session history behaves differently than fresh workspaces (tries to read files instead of responding with JSON directly). Tune the prompt or use a dedicated session with a system prompt override so the executor always gets structured JSON back, regardless of workspace state
+- [x] Executor prompt refinement — per-agent prompts with inline output contracts + retry-on-parse-failure with corrective follow-up
 
 Phase 7 — Ticket workflow (depends on Phase 6b):
 
