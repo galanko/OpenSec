@@ -189,20 +189,15 @@ async def normalize_findings(
     raw_json = json.dumps(raw_data, separators=(",", ":"))
     prompt = _build_prompt(source, raw_json)
 
-    # Call singleton OpenCode process
+    # Mode 1 (synchronous RPC): send_and_get_response blocks until the
+    # LLM finishes, then reads the response from the message history.
     session = await opencode_client.create_session()
     try:
-        await opencode_client.send_message(session.id, prompt)
-
-        # Collect full response — each "text" event is a cumulative snapshot
-        full_text = ""
-        async for event in opencode_client.stream_events(session.id):
-            if event["type"] == "text":
-                full_text = event["content"]
-            elif event["type"] == "error":
-                return [], [f"LLM error: {event.get('message', 'unknown')}"]
-            elif event["type"] == "done":
-                break
+        full_text = await opencode_client.send_and_get_response(
+            session.id, prompt
+        )
+    except Exception as exc:
+        return [], [f"LLM error: {exc}"]
     finally:
         logger.debug("Normalizer session %s finished", session.id)
 

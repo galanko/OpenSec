@@ -76,8 +76,11 @@ async def _process_job(db: aiosqlite.Connection, job_id: str) -> None:
             consecutive_failures = 0  # reset on success
         except Exception as exc:
             consecutive_failures += 1
-            error_msg = f"Chunk {chunk_idx + 1}: {exc}"
-            logger.warning("Chunk %d/%d failed: %s", chunk_idx + 1, total_chunks, exc)
+            error_msg = f"Chunk {chunk_idx + 1}: {type(exc).__name__}: {exc}"
+            logger.warning(
+                "Chunk %d/%d failed: %r", chunk_idx + 1, total_chunks, exc,
+                exc_info=True,
+            )
             await increment_failed_chunk(db, job_id, error_msg)
 
             if consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:

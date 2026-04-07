@@ -98,39 +98,23 @@ PARTIAL_LLM_RESPONSE = json.dumps([
 ])
 
 
-def _mock_stream_events(response_text: str):
-    """Create an async generator that mimics OpenCode SSE events."""
-    async def stream(session_id: str):
-        yield {"type": "text", "content": response_text}
-        yield {"type": "done"}
-    return stream
-
-
-def _mock_stream_error(message: str = "model error"):
-    async def stream(session_id: str):
-        yield {"type": "error", "message": message}
-    return stream
-
-
-def _mock_stream_empty():
-    async def stream(session_id: str):
-        yield {"type": "done"}
-    return stream
-
-
 @pytest.fixture
 def mock_opencode():
-    """Patch the opencode_client singleton for normalizer tests."""
+    """Patch the opencode_client singleton for normalizer tests.
+
+    The normalizer uses Mode 1 (synchronous RPC) via send_and_get_response,
+    so we mock that single call. It returns the LLM text or None.
+    """
     with patch("opensec.integrations.normalizer.opencode_client") as mock:
         mock.create_session = AsyncMock()
         mock.create_session.return_value.id = "test-session-id"
-        mock.send_message = AsyncMock()
+        mock.send_and_get_response = AsyncMock(return_value=None)
         yield mock
 
 
 @pytest.mark.asyncio
 async def test_normalize_success(mock_opencode):
-    mock_opencode.stream_events = _mock_stream_events(WIZ_LLM_RESPONSE)
+    mock_opencode.send_and_get_response.return_value = WIZ_LLM_RESPONSE
 
     findings, errors = await normalize_findings("wiz", [{"id": "wiz-123", "name": "test"}])
 
@@ -142,13 +126,13 @@ async def test_normalize_success(mock_opencode):
     assert errors == []
 
     mock_opencode.create_session.assert_called_once()
-    mock_opencode.send_message.assert_called_once()
+    mock_opencode.send_and_get_response.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_normalize_partial_failure(mock_opencode):
     """One valid finding, one missing source_id — partial result."""
-    mock_opencode.stream_events = _mock_stream_events(PARTIAL_LLM_RESPONSE)
+    mock_opencode.send_and_get_response.return_value = PARTIAL_LLM_RESPONSE
 
     findings, errors = await normalize_findings("snyk", [{"a": 1}, {"b": 2}])
 
@@ -178,7 +162,7 @@ async def test_normalize_batch_too_large(mock_opencode):
 
 @pytest.mark.asyncio
 async def test_normalize_llm_error(mock_opencode):
-    mock_opencode.stream_events = _mock_stream_error("rate limit exceeded")
+    mock_opencode.send_and_get_response.side_effect = RuntimeError("rate limit exceeded")
 
     findings, errors = await normalize_findings("wiz", [{"id": "1"}])
     assert findings == []
@@ -188,8 +172,7 @@ async def test_normalize_llm_error(mock_opencode):
 
 @pytest.mark.asyncio
 async def test_normalize_empty_response(mock_opencode):
-    mock_opencode.stream_events = _mock_stream_empty()
-
+    # send_and_get_response returns None by default (fixture)
     findings, errors = await normalize_findings("wiz", [{"id": "1"}])
     assert findings == []
     assert "empty response" in errors[0]
@@ -197,7 +180,7 @@ async def test_normalize_empty_response(mock_opencode):
 
 @pytest.mark.asyncio
 async def test_normalize_malformed_response(mock_opencode):
-    mock_opencode.stream_events = _mock_stream_events("Sorry, I can't do that.")
+    mock_opencode.send_and_get_response.return_value = "Sorry, I can't do that."
 
     findings, errors = await normalize_findings("wiz", [{"id": "1"}])
     assert findings == []
@@ -208,7 +191,7 @@ async def test_normalize_malformed_response(mock_opencode):
 async def test_normalize_fenced_response(mock_opencode):
     """LLM wraps JSON in markdown fences — should still parse."""
     fenced = f"```json\n{WIZ_LLM_RESPONSE}\n```"
-    mock_opencode.stream_events = _mock_stream_events(fenced)
+    mock_opencode.send_and_get_response.return_value = fenced
 
     findings, errors = await normalize_findings("wiz", [{"id": "wiz-123"}])
     assert len(findings) == 1
@@ -221,7 +204,7 @@ async def test_normalize_injects_source_type(mock_opencode):
     response = json.dumps([
         {"source_id": "x-1", "title": "Test vuln", "status": "new"},
     ])
-    mock_opencode.stream_events = _mock_stream_events(response)
+    mock_opencode.send_and_get_response.return_value = response
 
     findings, errors = await normalize_findings("trivy", [{"id": "x-1"}])
     assert len(findings) == 1
