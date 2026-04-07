@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useFindings } from '@/api/hooks'
+import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
 import FindingRow from '@/components/FindingRow'
+import IngestProgress from '@/components/IngestProgress'
 import PageShell from '@/components/PageShell'
 
 const STATUS_OPTIONS = [
@@ -26,6 +28,7 @@ export default function QueuePage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('updated')
   const [solving, setSolving] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const navigate = useNavigate()
 
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
@@ -63,6 +66,12 @@ export default function QueuePage() {
 
   const filterActions = (
     <>
+      <ActionButton
+        label="Import findings"
+        icon="upload_file"
+        variant="outline"
+        onClick={() => setImportOpen(!importOpen)}
+      />
       <div className="relative">
         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
           filter_list
@@ -100,6 +109,16 @@ export default function QueuePage() {
       subtitle="Security findings waiting to be resolved. Pick one and start a remediation workspace."
       actions={filterActions}
     >
+      {importOpen && (
+        <IngestProgress
+          onComplete={() => {
+            refetch()
+            setImportOpen(false)
+          }}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-24">
           <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
