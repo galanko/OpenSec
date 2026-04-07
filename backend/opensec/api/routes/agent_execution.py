@@ -161,3 +161,43 @@ async def cancel_agent_run(
         db, run_id, AgentRunUpdate(status="cancelled")
     )
     return {"status": "cancelled", "agent_run_id": run_id}
+
+
+# ---------------------------------------------------------------------------
+# Permission approval
+# ---------------------------------------------------------------------------
+
+
+class PermissionDecision(BaseModel):
+    approved: bool
+
+
+@router.post(
+    "/workspaces/{workspace_id}/agent-runs/{run_id}/permission",
+    status_code=200,
+)
+async def respond_to_permission(
+    workspace_id: str,
+    run_id: str,
+    body: PermissionDecision,
+    request: Request,
+):
+    """Approve or deny a pending tool-use permission request."""
+    executor = request.app.state.agent_executor
+
+    resolved = (
+        executor.approve_tool(run_id)
+        if body.approved
+        else executor.deny_tool(run_id)
+    )
+
+    if not resolved:
+        raise HTTPException(
+            status_code=404,
+            detail="No pending permission request for this agent run",
+        )
+
+    return {
+        "status": "approved" if body.approved else "denied",
+        "agent_run_id": run_id,
+    }

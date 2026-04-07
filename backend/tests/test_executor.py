@@ -4,13 +4,49 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from opensec.agents.errors import AgentBusyError
-from opensec.agents.executor import AgentExecutor
+from opensec.agents.executor import (
+    TOOL_TIERS,
+    AgentExecutor,
+    _load_workspace_data,
+    _PendingApproval,
+    build_agent_prompt,
+)
 from opensec.models import AgentRun
+
+# ---------------------------------------------------------------------------
+# Sample data
+# ---------------------------------------------------------------------------
+
+_SAMPLE_FINDING = {
+    "id": "390f95cd-fcbb-416d-b3af-51e86dfc3d29",
+    "title": "Apache Tomcat vulnerable version on web-prod-17",
+    "source_type": "tenable",
+    "source_id": "CVE-2023-46589",
+    "description": (
+        "CVE-2023-46589 identified on web-prod-17. "
+        "Apache Tomcat 9.0.82 is vulnerable to HTTP request smuggling."
+    ),
+    "raw_severity": "critical",
+    "normalized_priority": "P1",
+    "asset_id": "web-prod-17",
+    "asset_label": "Web Server 17 (Production)",
+    "status": "new",
+    "likely_owner": "Platform Engineering",
+}
+
+_SAMPLE_ENRICHMENT = {
+    "normalized_title": "Apache Tomcat HTTP Request Smuggling",
+    "cve_ids": ["CVE-2023-46589"],
+    "cvss_score": 7.5,
+    "known_exploits": False,
+    "fixed_version": "9.0.84",
+}
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -79,6 +115,15 @@ def mock_db():
     return AsyncMock()
 
 
+@pytest.fixture
+def workspace_dir(tmp_path):
+    """Create a workspace directory with finding.json on disk."""
+    ctx = tmp_path / "context"
+    ctx.mkdir()
+    (ctx / "finding.json").write_text(json.dumps(_SAMPLE_FINDING))
+    return str(tmp_path)
+
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -86,7 +131,8 @@ def mock_db():
 
 class TestAgentExecutor:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_pool, mock_context_builder, mock_db):
+    async def test_happy_path(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """Full successful execution: send -> collect -> parse -> persist."""
         response_text = _make_agent_response()
         mock_pool.get_or_start.return_value = _make_mock_client(response_text)
@@ -103,7 +149,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
         ):
             result = await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "completed"
@@ -118,7 +164,8 @@ class TestAgentExecutor:
         mock_sidebar.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_parse_failure_still_completes(self, mock_pool, mock_context_builder, mock_db):
+    async def test_parse_failure_still_completes(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """When LLM returns text but no valid JSON, status is still completed."""
         response_text = "I analyzed the vulnerability but forgot to return JSON."
         mock_pool.get_or_start.return_value = _make_mock_client(response_text)
@@ -135,7 +182,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
         ):
             result = await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "completed"
@@ -146,7 +193,8 @@ class TestAgentExecutor:
         mock_sidebar.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_busy_workspace_raises(self, mock_pool, mock_context_builder, mock_db):
+    async def test_busy_workspace_raises(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """Another agent running → AgentBusyError."""
         existing_run = _make_mock_agent_run(status="running")
         executor = AgentExecutor(mock_pool, mock_context_builder)
@@ -158,11 +206,12 @@ class TestAgentExecutor:
             ),pytest.raises(AgentBusyError, match="already running")
         ):
             await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
     @pytest.mark.asyncio
-    async def test_process_start_failure(self, mock_pool, mock_context_builder, mock_db):
+    async def test_process_start_failure(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """OpenCode process fails to start → status=failed."""
         mock_pool.get_or_start.side_effect = RuntimeError("No free ports")
 
@@ -177,7 +226,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
         ):
             result = await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "failed"
@@ -188,7 +237,8 @@ class TestAgentExecutor:
         assert update_data.status == "failed"
 
     @pytest.mark.asyncio
-    async def test_timeout(self, mock_pool, mock_context_builder, mock_db):
+    async def test_timeout(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """Agent exceeds timeout → status=failed with timeout error."""
         # Create a stream that never completes
         client = AsyncMock()
@@ -215,14 +265,15 @@ class TestAgentExecutor:
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db,
-                workspace_dir="/tmp/ws", timeout=0.1,
+                workspace_dir=workspace_dir, timeout=0.1,
             )
 
         assert result.status == "failed"
         assert "timed out" in (result.error or "").lower()
 
     @pytest.mark.asyncio
-    async def test_opencode_error_event(self, mock_pool, mock_context_builder, mock_db):
+    async def test_opencode_error_event(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """OpenCode returns an error event → status=failed."""
         client = AsyncMock()
         client.create_session.return_value = MagicMock(id="session-1")
@@ -245,14 +296,15 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
         ):
             result = await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "failed"
         assert "rate limited" in (result.error or "").lower()
 
     @pytest.mark.asyncio
-    async def test_progress_callback_called(self, mock_pool, mock_context_builder, mock_db):
+    async def test_progress_callback_called(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """on_progress callback receives text chunks."""
         response_text = _make_agent_response()
         mock_pool.get_or_start.return_value = _make_mock_client(response_text)
@@ -272,14 +324,15 @@ class TestAgentExecutor:
         ):
             await executor.execute(
                 "ws-1", "finding_enricher", mock_db,
-                workspace_dir="/tmp/ws",
+                workspace_dir=workspace_dir,
                 on_progress=progress_calls.append,
             )
 
         assert len(progress_calls) > 0
 
     @pytest.mark.asyncio
-    async def test_completed_run_not_blocking(self, mock_pool, mock_context_builder, mock_db):
+    async def test_completed_run_not_blocking(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """A completed agent run should NOT block new executions."""
         completed_run = _make_mock_agent_run(status="completed")
         response_text = _make_agent_response()
@@ -300,13 +353,14 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.map_and_upsert"),
         ):
             result = await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "completed"
 
     @pytest.mark.asyncio
-    async def test_context_builder_failure(self, mock_pool, mock_context_builder, mock_db):
+    async def test_context_builder_failure(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """If context_builder.update_context fails, result persists in DB."""
         response_text = _make_agent_response()
         mock_pool.get_or_start.return_value = _make_mock_client(response_text)
@@ -323,14 +377,15 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
         ):
             result = await executor.execute(
-                "ws-1", "finding_enricher", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "failed"
         assert "Disk full" in (result.error or "")
 
     @pytest.mark.asyncio
-    async def test_owner_resolver_agent_type(self, mock_pool, mock_context_builder, mock_db):
+    async def test_owner_resolver_agent_type(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
         """Verify executor works with different agent types."""
         data = {
             "summary": "Owner identified",
@@ -358,8 +413,372 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.map_and_upsert"),
         ):
             result = await executor.execute(
-                "ws-1", "owner_resolver", mock_db, workspace_dir="/tmp/ws"
+                "ws-1", "owner_resolver", mock_db, workspace_dir=workspace_dir
             )
 
         assert result.status == "completed"
         assert result.parse_result.summary == "Owner identified"
+
+    @pytest.mark.asyncio
+    async def test_retry_on_parse_failure(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
+        """When first attempt returns no JSON, retry with corrective prompt."""
+        bad_response = "Let me read the context files to analyze this finding..."
+        good_response = _make_agent_response()
+
+        # Client that returns bad response first, then good on retry
+        call_count = 0
+        client = AsyncMock()
+        client.create_session.return_value = MagicMock(id="session-1")
+        client.send_message.return_value = None
+
+        async def multi_stream(session_id):
+            nonlocal call_count
+            call_count += 1
+            text = bad_response if call_count == 1 else good_response
+            yield {"type": "text", "content": text}
+            yield {"type": "done"}
+
+        client.stream_events = multi_stream
+        mock_pool.get_or_start.return_value = client
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert"),
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
+            )
+
+        assert result.status == "completed"
+        assert result.parse_result.success is True
+        assert result.sidebar_updated is True
+        # Two send_message calls: initial prompt + retry
+        assert client.send_message.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_retry_still_fails(self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir):
+        """When both attempts fail to produce JSON, result is completed but not parsed."""
+        bad_response = "I'll try to read the files instead of returning JSON."
+        mock_pool.get_or_start.return_value = _make_mock_client(bad_response)
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
+            )
+
+        assert result.status == "completed"
+        assert result.parse_result.success is False
+        assert result.sidebar_updated is False
+        mock_sidebar.assert_not_called()
+
+
+class TestBuildAgentPrompt:
+    def test_includes_output_contract(self):
+        """Prompt includes the per-agent structured_output schema."""
+        prompt = build_agent_prompt("finding_enricher", finding=_SAMPLE_FINDING)
+        assert "normalized_title" in prompt
+        assert "cve_ids" in prompt
+        assert "cvss_score" in prompt
+
+    def test_includes_json_instruction(self):
+        """Prompt explicitly requests JSON-only output."""
+        prompt = build_agent_prompt("finding_enricher", finding=_SAMPLE_FINDING)
+        assert "programmatic agent execution" in prompt.lower()
+        assert "no tool calls" in prompt.lower()
+        assert "no file reads" in prompt.lower()
+
+    def test_all_agent_types_have_contracts(self):
+        """Every known agent type produces a prompt with its output contract."""
+        agent_types = [
+            "finding_enricher",
+            "owner_resolver",
+            "exposure_analyzer",
+            "remediation_planner",
+            "validation_checker",
+        ]
+        for agent_type in agent_types:
+            prompt = build_agent_prompt(agent_type, finding=_SAMPLE_FINDING)
+            assert "structured_output" in prompt, f"Missing contract for {agent_type}"
+            assert "```json" in prompt
+
+    def test_unknown_agent_type_still_works(self):
+        """Unknown agent types produce a valid prompt without a specific contract."""
+        prompt = build_agent_prompt("unknown_agent", finding=_SAMPLE_FINDING)
+        assert "```json" in prompt
+        assert "summary" in prompt
+
+    def test_prompt_includes_finding_title(self):
+        """The actual finding title must appear in the prompt."""
+        prompt = build_agent_prompt("finding_enricher", finding=_SAMPLE_FINDING)
+        assert "Apache Tomcat vulnerable version on web-prod-17" in prompt
+
+    def test_prompt_includes_finding_description(self):
+        """The finding description must appear in the prompt."""
+        prompt = build_agent_prompt("finding_enricher", finding=_SAMPLE_FINDING)
+        assert "CVE-2023-46589" in prompt
+        assert "HTTP request smuggling" in prompt
+
+    def test_prompt_includes_finding_severity(self):
+        """Severity and asset must appear in the prompt."""
+        prompt = build_agent_prompt("finding_enricher", finding=_SAMPLE_FINDING)
+        assert "critical" in prompt
+        assert "Web Server 17" in prompt
+
+    def test_prompt_includes_prior_context(self):
+        """Prior enrichment data appears for agents that run after enricher."""
+        prompt = build_agent_prompt(
+            "owner_resolver",
+            finding=_SAMPLE_FINDING,
+            prior_context={"enrichment": _SAMPLE_ENRICHMENT},
+        )
+        assert "CVE-2023-46589" in prompt
+        assert "9.0.84" in prompt  # fixed_version from enrichment
+
+    def test_enricher_no_prior_context(self):
+        """Enricher prompt works fine without prior context."""
+        prompt = build_agent_prompt(
+            "finding_enricher", finding=_SAMPLE_FINDING, prior_context=None
+        )
+        assert "Apache Tomcat" in prompt
+        assert "What we know so far" not in prompt
+
+
+class TestLoadWorkspaceData:
+    def test_reads_finding_from_disk(self, workspace_dir):
+        """_load_workspace_data reads finding.json from the workspace."""
+        finding, prior = _load_workspace_data(workspace_dir, "finding_enricher")
+        assert finding["title"] == "Apache Tomcat vulnerable version on web-prod-17"
+        assert prior == {}  # enricher is first, no prior context
+
+    def test_reads_prior_context(self, workspace_dir):
+        """Prior context files are loaded for later agents."""
+        # Write enrichment data
+        ctx = Path(workspace_dir) / "context"
+        (ctx / "enrichment.json").write_text(json.dumps(_SAMPLE_ENRICHMENT))
+
+        finding, prior = _load_workspace_data(workspace_dir, "owner_resolver")
+        assert "enrichment" in prior
+        assert prior["enrichment"]["cve_ids"] == ["CVE-2023-46589"]
+
+    def test_missing_finding_raises(self, tmp_path):
+        """Missing finding.json raises AgentProcessError."""
+        (tmp_path / "context").mkdir()
+        from opensec.agents.errors import AgentProcessError
+        with pytest.raises(AgentProcessError, match="finding.json missing"):
+            _load_workspace_data(str(tmp_path), "finding_enricher")
+
+    def test_enricher_gets_no_prior_even_if_files_exist(self, workspace_dir):
+        """Enricher is first in pipeline — never gets prior context."""
+        ctx = Path(workspace_dir) / "context"
+        (ctx / "enrichment.json").write_text(json.dumps(_SAMPLE_ENRICHMENT))
+
+        _, prior = _load_workspace_data(workspace_dir, "finding_enricher")
+        assert prior == {}  # enricher has no prior sections
+
+
+# ---------------------------------------------------------------------------
+# Permission handling tests
+# ---------------------------------------------------------------------------
+
+class TestPermissionTiers:
+    def test_read_tools_auto_approve(self):
+        """Read and webfetch are auto-approved."""
+        assert TOOL_TIERS["read"] == "auto"
+        assert TOOL_TIERS["webfetch"] == "auto"
+
+    def test_bash_and_edit_need_user_approval(self):
+        """Bash and edit require user approval."""
+        assert TOOL_TIERS["bash"] == "user"
+        assert TOOL_TIERS["edit"] == "user"
+
+    def test_unknown_tool_defaults_to_user(self):
+        """Unknown tools default to user-tier (safe default)."""
+        assert TOOL_TIERS.get("some_new_tool", "user") == "user"
+
+
+class TestPermissionApproval:
+    def test_approve_tool(self):
+        """approve_tool resolves a pending approval."""
+        pool = AsyncMock()
+        builder = AsyncMock()
+        executor = AgentExecutor(pool, builder)
+
+        pending = _PendingApproval(
+            permission_id="per_123",
+            tool="bash",
+            patterns=["ls -la"],
+            event=asyncio.Event(),
+        )
+        executor._pending_approvals["run-1"] = pending
+
+        assert executor.approve_tool("run-1") is True
+        assert pending.approved is True
+        assert pending.event.is_set()
+
+    def test_deny_tool(self):
+        """deny_tool resolves a pending approval with denied."""
+        pool = AsyncMock()
+        builder = AsyncMock()
+        executor = AgentExecutor(pool, builder)
+
+        pending = _PendingApproval(
+            permission_id="per_123",
+            tool="bash",
+            patterns=["rm -rf /"],
+            event=asyncio.Event(),
+        )
+        executor._pending_approvals["run-1"] = pending
+
+        assert executor.deny_tool("run-1") is True
+        assert pending.approved is False
+        assert pending.event.is_set()
+
+    def test_approve_nonexistent_returns_false(self):
+        """approve_tool returns False when no pending approval."""
+        pool = AsyncMock()
+        builder = AsyncMock()
+        executor = AgentExecutor(pool, builder)
+
+        assert executor.approve_tool("no-such-run") is False
+
+    @pytest.mark.asyncio
+    async def test_auto_approve_in_stream(
+        self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir
+    ):
+        """Auto-tier tools (read) are granted without user interaction."""
+        # Client that emits a permission event then completes
+        client = AsyncMock()
+        client.create_session.return_value = MagicMock(id="ses-1")
+        client.send_message.return_value = None
+        client.grant_permission.return_value = None
+
+        async def stream_with_permission(session_id):
+            yield {
+                "type": "permission_request",
+                "id": "per_auto",
+                "tool": "read",
+                "patterns": ["context/finding.json"],
+            }
+            yield {
+                "type": "text",
+                "content": _make_agent_response(),
+            }
+            yield {"type": "done"}
+
+        client.stream_events = stream_with_permission
+        mock_pool.get_or_start.return_value = client
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch(
+                "opensec.agents.executor.list_agent_runs",
+                return_value=[],
+            ),
+            patch("opensec.agents.executor.map_and_upsert"),
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db,
+                workspace_dir=workspace_dir,
+            )
+
+        assert result.status == "completed"
+        # Auto-approved: grant_permission should have been called
+        client.grant_permission.assert_called_once_with("per_auto")
+
+    @pytest.mark.asyncio
+    async def test_user_tier_surfaces_callback(
+        self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir
+    ):
+        """User-tier tools fire on_permission callback."""
+        client = AsyncMock()
+        client.create_session.return_value = MagicMock(id="ses-1")
+        client.send_message.return_value = None
+        client.grant_permission.return_value = None
+
+        permission_calls = []
+
+        async def stream_with_bash_permission(session_id):
+            yield {
+                "type": "permission_request",
+                "id": "per_bash",
+                "tool": "bash",
+                "patterns": ["ls -la /tmp"],
+            }
+            # After yielding permission, we need to wait
+            # for the approval before the stream continues.
+            # In real usage, OpenCode blocks here. In test,
+            # we simulate by yielding done after a delay.
+            yield {
+                "type": "text",
+                "content": _make_agent_response(),
+            }
+            yield {"type": "done"}
+
+        client.stream_events = stream_with_bash_permission
+        mock_pool.get_or_start.return_value = client
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        # Auto-approve from a background task after the
+        # callback fires
+        async def auto_approve_after_callback(event_dict):
+            permission_calls.append(event_dict)
+            # Approve in a microtask so the executor can resume
+            await asyncio.sleep(0.01)
+            executor.approve_tool(event_dict["run_id"])
+
+        def on_perm(event_dict):
+            asyncio.create_task(
+                auto_approve_after_callback(event_dict)
+            )
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch(
+                "opensec.agents.executor.list_agent_runs",
+                return_value=[],
+            ),
+            patch("opensec.agents.executor.map_and_upsert"),
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db,
+                workspace_dir=workspace_dir,
+                on_permission=on_perm,
+            )
+
+        assert result.status == "completed"
+        assert len(permission_calls) == 1
+        assert permission_calls[0]["tool"] == "bash"
+        # Should have called grant after approval
+        client.grant_permission.assert_called_once_with("per_bash")

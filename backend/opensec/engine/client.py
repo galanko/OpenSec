@@ -262,6 +262,15 @@ class OpenCodeClient:
                         yield {"type": "done"}
                         return
 
+                    elif event_type == "permission.asked":
+                        yield {
+                            "type": "permission_request",
+                            "id": props.get("id", ""),
+                            "tool": props.get("permission", "unknown"),
+                            "patterns": props.get("patterns", []),
+                            "session_id": event_session,
+                        }
+
                     elif event_session == session_id:
                         # Any other session-scoped event (tool calls, etc.)
                         # signals the agent is still active.
@@ -282,6 +291,20 @@ class OpenCodeClient:
         if not data_lines:
             return None
         return {"event": event_type, "data": "\n".join(data_lines)}
+
+    # --- Permissions ---
+
+    async def grant_permission(self, permission_id: str) -> None:
+        """Grant a pending permission request."""
+        client = await self._get_client()
+        resp = await client.post(f"/permission/{permission_id}/grant")
+        resp.raise_for_status()
+
+    async def deny_permission(self, permission_id: str) -> None:
+        """Deny a pending permission request."""
+        client = await self._get_client()
+        resp = await client.post(f"/permission/{permission_id}/deny")
+        resp.raise_for_status()
 
     # --- Health ---
 
