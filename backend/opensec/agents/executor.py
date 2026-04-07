@@ -47,6 +47,32 @@ logger = logging.getLogger(__name__)
 DEFAULT_TIMEOUT: float = 120.0
 
 # ---------------------------------------------------------------------------
+# Permission tier classification for tool-use approval.
+# Keys are the "permission" field from OpenCode's permission.asked events.
+# "auto" = grant immediately, "user" = surface to user for approval.
+# Unknown tools default to "user" (safe default).
+# ---------------------------------------------------------------------------
+
+TOOL_TIERS: dict[str, str] = {
+    "read": "auto",
+    "webfetch": "auto",
+    "bash": "user",
+    "edit": "user",
+    "mcp": "user",
+}
+
+
+@dataclass
+class _PendingApproval:
+    """Tracks a permission request waiting for user approval."""
+
+    permission_id: str
+    tool: str
+    patterns: list[str]
+    event: asyncio.Event
+    approved: bool | None = None
+
+# ---------------------------------------------------------------------------
 # Per-agent output contracts (inlined in the prompt so the LLM always sees
 # the exact schema, regardless of workspace state or session history).
 # ---------------------------------------------------------------------------
@@ -235,6 +261,31 @@ class AgentExecutor:
     ) -> None:
         self._pool = pool
         self._context_builder = context_builder
+        self._pending_approvals: dict[str, _PendingApproval] = {}
+
+    def approve_tool(self, run_id: str) -> bool:
+        """Approve a pending tool-use permission request.
+
+        Returns True if a pending approval was found and resolved.
+        """
+        pending = self._pending_approvals.get(run_id)
+        if not pending:
+            return False
+        pending.approved = True
+        pending.event.set()
+        return True
+
+    def deny_tool(self, run_id: str) -> bool:
+        """Deny a pending tool-use permission request.
+
+        Returns True if a pending approval was found and resolved.
+        """
+        pending = self._pending_approvals.get(run_id)
+        if not pending:
+            return False
+        pending.approved = False
+        pending.event.set()
+        return True
 
     async def execute(
         self,
@@ -245,6 +296,7 @@ class AgentExecutor:
         workspace_dir: str,
         timeout: float = DEFAULT_TIMEOUT,
         on_progress: Callable[[str], None] | None = None,
+        on_permission: Callable[[dict], None] | None = None,
     ) -> AgentExecutionResult:
         """Execute a single agent run.
 
@@ -255,6 +307,8 @@ class AgentExecutor:
             workspace_dir: Path to the workspace directory on disk.
             timeout: Maximum seconds to wait for the agent.
             on_progress: Optional callback for streaming text chunks.
+            on_permission: Optional callback when a tool needs user approval.
+                Called with {id, tool, patterns} dict.
 
         Returns:
             AgentExecutionResult with status and parsed output.
@@ -295,7 +349,10 @@ class AgentExecutor:
             )
 
             response_text = await self._send_and_collect(
-                client, session.id, prompt, timeout=timeout, on_progress=on_progress
+                client, session.id, prompt,
+                timeout=timeout, on_progress=on_progress,
+                on_permission=on_permission,
+                agent_run_id=agent_run.id,
             )
 
             # 7. Parse response
@@ -314,6 +371,8 @@ class AgentExecutor:
                 retry_text = await self._send_and_collect(
                     client, session.id, _RETRY_PROMPT,
                     timeout=timeout, on_progress=on_progress,
+                    on_permission=on_permission,
+                    agent_run_id=agent_run.id,
                     send_delay=0.0,
                 )
                 retry_result = parse_agent_response(
@@ -370,6 +429,7 @@ class AgentExecutor:
             )
 
         except AgentTimeoutError:
+            self._pending_approvals.pop(agent_run.id, None)
             duration = time.monotonic() - start_time
             await update_agent_run(
                 db,
@@ -391,6 +451,7 @@ class AgentExecutor:
             )
 
         except AgentProcessError as exc:
+            self._pending_approvals.pop(agent_run.id, None)
             duration = time.monotonic() - start_time
             await update_agent_run(
                 db,
@@ -413,6 +474,7 @@ class AgentExecutor:
             )
 
         except Exception as exc:
+            self._pending_approvals.pop(agent_run.id, None)
             duration = time.monotonic() - start_time
             logger.exception("Unexpected error during agent execution")
             await update_agent_run(
@@ -443,6 +505,8 @@ class AgentExecutor:
         *,
         timeout: float,
         on_progress: Callable[[str], None] | None = None,
+        on_permission: Callable[[dict], None] | None = None,
+        agent_run_id: str = "",
         send_delay: float = 0.5,
     ) -> str:
         """Send a prompt and collect the streamed response.
@@ -461,7 +525,11 @@ class AgentExecutor:
         send_task = asyncio.create_task(_send())
         try:
             return await self._collect_response(
-                client, session_id, timeout=timeout, on_progress=on_progress
+                client, session_id,
+                timeout=timeout,
+                on_progress=on_progress,
+                on_permission=on_permission,
+                agent_run_id=agent_run_id,
             )
         finally:
             if not send_task.done():
@@ -488,6 +556,8 @@ class AgentExecutor:
         *,
         timeout: float,
         on_progress: Callable[[str], None] | None = None,
+        on_permission: Callable[[dict], None] | None = None,
+        agent_run_id: str = "",
         stall_timeout: float = 60.0,
     ) -> str:
         """Collect the full response from OpenCode via SSE stream.
@@ -496,10 +566,59 @@ class AgentExecutor:
         arrive for ``stall_timeout`` seconds (stall detection — OpenCode
         may not emit ``session.idle`` if the agent uses tools).
 
+        Handles permission.asked events: auto-approves safe tools,
+        waits for user approval on risky ones.
+
         Raises AgentTimeoutError if the overall timeout is exceeded.
         """
         collected_text = ""
         last_event_time = time.monotonic()
+
+        async def _handle_permission(event: dict) -> None:
+            """Handle a permission request based on tool tier."""
+            tool = event.get("tool", "unknown")
+            permission_id = event.get("id", "")
+            tier = TOOL_TIERS.get(tool, "user")
+
+            if tier == "auto":
+                logger.info(
+                    "Auto-approving %s tool (permission %s)",
+                    tool, permission_id,
+                )
+                await client.grant_permission(permission_id)
+                return
+
+            # User-tier: store pending approval and wait
+            logger.info(
+                "Permission requested for %s tool (permission %s), "
+                "waiting for user approval",
+                tool, permission_id,
+            )
+            pending = _PendingApproval(
+                permission_id=permission_id,
+                tool=tool,
+                patterns=event.get("patterns", []),
+                event=asyncio.Event(),
+            )
+            self._pending_approvals[agent_run_id] = pending
+
+            if on_permission:
+                on_permission({
+                    "id": permission_id,
+                    "tool": tool,
+                    "patterns": event.get("patterns", []),
+                    "run_id": agent_run_id,
+                })
+
+            # Wait for user to approve/deny (or timeout)
+            await pending.event.wait()
+
+            if pending.approved:
+                await client.grant_permission(permission_id)
+            else:
+                await client.deny_permission(permission_id)
+
+            self._pending_approvals.pop(agent_run_id, None)
 
         async def _stream() -> str:
             nonlocal collected_text, last_event_time
@@ -515,6 +634,8 @@ class AgentExecutor:
                     )
                 elif event["type"] == "done":
                     return collected_text
+                elif event["type"] == "permission_request":
+                    await _handle_permission(event)
                 # "activity" events (tool calls, etc.) also reset the timer
                 # via last_event_time update above.
             return collected_text

@@ -14,7 +14,7 @@ Phase 6b — Wire sub-agents into the isolated workspace runtime:
 - [x] Error handling and resilience — stall detection, activity events (PR 6)
 - [x] ADR-0021: Agent execution model
 - [x] E2E tests with real OpenCode + LLM (PR 7)
-- [ ] Handle `permission.asked` events — when the agent wants to use a tool (bash, MCP, scanner), surface the approval request to the user in the workspace chat. Three tiers: auto-approve (read files), user-approve (scan/query tools), explicit-approve (write-back actions like ticket creation, status updates). Inspired by Claude Code's "ask before acting" pattern — builds trust with security teams
+- [x] Handle `permission.asked` events — backend plumbing for tool-use approval: detect OpenCode permission events, auto-approve read-tier, wait for user approval on bash/edit/mcp, grant/deny endpoints. Workspace config stays "allow" (plumbing ready for when we flip to "ask")
 - [x] Executor prompt refinement — per-agent prompts with inline output contracts + retry-on-parse-failure with corrective follow-up
 
 Phase 7 — Ticket workflow (depends on Phase 6b):
@@ -60,6 +60,7 @@ Connection testers are a UI convenience, not mandatory for new integrations. Onl
 - [ ] Queue page: search by title/asset/CVE (Phase 4 gap)
 - [ ] Queue page: "Why this matters" preview on hover/expand (Phase 4 gap)
 - [ ] Settings page: model/provider configuration improvements
+- [ ] Permission approval UI: SSE listener for `permission_request` events in WorkspacePage, approval card component (tool name, command patterns, approve/deny buttons), POST to `/api/workspaces/{id}/agent-runs/{run_id}/permission`. Backend plumbing done in Phase 6b PR #34. Also needs: flip workspace `opencode.json` from `"allow"` to `"ask"` for bash/edit
 
 ### Priority 6: Packaging (depends on Phase 6b + Phase 7 completion)
 

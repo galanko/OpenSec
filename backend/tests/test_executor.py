@@ -11,8 +11,10 @@ import pytest
 
 from opensec.agents.errors import AgentBusyError
 from opensec.agents.executor import (
+    TOOL_TIERS,
     AgentExecutor,
     _load_workspace_data,
+    _PendingApproval,
     build_agent_prompt,
 )
 from opensec.models import AgentRun
@@ -591,3 +593,192 @@ class TestLoadWorkspaceData:
 
         _, prior = _load_workspace_data(workspace_dir, "finding_enricher")
         assert prior == {}  # enricher has no prior sections
+
+
+# ---------------------------------------------------------------------------
+# Permission handling tests
+# ---------------------------------------------------------------------------
+
+class TestPermissionTiers:
+    def test_read_tools_auto_approve(self):
+        """Read and webfetch are auto-approved."""
+        assert TOOL_TIERS["read"] == "auto"
+        assert TOOL_TIERS["webfetch"] == "auto"
+
+    def test_bash_and_edit_need_user_approval(self):
+        """Bash and edit require user approval."""
+        assert TOOL_TIERS["bash"] == "user"
+        assert TOOL_TIERS["edit"] == "user"
+
+    def test_unknown_tool_defaults_to_user(self):
+        """Unknown tools default to user-tier (safe default)."""
+        assert TOOL_TIERS.get("some_new_tool", "user") == "user"
+
+
+class TestPermissionApproval:
+    def test_approve_tool(self):
+        """approve_tool resolves a pending approval."""
+        pool = AsyncMock()
+        builder = AsyncMock()
+        executor = AgentExecutor(pool, builder)
+
+        pending = _PendingApproval(
+            permission_id="per_123",
+            tool="bash",
+            patterns=["ls -la"],
+            event=asyncio.Event(),
+        )
+        executor._pending_approvals["run-1"] = pending
+
+        assert executor.approve_tool("run-1") is True
+        assert pending.approved is True
+        assert pending.event.is_set()
+
+    def test_deny_tool(self):
+        """deny_tool resolves a pending approval with denied."""
+        pool = AsyncMock()
+        builder = AsyncMock()
+        executor = AgentExecutor(pool, builder)
+
+        pending = _PendingApproval(
+            permission_id="per_123",
+            tool="bash",
+            patterns=["rm -rf /"],
+            event=asyncio.Event(),
+        )
+        executor._pending_approvals["run-1"] = pending
+
+        assert executor.deny_tool("run-1") is True
+        assert pending.approved is False
+        assert pending.event.is_set()
+
+    def test_approve_nonexistent_returns_false(self):
+        """approve_tool returns False when no pending approval."""
+        pool = AsyncMock()
+        builder = AsyncMock()
+        executor = AgentExecutor(pool, builder)
+
+        assert executor.approve_tool("no-such-run") is False
+
+    @pytest.mark.asyncio
+    async def test_auto_approve_in_stream(
+        self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir
+    ):
+        """Auto-tier tools (read) are granted without user interaction."""
+        # Client that emits a permission event then completes
+        client = AsyncMock()
+        client.create_session.return_value = MagicMock(id="ses-1")
+        client.send_message.return_value = None
+        client.grant_permission.return_value = None
+
+        async def stream_with_permission(session_id):
+            yield {
+                "type": "permission_request",
+                "id": "per_auto",
+                "tool": "read",
+                "patterns": ["context/finding.json"],
+            }
+            yield {
+                "type": "text",
+                "content": _make_agent_response(),
+            }
+            yield {"type": "done"}
+
+        client.stream_events = stream_with_permission
+        mock_pool.get_or_start.return_value = client
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch(
+                "opensec.agents.executor.list_agent_runs",
+                return_value=[],
+            ),
+            patch("opensec.agents.executor.map_and_upsert"),
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db,
+                workspace_dir=workspace_dir,
+            )
+
+        assert result.status == "completed"
+        # Auto-approved: grant_permission should have been called
+        client.grant_permission.assert_called_once_with("per_auto")
+
+    @pytest.mark.asyncio
+    async def test_user_tier_surfaces_callback(
+        self, mock_pool, mock_context_builder,
+        mock_db, workspace_dir
+    ):
+        """User-tier tools fire on_permission callback."""
+        client = AsyncMock()
+        client.create_session.return_value = MagicMock(id="ses-1")
+        client.send_message.return_value = None
+        client.grant_permission.return_value = None
+
+        permission_calls = []
+
+        async def stream_with_bash_permission(session_id):
+            yield {
+                "type": "permission_request",
+                "id": "per_bash",
+                "tool": "bash",
+                "patterns": ["ls -la /tmp"],
+            }
+            # After yielding permission, we need to wait
+            # for the approval before the stream continues.
+            # In real usage, OpenCode blocks here. In test,
+            # we simulate by yielding done after a delay.
+            yield {
+                "type": "text",
+                "content": _make_agent_response(),
+            }
+            yield {"type": "done"}
+
+        client.stream_events = stream_with_bash_permission
+        mock_pool.get_or_start.return_value = client
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+
+        # Auto-approve from a background task after the
+        # callback fires
+        async def auto_approve_after_callback(event_dict):
+            permission_calls.append(event_dict)
+            # Approve in a microtask so the executor can resume
+            await asyncio.sleep(0.01)
+            executor.approve_tool(event_dict["run_id"])
+
+        def on_perm(event_dict):
+            asyncio.create_task(
+                auto_approve_after_callback(event_dict)
+            )
+
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch(
+                "opensec.agents.executor.list_agent_runs",
+                return_value=[],
+            ),
+            patch("opensec.agents.executor.map_and_upsert"),
+        ):
+            result = await executor.execute(
+                "ws-1", "finding_enricher", mock_db,
+                workspace_dir=workspace_dir,
+                on_permission=on_perm,
+            )
+
+        assert result.status == "completed"
+        assert len(permission_calls) == 1
+        assert permission_calls[0]["tool"] == "bash"
+        # Should have called grant after approval
+        client.grant_permission.assert_called_once_with("per_bash")
