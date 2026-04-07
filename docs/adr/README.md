@@ -30,6 +30,7 @@ ADRs document significant architectural decisions made during the project. Once 
 | [0020](0020-two-plane-integration-architecture.md) | Two-plane integration architecture (operational + agentic) | Accepted |
 | [0021](0021-agent-execution-model.md) | Agent execution model — direct invocation, advisory pipeline, filesystem checkpoints | Accepted |
 | [0022](0022-app-level-agent-execution-and-conversational-shell.md) | App-level agent execution and conversational shell | Proposed |
+| [0023](0023-async-chunked-finding-ingestion.md) | Async chunked finding ingestion with cost controls | Proposed |
 
 ## Template
 

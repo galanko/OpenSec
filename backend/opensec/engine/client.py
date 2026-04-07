@@ -20,8 +20,22 @@ logger = logging.getLogger(__name__)
 class OpenCodeClient:
     """Wraps the OpenCode server REST API.
 
-    Based on the OpenAPI spec at http://localhost:4096/doc.
-    Only covers the endpoints needed for the Phase 1 spike.
+    Two interaction modes for sending messages:
+
+    **Mode 1 — Synchronous RPC** (simple, for batch/background work):
+        Use ``send_and_get_response(session_id, content)`` which blocks
+        until the LLM finishes and returns the assistant's text.  No SSE
+        stream management needed.
+
+    **Mode 2 — Streaming observer** (real-time progress):
+        Connect ``stream_events(session_id)`` *first*, then call
+        ``send_message()`` in a delayed background task so the listener
+        is already subscribed when events fire.  See ``AgentExecutor``
+        for the reference implementation.
+
+    Do NOT call ``send_message()`` followed by ``stream_events()`` —
+    ``send_message`` blocks until the LLM is done, so by the time the
+    stream connects, ``session.idle`` has already fired.
     """
 
     def __init__(self, base_url: str | None = None) -> None:
@@ -69,6 +83,29 @@ class OpenCodeClient:
             for s in sessions
         ]
 
+    async def _fetch_messages(self, session_id: str) -> list[dict]:
+        """Fetch raw messages from ``GET /session/{id}/message``.
+
+        Returns the parsed JSON list. Raises on network/HTTP errors so
+        callers can decide whether to propagate or suppress.
+        """
+        client = await self._get_client()
+        resp = await client.get(f"/session/{session_id}/message")
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, list) else []
+
+    @staticmethod
+    def _extract_text(msg: dict) -> str:
+        """Extract concatenated text parts from a single message dict."""
+        parts = msg.get("parts", [])
+        text_parts = [
+            p.get("text", "")
+            for p in parts
+            if p.get("type") == "text" and p.get("text", "").strip()
+        ]
+        return "\n".join(text_parts)
+
     async def get_session(self, session_id: str) -> SessionDetail:
         """Get session details including messages from OpenCode."""
         client = await self._get_client()
@@ -76,52 +113,39 @@ class OpenCodeClient:
         resp.raise_for_status()
         data = resp.json()
 
-        # Fetch messages from the separate /message endpoint.
+        try:
+            raw_messages = await self._fetch_messages(session_id)
+        except Exception:
+            logger.warning("Could not fetch messages for session %s", session_id, exc_info=True)
+            raw_messages = []
         messages: list[MessageInfo] = []
         session_model = ""
-        try:
-            msg_resp = await client.get(f"/session/{session_id}/message")
-            msg_resp.raise_for_status()
-            raw_messages = msg_resp.json()
-            if isinstance(raw_messages, list):
-                for m in raw_messages:
-                    info = m.get("info", m)
-                    role = info.get("role", "")
-                    msg_id = info.get("id", "")
 
-                    # Extract model from message metadata.
-                    if not session_model:
-                        if role == "assistant":
-                            provider_id = info.get("providerID", "")
-                            model_id = info.get("modelID", "")
-                            if provider_id and model_id:
-                                session_model = f"{provider_id}/{model_id}"
-                        elif role == "user":
-                            model_info = info.get("model", {})
-                            if isinstance(model_info, dict):
-                                provider_id = model_info.get("providerID", "")
-                                model_id = model_info.get("modelID", "")
-                                if provider_id and model_id:
-                                    session_model = f"{provider_id}/{model_id}"
+        for m in raw_messages:
+            info = m.get("info", m)
+            role = info.get("role", "")
+            msg_id = info.get("id", "")
 
-                    # Extract text from parts array.
-                    parts = m.get("parts", [])
-                    text_parts = [
-                        p.get("text", "")
-                        for p in parts
-                        if p.get("type") == "text" and p.get("text")
-                    ]
-                    content = "\n".join(text_parts)
-                    if content:
-                        messages.append(
-                            MessageInfo(
-                                id=msg_id,
-                                role=role,
-                                content=content,
-                            )
-                        )
-        except Exception:
-            logger.debug("Could not fetch messages for session %s", session_id)
+            # Extract model from message metadata.
+            if not session_model:
+                if role == "assistant":
+                    provider_id = info.get("providerID", "")
+                    model_id = info.get("modelID", "")
+                    if provider_id and model_id:
+                        session_model = f"{provider_id}/{model_id}"
+                elif role == "user":
+                    model_info = info.get("model", {})
+                    if isinstance(model_info, dict):
+                        provider_id = model_info.get("providerID", "")
+                        model_id = model_info.get("modelID", "")
+                        if provider_id and model_id:
+                            session_model = f"{provider_id}/{model_id}"
+
+            content = self._extract_text(m)
+            if content:
+                messages.append(
+                    MessageInfo(id=msg_id, role=role, content=content)
+                )
 
         return SessionDetail(
             id=data.get("id", data.get("sessionID", session_id)),
@@ -132,19 +156,52 @@ class OpenCodeClient:
 
     # --- Messages ---
 
+    async def get_last_assistant_text(self, session_id: str) -> str | None:
+        """Return the last assistant text from a session's message history.
+
+        Used after ``send_message`` completes (which blocks until the LLM
+        finishes) to read the response without SSE. Part of Mode 1
+        (synchronous RPC).
+        """
+        for msg in reversed(await self._fetch_messages(session_id)):
+            info = msg.get("info", msg)
+            if info.get("role") != "assistant":
+                continue
+            text = self._extract_text(msg)
+            if text:
+                return text
+        return None
+
     async def send_message(self, session_id: str, content: str) -> None:
         """Send a message to an OpenCode session.
 
-        This is async — returns immediately. The response comes via the
-        /event SSE stream as message.part.updated events.
+        IMPORTANT: This call **blocks** until the LLM finishes generating
+        its response (typically 10–120 s). Returns ``None`` on success.
+
+        To get the response text afterward, use one of:
+          - ``get_last_assistant_text(session_id)`` — simple, deterministic
+          - ``stream_events(session_id)`` — must be connected **before**
+            calling this method (see ``AgentExecutor`` for that pattern)
         """
         client = await self._get_client()
         resp = await client.post(
             f"/session/{session_id}/message",
             json={"parts": [{"type": "text", "text": content}]},
-            timeout=httpx.Timeout(10.0, connect=5.0),
+            timeout=httpx.Timeout(120.0, connect=5.0),
         )
         resp.raise_for_status()
+
+    async def send_and_get_response(
+        self, session_id: str, content: str
+    ) -> str | None:
+        """Send a message and return the assistant's response text.
+
+        Convenience method combining ``send_message`` (blocking) +
+        ``get_last_assistant_text``.  This is the recommended way to
+        call OpenCode when you only need the final result (Mode 1).
+        """
+        await self.send_message(session_id, content)
+        return await self.get_last_assistant_text(session_id)
 
     # --- Event streaming ---
 

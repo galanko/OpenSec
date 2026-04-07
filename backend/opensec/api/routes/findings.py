@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from opensec.db.connection import get_db
@@ -12,9 +14,82 @@ from opensec.db.repo_finding import (
     list_findings,
     update_finding,
 )
-from opensec.models import Finding, FindingCreate, FindingUpdate
+from opensec.db.repo_ingest_job import create_ingest_job, get_ingest_job, set_job_status
+from opensec.integrations.ingest_worker import estimate_tokens
+from opensec.models import (
+    Finding,
+    FindingCreate,
+    FindingUpdate,
+    IngestJobProgress,
+    IngestJobResponse,
+    IngestRequest,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["findings"])
+
+
+@router.post("/findings/ingest", response_model=IngestJobResponse)
+async def ingest_findings_endpoint(body: IngestRequest, db=Depends(get_db)):
+    """Create an async ingest job for raw scanner findings.
+
+    Returns a job reference immediately. The background worker processes
+    chunks asynchronously. Poll ``GET /findings/ingest/{job_id}`` for progress.
+    See ADR-0023.
+    """
+    if not body.raw_data:
+        raise HTTPException(status_code=400, detail="raw_data must not be empty")
+
+    chunk_size = max(1, min(body.chunk_size, 50))
+    tokens = estimate_tokens(body.raw_data, chunk_size)
+
+    if body.dry_run:
+        total_items = len(body.raw_data)
+        total_chunks = (total_items + chunk_size - 1) // chunk_size
+        return IngestJobResponse(
+            job_id="dry-run",
+            status="dry_run",
+            total_items=total_items,
+            chunk_size=chunk_size,
+            total_chunks=total_chunks,
+            estimated_tokens=tokens,
+            poll_url="",
+        )
+
+    job = await create_ingest_job(
+        db,
+        source=body.source,
+        raw_data=body.raw_data,
+        chunk_size=chunk_size,
+        model=body.model,
+        estimated_tokens=tokens,
+    )
+    return job
+
+
+@router.get("/findings/ingest/{job_id}", response_model=IngestJobProgress)
+async def get_ingest_progress_endpoint(job_id: str, db=Depends(get_db)):
+    """Get progress for an ingest job."""
+    progress = await get_ingest_job(db, job_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="Ingest job not found")
+    return progress
+
+
+@router.post("/findings/ingest/{job_id}/cancel")
+async def cancel_ingest_endpoint(job_id: str, db=Depends(get_db)):
+    """Cancel a pending or processing ingest job."""
+    progress = await get_ingest_job(db, job_id)
+    if not progress:
+        raise HTTPException(status_code=404, detail="Ingest job not found")
+    if progress.status not in ("pending", "processing"):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot cancel job in '{progress.status}' state",
+        )
+    await set_job_status(db, job_id, "cancelled")
+    return {"job_id": job_id, "status": "cancelled"}
 
 
 @router.post("/findings", response_model=Finding, status_code=201)

@@ -334,3 +334,46 @@ class IntegrationHealthStatus(BaseModel):
     connection_status: str = "unchecked"  # "ok", "error", "unchecked", "timeout"
     last_checked: str | None = None
     error_message: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Finding ingest models (ADR-0022 + ADR-0023)
+# ---------------------------------------------------------------------------
+
+
+class IngestRequest(BaseModel):
+    source: str
+    raw_data: list[dict[str, Any]]
+    model: str | None = None  # optional model override
+    chunk_size: int = 10  # items per LLM call (1-50)
+    dry_run: bool = False  # estimate only, do not create job
+
+
+class IngestJobResponse(BaseModel):
+    job_id: str
+    status: str
+    total_items: int
+    chunk_size: int
+    total_chunks: int
+    estimated_tokens: int | None = None
+    poll_url: str
+
+
+class IngestJobProgress(BaseModel):
+    job_id: str
+    status: str
+    total_items: int
+    total_chunks: int
+    completed_chunks: int
+    failed_chunks: int
+    findings_created: int
+    errors: list[str]
+    created_at: str
+    updated_at: str
+
+
+class IngestResult(BaseModel):
+    """Deprecated — kept for backward compatibility. New code uses IngestJobResponse."""
+
+    created: list[Finding]
+    errors: list[str]
