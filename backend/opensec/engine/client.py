@@ -86,18 +86,14 @@ class OpenCodeClient:
     async def _fetch_messages(self, session_id: str) -> list[dict]:
         """Fetch raw messages from ``GET /session/{id}/message``.
 
-        Returns the parsed JSON list, or an empty list on failure.
-        Shared by ``get_session`` and ``get_last_assistant_text``.
+        Returns the parsed JSON list. Raises on network/HTTP errors so
+        callers can decide whether to propagate or suppress.
         """
-        try:
-            client = await self._get_client()
-            resp = await client.get(f"/session/{session_id}/message")
-            resp.raise_for_status()
-            data = resp.json()
-            return data if isinstance(data, list) else []
-        except Exception:
-            logger.debug("Could not fetch messages for session %s", session_id)
-            return []
+        client = await self._get_client()
+        resp = await client.get(f"/session/{session_id}/message")
+        resp.raise_for_status()
+        data = resp.json()
+        return data if isinstance(data, list) else []
 
     @staticmethod
     def _extract_text(msg: dict) -> str:
@@ -117,7 +113,11 @@ class OpenCodeClient:
         resp.raise_for_status()
         data = resp.json()
 
-        raw_messages = await self._fetch_messages(session_id)
+        try:
+            raw_messages = await self._fetch_messages(session_id)
+        except Exception:
+            logger.warning("Could not fetch messages for session %s", session_id, exc_info=True)
+            raw_messages = []
         messages: list[MessageInfo] = []
         session_model = ""
 
