@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { api, type IngestJobStatus } from '@/api/client'
-import { useCancelIngest, useIngestProgress, useModelConfig, useStartIngest } from '@/api/hooks'
+import { api, type IngestJobStatus, type ProviderInfo } from '@/api/client'
+import { useCancelIngest, useIngestProgress, useModelConfig, useProviders, useStartIngest } from '@/api/hooks'
 
 interface IngestProgressProps {
   onComplete: () => void
@@ -28,11 +28,50 @@ export default function IngestProgress({ onComplete, onClose }: IngestProgressPr
   const cancelIngest = useCancelIngest()
   const { data: progress } = useIngestProgress(jobId)
   const { data: modelConfig } = useModelConfig()
+  const { data: providers } = useProviders()
   const qc = useQueryClient()
+  const [modelSearch, setModelSearch] = useState('')
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Determine which state to render
   const status: IngestJobStatus | 'input' = jobId && progress ? progress.status : 'input'
   const isInputState = status === 'input'
+
+  // Derived terminal outcome (for completed status)
+  const isPartialSuccess = status === 'completed' && progress != null && progress.failed_chunks > 0
+  const isFullSuccess = status === 'completed' && progress != null && progress.failed_chunks === 0
+
+  // Model search results (same pattern as ProviderSettings)
+  const providerList = useMemo(() => (providers || []) as ProviderInfo[], [providers])
+  const modelResults = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase()
+    const results: { provider: ProviderInfo; matchingModels: [string, ProviderInfo['models'][string]][] }[] = []
+    for (const provider of providerList) {
+      const providerMatch = !q || provider.name.toLowerCase().includes(q) || provider.id.toLowerCase().includes(q)
+      const matchingModels = Object.entries(provider.models).filter(
+        ([id, model]) => !q || id.toLowerCase().includes(q) || (model.name && model.name.toLowerCase().includes(q))
+      )
+      if (providerMatch && !q) {
+        results.push({ provider, matchingModels: Object.entries(provider.models) })
+      } else if (matchingModels.length > 0) {
+        results.push({ provider, matchingModels: providerMatch ? Object.entries(provider.models) : matchingModels })
+      }
+      if (results.length >= 8) break
+    }
+    return results
+  }, [modelSearch, providerList])
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    if (!showModelEdit) return
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowModelEdit(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showModelEdit])
 
   // Track elapsed time while running
   useEffect(() => {
@@ -169,10 +208,16 @@ export default function IngestProgress({ onComplete, onClose }: IngestProgressPr
         onClick={(e) => e.stopPropagation()}
       >
         {/* Terminal state header strips */}
-        {status === 'completed' && (
+        {isFullSuccess && (
           <div className="bg-green-50 px-6 py-3 flex items-center gap-2">
             <span className="material-symbols-outlined text-base text-green-700">check_circle</span>
             <span className="text-sm font-semibold text-green-800">Import complete</span>
+          </div>
+        )}
+        {isPartialSuccess && (
+          <div className="bg-amber-50 px-6 py-3 flex items-center gap-2">
+            <span className="material-symbols-outlined text-base text-amber-600">warning</span>
+            <span className="text-sm font-semibold text-amber-800">Import completed with errors</span>
           </div>
         )}
         {status === 'failed' && (
@@ -218,33 +263,73 @@ export default function IngestProgress({ onComplete, onClose }: IngestProgressPr
                   />
                 </div>
 
-                {/* Model indicator */}
-                <div className="flex items-center justify-between bg-surface-container-low rounded-lg px-3 py-2">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="material-symbols-outlined text-sm text-on-surface-variant">smart_toy</span>
-                    <span className="text-xs text-on-surface-variant">Model</span>
-                    {showModelEdit ? (
-                      <input
-                        type="text"
-                        value={modelOverride}
-                        onChange={(e) => setModelOverride(e.target.value)}
-                        placeholder={modelConfig?.model_full_id ?? 'provider/model'}
-                        autoFocus
-                        onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') { e.stopPropagation(); setShowModelEdit(false) } }}
-                        className="flex-1 min-w-0 bg-surface-container-lowest rounded px-2 py-0.5 text-xs font-mono text-on-surface outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-outline-variant"
-                      />
-                    ) : (
-                      <span className="text-xs font-semibold text-on-surface font-mono truncate">
-                        {displayModel}
-                      </span>
-                    )}
+                {/* Model selector with autocomplete */}
+                <div className="relative" ref={dropdownRef}>
+                  <div className="flex items-center justify-between bg-surface-container-low rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="material-symbols-outlined text-sm text-on-surface-variant">smart_toy</span>
+                      <span className="text-xs text-on-surface-variant">Model</span>
+                      {showModelEdit ? (
+                        <input
+                          type="text"
+                          value={modelSearch}
+                          onChange={(e) => setModelSearch(e.target.value)}
+                          placeholder="Type to filter models..."
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') { e.stopPropagation(); setShowModelEdit(false); setModelSearch('') }
+                          }}
+                          className="flex-1 min-w-0 bg-surface-container-lowest rounded px-2 py-0.5 text-xs font-mono text-on-surface outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-outline-variant"
+                        />
+                      ) : (
+                        <span className="text-xs font-semibold text-on-surface font-mono truncate">
+                          {displayModel}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => { setShowModelEdit(!showModelEdit); setModelSearch('') }}
+                      className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors ml-2 flex-shrink-0"
+                    >
+                      {showModelEdit ? 'Done' : 'Change'}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setShowModelEdit(!showModelEdit)}
-                    className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors ml-2 flex-shrink-0"
-                  >
-                    {showModelEdit ? 'Done' : 'Change'}
-                  </button>
+
+                  {/* Autocomplete dropdown */}
+                  {showModelEdit && modelResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 z-10 bg-surface-container-lowest rounded-lg shadow-lg max-h-48 overflow-y-auto py-1">
+                      {modelResults.map(({ provider, matchingModels }) => (
+                        <div key={provider.id}>
+                          <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
+                            {provider.name}
+                          </div>
+                          <div className="px-2 pb-1 flex flex-wrap gap-1">
+                            {matchingModels.map(([modelId, model]) => {
+                              const fullId = `${provider.id}/${modelId}`
+                              const isActive = modelOverride === fullId || (!modelOverride && modelConfig?.model_full_id === fullId)
+                              return (
+                                <button
+                                  key={fullId}
+                                  onClick={() => {
+                                    setModelOverride(fullId)
+                                    setShowModelEdit(false)
+                                    setModelSearch('')
+                                  }}
+                                  className={`px-2 py-1 rounded-md text-xs font-mono transition-colors ${
+                                    isActive
+                                      ? 'bg-primary text-on-primary shadow-sm'
+                                      : 'bg-surface-container text-on-surface-variant hover:bg-primary/5'
+                                  }`}
+                                >
+                                  {model.name || modelId}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -369,22 +454,29 @@ export default function IngestProgress({ onComplete, onClose }: IngestProgressPr
             </>
           )}
 
-          {/* --- COMPLETED STATE --- */}
+          {/* --- COMPLETED STATE (full or partial success) --- */}
           {status === 'completed' && progress && (
             <>
-              <p className="text-sm text-on-surface">
-                <strong className="font-semibold">{progress.findings_created}</strong>
-                {' findings imported from '}
-                <strong className="font-semibold">{source}</strong>
-                {' in '}
-                {formatElapsed(elapsed)}
-              </p>
+              {progress.findings_created > 0 ? (
+                <p className="text-sm text-on-surface">
+                  <strong className="font-semibold">{progress.findings_created}</strong>
+                  {' findings imported from '}
+                  <strong className="font-semibold">{source}</strong>
+                  {' in '}
+                  {formatElapsed(elapsed)}
+                  {isPartialSuccess && '.'}
+                </p>
+              ) : (
+                <p className="text-sm text-on-surface">
+                  No findings could be imported from <strong className="font-semibold">{source}</strong>.
+                </p>
+              )}
 
-              {progress.failed_chunks > 0 && (
-                <p className="mt-2 text-xs text-on-surface-variant">
-                  {progress.failed_chunks} chunk{progress.failed_chunks > 1 ? 's' : ''} had errors
+              {isPartialSuccess && (
+                <p className="mt-2 text-sm text-amber-800">
+                  {progress.failed_chunks} chunk{progress.failed_chunks > 1 ? 's' : ''} failed
                   {' \u2014 '}
-                  {progress.total_items - progress.findings_created} findings could not be parsed.
+                  {progress.total_items - progress.findings_created} of {progress.total_items} findings could not be parsed.
                 </p>
               )}
 
