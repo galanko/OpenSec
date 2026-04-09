@@ -114,27 +114,3 @@ class TestPermissionGrantDeny:
             json={"response": "reject"},
         )
 
-    @pytest.mark.asyncio
-    async def test_grant_permission_resolves_session(self):
-        """grant_permission looks up session_id when not provided."""
-        client = OpenCodeClient(base_url="http://localhost:9999")
-        mock_http = _make_mock_http_client()
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = lambda: None
-
-        # Mock GET /permission to return the permission with sessionID
-        perm_resp = MagicMock()
-        perm_resp.raise_for_status = lambda: None
-        perm_resp.json.return_value = [
-            {"id": "per_789", "sessionID": "ses_resolved"}
-        ]
-
-        mock_http.get.return_value = perm_resp
-        mock_http.post.return_value = mock_resp
-        client._client = mock_http
-
-        await client.grant_permission("per_789")
-        mock_http.post.assert_called_once_with(
-            "/session/ses_resolved/permissions/per_789",
-            json={"response": "once"},
-        )

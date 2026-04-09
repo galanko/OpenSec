@@ -353,7 +353,7 @@ class AgentExecutor:
         start_time = time.monotonic()
 
         # 1. Check no other agent is running
-        await self._check_not_busy(db, workspace_id)
+        await self.check_not_busy(db, workspace_id)
 
         # 2. Create AgentRun record
         agent_run = await create_agent_run(
@@ -575,7 +575,7 @@ class AgentExecutor:
                 with contextlib.suppress(asyncio.CancelledError):
                     await send_task
 
-    async def _check_not_busy(
+    async def check_not_busy(
         self, db: aiosqlite.Connection, workspace_id: str
     ) -> None:
         """Raise AgentBusyError if another agent is already running."""

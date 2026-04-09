@@ -77,7 +77,7 @@ async def execute_agent(
 
     # Pre-flight check: fail fast if another agent is already running.
     try:
-        await executor._check_not_busy(db, workspace_id)
+        await executor.check_not_busy(db, workspace_id)
     except AgentBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -105,11 +105,18 @@ async def execute_agent(
 
     asyncio.create_task(_run_in_background())
 
-    await asyncio.sleep(0.05)  # yield to let execute() register the run ID
-    run_id = executor.get_active_run_id(workspace_id) or "pending"
+    # Wait for execute() to register the run ID (set at the top of execute()).
+    # Uses a short-polling loop instead of a fixed sleep to avoid races.
+    for _ in range(10):
+        await asyncio.sleep(0.01)
+        run_id = executor.get_active_run_id(workspace_id)
+        if run_id:
+            break
+    else:
+        run_id = "pending"
 
     return ExecuteResponse(
-        agent_run_id=run_id,
+        agent_run_id=run_id or "pending",
         agent_type=agent_type,
         status="running",
     )

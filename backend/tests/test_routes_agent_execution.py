@@ -82,7 +82,7 @@ class TestExecuteEndpoint:
     async def test_execute_returns_202(self, app, client):
         """Execute returns 202 immediately (background task)."""
         executor = app.state.agent_executor
-        executor._check_not_busy = AsyncMock()
+        executor.check_not_busy = AsyncMock()
         executor.get_active_run_id = lambda ws_id: "run-123"
         executor.execute = AsyncMock(return_value=_make_execution_result())
 
@@ -125,7 +125,7 @@ class TestExecuteEndpoint:
     async def test_execute_busy_returns_409(self, app, client):
         """Pre-flight busy check returns 409 before launching background task."""
         executor = app.state.agent_executor
-        executor._check_not_busy = AsyncMock(side_effect=AgentBusyError("busy"))
+        executor.check_not_busy = AsyncMock(side_effect=AgentBusyError("busy"))
 
         with patch(
             "opensec.api.routes.agent_execution.get_workspace",

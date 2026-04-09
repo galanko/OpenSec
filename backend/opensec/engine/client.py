@@ -322,19 +322,15 @@ class OpenCodeClient:
     # --- Permissions ---
 
     async def grant_permission(
-        self, permission_id: str, *, session_id: str = "", always: bool = False,
+        self, permission_id: str, *, session_id: str, always: bool = False,
     ) -> None:
         """Grant a pending permission request.
 
         Uses OpenCode's session-scoped permission API:
         POST /session/{sessionId}/permissions/{permissionId}
-        Body: {"response": "once"} or {"response": "always"}
         """
         response = "always" if always else "once"
         client = await self._get_client()
-        if not session_id:
-            # Resolve session from the permission listing
-            session_id = await self._resolve_permission_session(permission_id)
         resp = await client.post(
             f"/session/{session_id}/permissions/{permission_id}",
             json={"response": response},
@@ -342,32 +338,15 @@ class OpenCodeClient:
         resp.raise_for_status()
 
     async def deny_permission(
-        self, permission_id: str, *, session_id: str = "",
+        self, permission_id: str, *, session_id: str,
     ) -> None:
-        """Deny a pending permission request.
-
-        Uses OpenCode's session-scoped permission API:
-        POST /session/{sessionId}/permissions/{permissionId}
-        Body: {"response": "reject"}
-        """
+        """Deny a pending permission request."""
         client = await self._get_client()
-        if not session_id:
-            session_id = await self._resolve_permission_session(permission_id)
         resp = await client.post(
             f"/session/{session_id}/permissions/{permission_id}",
             json={"response": "reject"},
         )
         resp.raise_for_status()
-
-    async def _resolve_permission_session(self, permission_id: str) -> str:
-        """Look up the session ID for a pending permission request."""
-        client = await self._get_client()
-        resp = await client.get("/permission")
-        resp.raise_for_status()
-        for perm in resp.json():
-            if perm.get("id") == permission_id:
-                return perm.get("sessionID", "")
-        raise ValueError(f"Permission {permission_id} not found")
 
     # --- Health ---
 
