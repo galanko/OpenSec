@@ -205,10 +205,20 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
 
     initSession().then(async () => {
-      // Restore completed agent runs as structured cards in the timeline.
+      // Restore agent runs: show completed results and reconnect to running agents.
       if (cancelled) return
       try {
         const runs = await api.listAgentRuns(workspaceId)
+        if (cancelled) return
+
+        // Reconnect to a running agent (e.g. after page refresh mid-execution)
+        const running = runs.find((r) => r.status === 'running')
+        if (running) {
+          setSending(true)
+          setActiveAgentRun(running.id)
+        }
+
+        // Restore completed agent runs as structured cards in the timeline
         const completedRuns: ChatMessage[] = runs
           .filter((r) => r.status === 'completed' && r.structured_output)
           .map((r) => ({
