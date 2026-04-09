@@ -3,12 +3,11 @@
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Operational Memory | Serene Sentinel</title>
+<title>Operational memory | Serene Sentinel</title>
 <!-- Material Symbols -->
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <!-- Fonts: Manrope & Inter -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@700;800&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script id="tailwind-config">
       tailwind.config = {
@@ -120,206 +119,358 @@
 </nav>
 </div>
 <div class="flex items-center gap-4">
-<div class="relative hidden sm:block">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" data-icon="search">search</span>
-<input class="pl-10 pr-4 py-1.5 rounded-full bg-surface-container-low border-none focus:ring-2 focus:ring-primary/20 text-sm w-64 transition-all" placeholder="Search operational memory..." type="text"/>
-</div>
 <button class="material-symbols-outlined p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors" data-icon="notifications">notifications</button>
 <button class="bg-primary text-white px-5 py-1.5 rounded-lg text-sm font-semibold hover:bg-primary-dim transition-colors">Solve</button>
 <img alt="Analyst" class="w-8 h-8 rounded-full border border-slate-200" data-alt="professional portrait of a cybersecurity analyst with soft ambient studio lighting and blurred tech office background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6YymjhzKkrcp0B1BpKNPNf9Ogqy4aONT6YQ187n4nBoUB15po3GK72O9k6GbXoUmeJruEoYmvyBZGbDzgv4qePzdqEv5hGfk60MQhy6IprWUBo8ivmbPOUM0uiRBYqXJG0bzqA65f1CqG5i8TTM6YzvFGNkxWcyn-6L6I6zzSDFFqeue4IZcn4eIReifPeJ4QUIQa95EX_sHLG52cVFnhIHMnhBJYD29bm5eauZCUDozH8U7yY9cNjiJX3UsN6qouxeJ7YZXSGTB_"/>
 </div>
 </header>
 <!-- Main Content -->
-<main class="ml-20 p-8 lg:p-12 max-w-7xl mx-auto">
-<!-- Header Section -->
-<section class="mb-12">
-<h1 class="text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-2">Operational Memory</h1>
-<p class="text-on-surface-variant text-lg max-w-2xl leading-relaxed">
-                A historical repository of solved findings, agent logic, and validated outcomes. Use this library to audit past actions or reuse successful remediation plans.
-            </p>
-</section>
-<!-- Stats Bento Row -->
-<section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
-<span class="text-sm font-label text-on-surface-variant uppercase tracking-wider">Total Resolved</span>
-<div class="flex items-baseline gap-2 mt-2">
-<span class="text-3xl font-headline font-bold">1,284</span>
-<span class="text-primary text-xs font-semibold">+12% this month</span>
-</div>
-</div>
-<div class="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/10">
-<span class="text-sm font-label text-on-surface-variant uppercase tracking-wider">Avg. Time to Fix</span>
-<div class="flex items-baseline gap-2 mt-2">
-<span class="text-3xl font-headline font-bold">4.2h</span>
-<span class="text-on-surface-variant text-xs">-15m vs last week</span>
-</div>
-</div>
-<div class="bg-primary text-on-primary p-6 rounded-xl shadow-md flex justify-between items-center relative overflow-hidden">
-<div class="relative z-10">
-<span class="text-sm font-label opacity-80 uppercase tracking-wider">Success Rate</span>
-<div class="text-3xl font-headline font-bold mt-2">99.2%</div>
-</div>
-<span class="material-symbols-outlined text-6xl opacity-20 absolute -right-2 -bottom-2" data-icon="verified">verified</span>
-</div>
-</section>
-<!-- Filters & Tools -->
-<section class="flex flex-wrap items-center justify-between gap-4 mb-6">
-<div class="flex items-center gap-3">
-<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/15 rounded-lg text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors">
-<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span>
-                    Filter
-                </button>
-<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/15 rounded-lg text-sm font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors">
-<span class="material-symbols-outlined text-sm" data-icon="calendar_month">calendar_month</span>
-                    Last 30 Days
-                </button>
-</div>
-<div class="text-sm text-on-surface-variant font-medium">
-                Showing <span class="text-on-surface">48</span> of 1,284 findings
-            </div>
-</section>
-<!-- Findings Library (Asymmetric/Modern List) -->
-<div class="space-y-4">
-<!-- Entry 1 -->
-<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
-<div class="flex-1">
-<div class="flex items-center gap-3 mb-1">
-<span class="material-symbols-outlined text-primary" data-icon="security" style="font-variation-settings: 'FILL' 1;">security</span>
-<h3 class="text-lg font-headline font-bold text-on-surface">Tomcat vulnerability on web-prod-17</h3>
-</div>
-<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> Web Platform Team</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> PLAT-5571</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 2 days ago</span>
-</div>
-</div>
-<div class="flex items-center gap-4 lg:ml-auto">
-<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
-<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
-<div class="flex items-center gap-2">
-<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
-<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
-<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
-<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
-</button>
-</div>
-</div>
-</div>
-<!-- Entry 2 -->
-<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
-<div class="flex-1">
-<div class="flex items-center gap-3 mb-1">
-<span class="material-symbols-outlined text-error" data-icon="leak_add" style="font-variation-settings: 'FILL' 1;">leak_add</span>
-<h3 class="text-lg font-headline font-bold text-on-surface">AWS S3 Public Bucket Exposure</h3>
-</div>
-<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> Cloud Ops</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> SEC-9021</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 5 days ago</span>
-</div>
-</div>
-<div class="flex items-center gap-4 lg:ml-auto">
-<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
-<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
-<div class="flex items-center gap-2">
-<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
-<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
-<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
-<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
-</button>
-</div>
-</div>
-</div>
-<!-- Entry 3 -->
-<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
-<div class="flex-1">
-<div class="flex items-center gap-3 mb-1">
-<span class="material-symbols-outlined text-amber-500" data-icon="key" style="font-variation-settings: 'FILL' 1;">key</span>
-<h3 class="text-lg font-headline font-bold text-on-surface">Hardcoded API Key in frontend-repo</h3>
-</div>
-<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> UI Team</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> DEV-1294</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 1 week ago</span>
-</div>
-</div>
-<div class="flex items-center gap-4 lg:ml-auto">
-<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
-<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
-<div class="flex items-center gap-2">
-<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
-<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
-<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
-<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
-</button>
-</div>
-</div>
-</div>
-<!-- AI Insight Card (Asymmetric Layout) -->
-<div class="relative bg-gradient-to-br from-primary to-indigo-700 rounded-2xl p-8 text-white shadow-xl overflow-hidden mt-12 mb-12">
-<div class="relative z-10 grid md:grid-cols-2 gap-8 items-center">
+<main class="ml-20 px-8 lg:px-12 pt-6 pb-8">
+<div class="max-w-6xl mx-auto">
+<!-- Header + Filter Controls -->
+<div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
 <div>
-<h2 class="text-2xl font-headline font-bold mb-4">Historical Pattern Detected</h2>
-<p class="text-indigo-100 leading-relaxed mb-6">
-                            I've noticed a 30% increase in Tomcat-related vulnerabilities across different subnets. Your past remediation plan for PLAT-5571 was 40% faster than manual resolution. I recommend standardizing this plan for future instances.
-                        </p>
-<button class="bg-white text-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors shadow-lg">Standardize Remediation</button>
+<h1 class="text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-2">Operational memory</h1>
+<p class="text-on-surface-variant max-w-lg">
+                    Browse remediation work. Search past decisions, reopen workspaces, and export summaries.
+                </p>
 </div>
-<div class="hidden md:block">
-<div class="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-<div class="text-xs uppercase tracking-widest opacity-60 mb-4">Efficiency Map</div>
+<div class="flex items-center gap-x-3">
+<!-- Search input -->
+<div class="relative flex-1 max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input type="text" placeholder="Search by finding, asset, or owner..." class="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-all" />
+</div>
+<!-- State tabs -->
+<div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1">
+<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors bg-white text-primary shadow-sm">Closed</button>
+<button class="px-3 py-1.5 rounded-md text-xs font-medium transition-colors text-on-surface-variant hover:text-on-surface">Ready to close</button>
+</div>
+<!-- Sort dropdown -->
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">sort</span>
+<select class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors">
+<option>Newest first</option>
+<option>Oldest first</option>
+</select>
+</div>
+</div>
+</div>
+
+<!-- History entries list -->
 <div class="space-y-3">
-<div class="h-2 w-full bg-white/10 rounded-full"><div class="h-full bg-white rounded-full" style="width: 85%"></div></div>
-<div class="h-2 w-full bg-white/10 rounded-full"><div class="h-full bg-white rounded-full" style="width: 45%"></div></div>
-<div class="h-2 w-full bg-white/10 rounded-full"><div class="h-full bg-white rounded-full" style="width: 65%"></div></div>
+
+<!-- Entry 1: Closed, Critical -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex-1 min-w-0">
+<div class="flex flex-wrap items-center gap-2 mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md text-green-700 bg-green-100 border border-green-200">Closed</span>
+<span class="text-[10px] font-medium uppercase tracking-wider text-error/70">Critical</span>
+<span class="text-xs text-outline-variant">2d ago</span>
+</div>
+<h3 class="text-base font-bold text-on-surface truncate">CVE-2024-21762 — FortiOS out-of-bound write in sslvpnd</h3>
+<div class="flex flex-wrap items-center gap-x-4 mt-1 text-xs text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">dns</span>
+fw-edge-prod-03
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">groups</span>
+Network Security Team
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">hub</span>
+qualys
+</span>
+</div>
+<div class="flex items-center gap-1 mt-2">
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Enricher</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Owner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Planner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Validator</span>
 </div>
 </div>
-</div>
-</div>
-<!-- Decorative element -->
-<div class="absolute -right-10 -top-10 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
-</div>
-<!-- Entry 4 -->
-<div class="group bg-surface-container-lowest p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 border border-transparent hover:border-primary/10 flex flex-col lg:flex-row lg:items-center gap-6">
-<div class="flex-1">
-<div class="flex items-center gap-3 mb-1">
-<span class="material-symbols-outlined text-slate-400" data-icon="database" style="font-variation-settings: 'FILL' 1;">database</span>
-<h3 class="text-lg font-headline font-bold text-on-surface">Unencrypted Redis Cache</h3>
-</div>
-<div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-on-surface-variant">
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="person">person</span> DB Admin</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="confirmation_number">confirmation_number</span> DB-112</span>
-<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-xs" data-icon="schedule">schedule</span> 10 days ago</span>
-</div>
-</div>
-<div class="flex items-center gap-4 lg:ml-auto">
-<span class="px-3 py-1 bg-primary-container text-on-primary-container text-xs font-bold rounded-full uppercase tracking-tighter">Fixed</span>
-<div class="h-8 w-px bg-outline-variant/20 hidden lg:block"></div>
-<div class="flex items-center gap-2">
-<button class="px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/5 rounded-lg transition-colors">Open workspace</button>
-<button class="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">View summary</button>
-<button class="p-2 text-on-surface-variant hover:text-primary transition-colors" title="Reuse Plan">
-<span class="material-symbols-outlined" data-icon="rebase_edit">rebase_edit</span>
+<div class="flex items-center gap-2 flex-shrink-0">
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-sm">download</span>
+Export
+</button>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 bg-primary hover:bg-primary-dim text-white shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-sm">visibility</span>
+View
 </button>
 </div>
 </div>
+
+<!-- Entry 2: Closed, High -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex-1 min-w-0">
+<div class="flex flex-wrap items-center gap-2 mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md text-green-700 bg-green-100 border border-green-200">Closed</span>
+<span class="text-[10px] font-medium uppercase tracking-wider text-error/60">High</span>
+<span class="text-xs text-outline-variant">5d ago</span>
+</div>
+<h3 class="text-base font-bold text-on-surface truncate">AWS S3 public bucket exposure — customer-exports-prod</h3>
+<div class="flex flex-wrap items-center gap-x-4 mt-1 text-xs text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">dns</span>
+s3://customer-exports-prod
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">groups</span>
+Cloud Ops
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">hub</span>
+prowler
+</span>
+</div>
+<div class="flex items-center gap-1 mt-2">
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Enricher</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Owner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Exposure</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Planner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Validator</span>
 </div>
 </div>
-<!-- Pagination (Minimalist) -->
-<footer class="mt-12 flex justify-center items-center gap-4">
-<button class="p-2 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-low transition-colors">
-<span class="material-symbols-outlined" data-icon="chevron_left">chevron_left</span>
+<div class="flex items-center gap-2 flex-shrink-0">
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-sm">download</span>
+Export
 </button>
-<div class="flex items-center gap-1">
-<span class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-white text-sm font-bold">1</span>
-<span class="w-8 h-8 flex items-center justify-center rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors">2</span>
-<span class="w-8 h-8 flex items-center justify-center rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors">3</span>
-<span class="px-2 text-on-surface-variant">...</span>
-<span class="w-8 h-8 flex items-center justify-center rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-low cursor-pointer transition-colors">24</span>
-</div>
-<button class="p-2 rounded-full border border-outline-variant/20 text-on-surface-variant hover:bg-surface-container-low transition-colors">
-<span class="material-symbols-outlined" data-icon="chevron_right">chevron_right</span>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 bg-primary hover:bg-primary-dim text-white shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-sm">visibility</span>
+View
 </button>
-</footer>
+</div>
+</div>
+
+<!-- Entry 3: Closed, Medium -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex-1 min-w-0">
+<div class="flex flex-wrap items-center gap-2 mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md text-green-700 bg-green-100 border border-green-200">Closed</span>
+<span class="text-[10px] font-medium uppercase tracking-wider text-on-surface-variant">Medium</span>
+<span class="text-xs text-outline-variant">1w ago</span>
+</div>
+<h3 class="text-base font-bold text-on-surface truncate">Hardcoded API key in frontend-repo main branch</h3>
+<div class="flex flex-wrap items-center gap-x-4 mt-1 text-xs text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">dns</span>
+github.com/acme/frontend-repo
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">groups</span>
+UI Team
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">hub</span>
+gitleaks
+</span>
+</div>
+<div class="flex items-center gap-1 mt-2">
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Enricher</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Planner</span>
+</div>
+</div>
+<div class="flex items-center gap-2 flex-shrink-0">
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-sm">download</span>
+Export
+</button>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 bg-primary hover:bg-primary-dim text-white shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-sm">visibility</span>
+View
+</button>
+</div>
+</div>
+
+<!-- Entry 4: Closed, Low -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex-1 min-w-0">
+<div class="flex flex-wrap items-center gap-2 mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md text-green-700 bg-green-100 border border-green-200">Closed</span>
+<span class="text-[10px] font-medium uppercase tracking-wider text-outline-variant">Low</span>
+<span class="text-xs text-outline-variant">10d ago</span>
+</div>
+<h3 class="text-base font-bold text-on-surface truncate">Unencrypted Redis cache on internal-cache-02</h3>
+<div class="flex flex-wrap items-center gap-x-4 mt-1 text-xs text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">dns</span>
+internal-cache-02
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">groups</span>
+DB Admin
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">hub</span>
+nessus
+</span>
+</div>
+<div class="flex items-center gap-1 mt-2">
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Enricher</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Owner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Planner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Validator</span>
+</div>
+</div>
+<div class="flex items-center gap-2 flex-shrink-0">
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-sm">download</span>
+Export
+</button>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 bg-primary hover:bg-primary-dim text-white shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-sm">visibility</span>
+View
+</button>
+</div>
+</div>
+
+<!-- Entry 5: Closed, High -->
+<div class="bg-surface-container-lowest rounded-xl p-5 border border-transparent hover:shadow-md hover:border-primary/5 transition-all duration-200 flex flex-col md:flex-row md:items-center gap-4">
+<div class="flex-1 min-w-0">
+<div class="flex flex-wrap items-center gap-2 mb-1">
+<span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md text-green-700 bg-green-100 border border-green-200">Closed</span>
+<span class="text-[10px] font-medium uppercase tracking-wider text-error/60">High</span>
+<span class="text-xs text-outline-variant">2w ago</span>
+</div>
+<h3 class="text-base font-bold text-on-surface truncate">Log4Shell in payment-service v2.14.0</h3>
+<div class="flex flex-wrap items-center gap-x-4 mt-1 text-xs text-on-surface-variant">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">dns</span>
+payment-service-prod
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">groups</span>
+Payments Team
+</span>
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-xs">hub</span>
+snyk
+</span>
+</div>
+<div class="flex items-center gap-1 mt-2">
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Enricher</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Owner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Exposure</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Planner</span>
+<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary-container/30 text-primary">Validator</span>
+</div>
+</div>
+<div class="flex items-center gap-2 flex-shrink-0">
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-sm">download</span>
+Export
+</button>
+<button class="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all active:scale-95 bg-primary hover:bg-primary-dim text-white shadow-sm hover:shadow-md">
+<span class="material-symbols-outlined text-sm">visibility</span>
+View
+</button>
+</div>
+</div>
+
+</div>
+<!-- End entries list -->
+
+</div>
 </main>
+
+<!--
+  ========================================
+  EMPTY STATE VARIANT 1: No history at all
+  ========================================
+  Shown when there are no closed/ready_to_close workspaces.
+  Uncomment this block and comment out the entries list above to preview.
+
+<main class="ml-20 px-8 lg:px-12 pt-6 pb-8">
+<div class="max-w-6xl mx-auto">
+<div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h1 class="text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-2">Operational memory</h1>
+<p class="text-on-surface-variant max-w-lg">
+    Browse remediation work. Search past decisions, reopen workspaces, and export summaries.
+</p>
+</div>
+<div class="flex items-center gap-x-3">
+<div class="relative flex-1 max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input type="text" placeholder="Search by finding, asset, or owner..." class="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-all" />
+</div>
+<div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1">
+<button class="px-3 py-1.5 rounded-md text-xs font-medium bg-white text-primary shadow-sm">Closed</button>
+<button class="px-3 py-1.5 rounded-md text-xs font-medium text-on-surface-variant hover:text-on-surface">Ready to close</button>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">sort</span>
+<select class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors">
+<option>Newest first</option>
+<option>Oldest first</option>
+</select>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center py-24">
+<div class="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-3xl text-on-surface-variant">history</span>
+</div>
+<h2 class="text-xl font-bold text-on-surface mb-2">No remediation history yet</h2>
+<p class="text-on-surface-variant text-sm text-center max-w-md mb-8">
+    Start solving findings from the Queue to build your operational memory.
+</p>
+<a href="#" class="bg-primary hover:bg-primary-dim text-white px-6 py-2.5 rounded-lg font-semibold text-sm transition-all shadow-lg shadow-primary/20 active:scale-95">
+    Go to Queue
+</a>
+</div>
+</div>
+</main>
+-->
+
+<!--
+  ==========================================
+  EMPTY STATE VARIANT 2: No search results
+  ==========================================
+  Shown when search/filter yields no matches.
+  Uncomment this block and comment out the entries list above to preview.
+
+<main class="ml-20 px-8 lg:px-12 pt-6 pb-8">
+<div class="max-w-6xl mx-auto">
+<div class="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+<div>
+<h1 class="text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-2">Operational memory</h1>
+<p class="text-on-surface-variant max-w-lg">
+    Browse remediation work. Search past decisions, reopen workspaces, and export summaries.
+</p>
+</div>
+<div class="flex items-center gap-x-3">
+<div class="relative flex-1 max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">search</span>
+<input type="text" value="nonexistent query" placeholder="Search by finding, asset, or owner..." class="w-full bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/20 transition-all" />
+</div>
+<div class="flex items-center gap-1 bg-surface-container-low rounded-lg p-1">
+<button class="px-3 py-1.5 rounded-md text-xs font-medium bg-white text-primary shadow-sm">Closed</button>
+<button class="px-3 py-1.5 rounded-md text-xs font-medium text-on-surface-variant hover:text-on-surface">Ready to close</button>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">sort</span>
+<select class="bg-surface-container-lowest border border-outline-variant/10 rounded-lg pl-10 pr-4 py-2 text-sm font-medium appearance-none cursor-pointer hover:bg-surface-container transition-colors">
+<option>Newest first</option>
+<option>Oldest first</option>
+</select>
+</div>
+</div>
+</div>
+<div class="flex flex-col items-center justify-center py-24">
+<div class="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-6">
+<span class="material-symbols-outlined text-3xl text-on-surface-variant">search_off</span>
+</div>
+<h2 class="text-xl font-bold text-on-surface mb-2">No matching workspaces</h2>
+<p class="text-on-surface-variant text-sm text-center max-w-md mb-8">
+    Try adjusting your search or filters.
+</p>
+</div>
+</div>
+</main>
+-->
+
 </body></html>

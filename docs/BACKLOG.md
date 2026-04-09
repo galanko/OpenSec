@@ -57,14 +57,78 @@ Connection testers are a UI convenience, not mandatory for new integrations. Onl
 - [ ] Additional vendor wrapper: Snyk (thin MCP wrapper, follow Wiz pattern)
 - [ ] Additional vendor wrapper: Tenable (thin MCP wrapper)
 
-### Priority 5: Findings page and UI gaps
+### Priority 5: Design system compliance (UX audit 2026-04-09)
+
+Systematic violations found across 13 of 17 components. See `docs/design/specs/UX-000-current-state-audit.md` for full audit.
+
+**P0 — Fix systematic violations (affects all pages):**
+
+- [ ] Create `ghost-border` Tailwind utility: add `shadow-[0_0_0_1px_rgba(var(--outline-variant),0.15)]` to config. This replaces all `border` usage with the design system's ghost border pattern
+- [ ] SideNav: replace `border-r border-outline-variant/20` with tonal bg shift, replace `border-r-2 border-primary` active indicator with background highlight (`bg-primary-container/30`)
+- [ ] TopBar: replace `border-b-2 border-primary` active nav indicator with background highlight or box-shadow underline. Replace `bg-green-500` health dot with `bg-tertiary`
+- [ ] ListCard: remove `border border-transparent` and `hover:border-primary/5`, rely on shadow-only hover
+- [ ] WorkspaceSidebar: replace `border-l border-surface-container` with tonal bg shift, replace `border border-surface-container/50` section borders with spacing + background
+- [ ] ActionChips: replace `border border-primary/10` with tonal background (`bg-primary-container/10`)
+- [ ] ActionButton: replace `border border-outline-variant/30` (outline variant) with ghost-border utility or tonal bg
+- [ ] ResultCard: replace 3 border instances (card, header divider, button area) with tonal layering
+- [ ] AgentRunCard: replace 3 border instances across states, replace `bg-indigo-50/80`/`border-indigo-100` with `bg-primary-container/30`
+- [ ] HistoryCard: replace state badge borders with bg-only badges, replace `text-green-700`/`bg-green-100`/`border-green-200` with `text-tertiary`/`bg-tertiary-container/30`
+- [ ] HistoryDetail: replace `border-t border-surface-container/50` separator with spacing + tonal bg, replace `border border-surface-container/80` on message bubbles
+- [ ] Replace all arbitrary green colors with `tertiary` tokens: grep `green-` in `frontend/src/` — affects ProviderSettings, IntegrationSettings, TopBar, HistoryCard
+- [ ] Replace all arbitrary red colors with `error` tokens: grep `red-` in `frontend/src/` — affects IntegrationSettings
+
+**P1 — Missing UX patterns (reliability and accessibility):**
+
+- [ ] Create `ErrorState` component (like EmptyState but for API failures): icon, title, subtitle, retry button
+- [ ] Add error boundaries to FindingsPage, HistoryPage, WorkspacePage, SettingsPage — catch render errors, show ErrorState
+- [ ] Add `loading` prop to ActionButton: shows spinner, disables click during async
+- [ ] Add `loading` prop to ActionChips: show spinner on the active chip while agent runs
+- [ ] Add `focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2` to all interactive elements: ActionButton, ActionChips, ListCard, nav items, tabs
+- [ ] Create `ConfirmDialog` component: modal with title, message, confirm/cancel buttons. Use for: resolve workspace, delete API key, delete integration
+
+### Priority 6: Mockup drift fixes (UX audit 2026-04-09)
+
+Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implementation. See `docs/design/specs/UX-000-current-state-audit.md`.
+
+**History page (high drift):**
+
+- [ ] Stats dashboard bento grid at top of History page: total resolved count, average time to fix, success rate — requires new API endpoint for workspace stats
+- [ ] Pagination for history list (currently loads all, won't scale)
+- [ ] Date range / calendar filter for history
+- [ ] "Showing X of Y workspaces" counter text
+- [ ] "Reuse Plan" button on HistoryCard — copy a past remediation plan into a new workspace
+
+**Settings page (high drift):**
+
+- [ ] Internal sidebar navigation: Model settings, Agent settings, Workspace defaults, App preferences — currently flat sections, mockup shows tabbed sidebar
+- [ ] Agent settings section: threat hunting toggle, auto-remediation toggle, auto-update sidebar toggle
+- [ ] Workspace defaults section: default action checkboxes (quarantine, notify admin, ignore low-risk, log only)
+- [ ] App preferences section: language dropdown, notification channel checkboxes
+- [ ] Save/Discard buttons fixed at page footer
+
+**Findings page (medium drift):**
+
+- [ ] "Sentinel Insights" right sidebar panel — contextual AI summary of findings state (e.g., "3 critical findings share the same CVE, consider batch remediation")
+- [ ] Educational/promotional card ("Automated remediation is learning from your patterns")
+- [ ] Blocked finding state with opacity/grayscale visual treatment
+
+**Workspace page (low drift):**
+
+- [ ] Structured agent result cards: replace raw markdown output with card-based results matching mockup — headers, confidence badges, evidence/recommendation sections
+- [ ] Enhanced "Agent Running" card with animated dots + descriptive text
+
+**Integrations page:**
+
+- [ ] Create dedicated IntegrationsPage route (currently embedded in Settings) — mockup shows a standalone page with richer layout
+
+### Priority 7: Findings page and UI gaps
 
 - [ ] Findings page: search by title/asset/CVE (Phase 4 gap)
 - [ ] Findings page: "Why this matters" preview on hover/expand (Phase 4 gap)
 - [ ] Settings page: model/provider configuration improvements
 - [ ] Permission approval UI: SSE listener for `permission_request` events in WorkspacePage, approval card component (tool name, command patterns, approve/deny buttons), POST to `/api/workspaces/{id}/agent-runs/{run_id}/permission`. Backend plumbing done in Phase 6b PR #34. Also needs: flip workspace `opencode.json` from `"allow"` to `"ask"` for bash/edit
 
-### Priority 6: Packaging (depends on Phase 6b + Phase 7 completion)
+### Priority 8: Packaging (depends on Phase 6b + Phase 7 completion)
 
 - [ ] Startup migration runner
 - [ ] Seed demo data mode (`OPENSEC_DEMO=true`)

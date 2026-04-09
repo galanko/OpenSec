@@ -225,6 +225,55 @@ Each workspace gets an isolated environment. See `docs/adr/0014-workspace-runtim
 
 Key files: `backend/opensec/workspace/`, `backend/opensec/engine/pool.py`, `backend/opensec/agents/`
 
+## Development Workflow
+
+OpenSec uses a 4-team pipeline with CEO approval gates. Each team is a Claude Code skill.
+
+### Teams
+
+| Team | Skill | Purpose |
+|------|-------|---------|
+| Product | `/product-manager` | PRDs, user stories, roadmap updates |
+| UI/UX | `/ux-designer` | Mockups (via Stitch MCP), UX specs, design system enforcement |
+| Architect | `/architect` | ADRs, implementation plans, plan review, post-mortems |
+| R&D: App Builder | `/app-builder` | Frontend, integrations, API, Docker (Vertical 2) |
+| R&D: Agent Orchestrator | `/opensec-agent-orchestrator` | Agent pipeline, workspace runtime, engine (Vertical 1) |
+
+### Pipeline
+
+Use `/pipeline "<feature description>"` to run the full flow autonomously:
+
+1. **Product** drafts PRD → CEO approves
+2. **UX** creates mockups + spec → CEO approves
+3. **Architect** writes ADR + implementation plan → CEO approves
+4. **R&D** implements with TDD, creates PR → CEO merges
+
+Each gate pauses for CEO review. After approval, the next team starts automatically.
+
+Individual skills can also be invoked directly (e.g., `/product-manager` for a standalone PRD).
+
+### Where things live
+
+| What | Where |
+|------|-------|
+| PRDs | `docs/product/prds/PRD-XXXX-slug.md` |
+| PRD template | `docs/product/templates/prd-template.md` |
+| UX specs | `docs/design/specs/UX-XXXX-slug.md` |
+| UX language guide | `docs/design/ux-language.md` |
+| Implementation plans | `docs/architecture/plans/IMPL-XXXX-slug.md` |
+| ADRs | `docs/adr/NNNN-slug.md` |
+| Task tracking | Notion (primary) + `docs/BACKLOG.md` (agent-readable mirror) |
+
+### Quality gates
+
+| Stage | Enforced by |
+|-------|------------|
+| PRD completeness | `/product-manager` follows template + CEO review |
+| Design system compliance | `/ux-designer` enforces Serene Sentinel rules |
+| Architectural simplicity | `/architect` review + `/brainstorming` before ADRs |
+| Code quality | TDD-first, `/simplify`, CI lint+test, 3-strike safeguard |
+| Final review | CEO reviews + merges PR on GitHub |
+
 ## Current Phase
 
 See `ROADMAP.md` — **Stages 1 and 2** complete. Currently in **Stage 3** (Phase 6b: Agent Orchestration — wiring agents into the isolated workspace runtime).

@@ -83,6 +83,23 @@
         body { font-family: 'Inter', sans-serif; }
         h1, h2, h3 { font-family: 'Manrope', sans-serif; }
         .tonal-shift { background-color: #f1f4f6; }
+        /* Prose-like markdown styling for assistant messages */
+        .prose-mock h3 { font-family: 'Manrope', sans-serif; font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: #2b3437; }
+        .prose-mock p { font-size: 0.875rem; line-height: 1.625; color: #2b3437; margin-bottom: 0.75rem; }
+        .prose-mock p:last-child { margin-bottom: 0; }
+        .prose-mock ul { font-size: 0.875rem; line-height: 1.625; color: #2b3437; padding-left: 1.25rem; list-style-type: disc; margin-bottom: 0.75rem; }
+        .prose-mock li { margin-bottom: 0.25rem; }
+        .prose-mock code { font-size: 0.8rem; background: rgba(77, 68, 227, 0.08); color: #4d44e3; padding: 0.125rem 0.25rem; border-radius: 0.25rem; }
+        .prose-mock strong { font-weight: 600; }
+        .prose-mock a { color: #4d44e3; text-decoration: underline; }
+        /* Bounce animation for thinking dots */
+        @keyframes bounce-dot {
+            0%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-4px); }
+        }
+        .dot-bounce-1 { animation: bounce-dot 1s infinite; animation-delay: 0ms; }
+        .dot-bounce-2 { animation: bounce-dot 1s infinite; animation-delay: 150ms; }
+        .dot-bounce-3 { animation: bounce-dot 1s infinite; animation-delay: 300ms; }
     </style>
 </head>
 <body class="bg-background text-on-background antialiased selection:bg-primary-container selection:text-on-primary-container">
@@ -134,39 +151,39 @@
 <span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors" data-icon="notifications">notifications</span>
 <span class="material-symbols-outlined text-on-surface-variant hover:text-primary cursor-pointer transition-colors" data-icon="help_outline">help_outline</span>
 </div>
-<button class="bg-primary text-white px-5 py-1.5 rounded-lg text-sm font-semibold hover:bg-primary-dim transition-all shadow-md shadow-primary/10">Solve</button>
 </div>
 </header>
-<main class="ml-20 min-h-[calc(100vh-4rem)] flex flex-col">
-<!-- Remediation Header Bar -->
+<main class="ml-20 flex flex-col h-[calc(100vh-4rem)]">
+<!-- Finding Header Bar -->
 <section class="bg-surface-container-lowest px-8 py-4 flex items-center justify-between border-b border-surface-container">
 <div class="flex items-center gap-4">
 <div class="p-2 bg-error-container/20 rounded-lg">
 <span class="material-symbols-outlined text-error" data-icon="warning">warning</span>
 </div>
 <div>
-<h1 class="text-xl font-bold tracking-tight">Apache Tomcat vulnerable version...</h1>
+<h1 class="text-xl font-bold tracking-tight">Apache Tomcat vulnerable version (CVE-2023-46589)</h1>
 <div class="flex gap-3 mt-1 items-center">
-<span class="px-2 py-0.5 rounded-full bg-error-container text-on-error-container text-[10px] font-bold uppercase tracking-wider">Critical</span>
+<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider text-error bg-error-container/30">Critical</span>
 <span class="text-xs text-on-surface-variant">Asset: <span class="text-on-surface font-medium">web-prod-17</span></span>
-<span class="text-xs text-on-surface-variant">Likely Owner: <span class="text-on-surface font-medium">Web Platform Team</span></span>
+<span class="text-xs text-on-surface-variant">Owner: <span class="text-on-surface font-medium">Web Platform Team</span></span>
+<span class="text-xs text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined" style="font-size: 13px;">neurology</span>
+<span class="font-mono text-on-surface">claude-sonnet-4-20250514</span>
+</span>
 </div>
 </div>
 </div>
 <div class="flex gap-2">
-<button class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/30 text-sm hover:bg-surface-container transition-colors">
-<span class="material-symbols-outlined text-sm" data-icon="share">share</span>
-                    Share
-                </button>
-<button class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-outline-variant/30 text-sm hover:bg-surface-container transition-colors">
-<span class="material-symbols-outlined text-sm" data-icon="more_vert">more_vert</span>
+<button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-tertiary hover:bg-tertiary-dim text-on-tertiary text-sm font-bold transition-all shadow-sm">
+<span class="material-symbols-outlined text-sm" data-icon="done_all">done_all</span>
+Resolve
 </button>
 </div>
 </section>
 <div class="flex flex-1 overflow-hidden">
-<!-- Center Area: Chat Thread (Redesigned with gray background) -->
-<section class="flex-1 overflow-y-auto px-8 py-10 bg-surface-container-low flex flex-col gap-8 scroll-smooth">
-<!-- Initial Finding Summary (Redesigned as a prominent bubble) -->
+<!-- Center Area: Chat Thread -->
+<section class="flex-1 overflow-y-auto px-8 py-8 bg-surface-container-low flex flex-col gap-6 scroll-smooth">
+<!-- Finding Summary Card -->
 <div class="max-w-3xl">
 <div class="bg-white rounded-2xl p-6 shadow-md border border-surface-container/80">
 <div class="flex items-start gap-4">
@@ -174,190 +191,241 @@
 <span class="material-symbols-outlined text-primary" data-icon="auto_awesome">auto_awesome</span>
 </div>
 <div>
-<h3 class="text-lg font-bold mb-2">Finding Summary</h3>
+<h3 class="text-lg font-bold mb-2">Finding summary</h3>
 <p class="text-on-surface-variant text-sm leading-relaxed mb-4">
-                                    CVE-2023-46589 identified on <span class="font-mono text-primary">web-prod-17</span>. The version of Apache Tomcat (9.0.82) is vulnerable to request smuggling. This allows attackers to bypass security constraints and access unauthorized internal resources.
-                                </p>
-<div class="grid grid-cols-2 gap-4">
+CVE-2023-46589 identified on <code class="text-primary bg-primary-container/30 px-1 py-0.5 rounded text-xs">web-prod-17</code>. The version of Apache Tomcat (9.0.82) is vulnerable to request smuggling via incomplete HTTP trailer header parsing. This allows attackers to bypass security constraints and access unauthorized internal resources.
+</p>
 <div class="p-3 bg-surface-container-low rounded-lg">
-<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mb-1">Impact</p>
-<p class="text-sm font-semibold">Remote Code Execution (RCE)</p>
-</div>
-<div class="p-3 bg-surface-container-low rounded-lg">
-<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mb-1">Exposure</p>
-<p class="text-sm font-semibold">Publicly Accessible</p>
+<p class="text-[10px] text-on-surface-variant uppercase font-bold tracking-widest mb-1">Why this matters</p>
+<p class="text-sm font-medium">Critical for compliance and prevents unauthorized admin access to the production cluster.</p>
 </div>
 </div>
 </div>
 </div>
 </div>
-</div>
-<!-- Suggested Actions Chips -->
+<!-- Action Chips (5 chips matching ActionChips.tsx) -->
 <div class="flex flex-wrap gap-2 max-w-3xl">
-<button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Explain why this matters</button>
+<button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Enrich finding</button>
 <button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Find owner</button>
-<button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Enrich issue</button>
 <button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Check exposure</button>
 <button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Build remediation plan</button>
-<button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Draft ticket</button>
 <button class="px-4 py-2 rounded-full border border-primary/10 bg-white text-xs font-medium text-primary hover:bg-primary-container/30 shadow-sm transition-all">Validate closure</button>
 </div>
-<!-- Agent Running State -->
-<div class="max-w-3xl">
-<div class="bg-indigo-50/80 border border-indigo-100 rounded-xl p-4 flex items-center gap-4 animate-pulse shadow-sm">
-<div class="flex gap-1">
-<div class="w-1.5 h-1.5 rounded-full bg-primary/40"></div>
-<div class="w-1.5 h-1.5 rounded-full bg-primary/60"></div>
-<div class="w-1.5 h-1.5 rounded-full bg-primary/80"></div>
-</div>
-<p class="text-sm text-on-primary-fixed-variant font-medium">Looking for owner... Comparing prior tickets...</p>
+
+<!-- User Message (right-aligned, primary/indigo background) -->
+<div class="max-w-3xl self-end">
+<div class="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
+<p class="text-sm leading-relaxed whitespace-pre-wrap">Find the owner of this asset by analyzing CMDB records and prior ticket history</p>
 </div>
 </div>
-<!-- Agent Result Card (Redesigned as prominent bubble) -->
+
+<!-- Assistant Message (left-aligned, white background, markdown content) -->
 <div class="max-w-3xl self-start">
-<div class="bg-white rounded-2xl shadow-md overflow-hidden border border-surface-container/80">
-<div class="bg-primary/5 px-6 py-3 border-b border-surface-container/50 flex items-center justify-between">
-<h3 class="text-sm font-bold text-primary tracking-tight">Owner Resolver Result</h3>
-<span class="text-[10px] font-bold text-on-surface-variant uppercase bg-surface-container-high px-2 py-0.5 rounded">Result 012</span>
+<div class="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="auto_awesome">auto_awesome</span>
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
 </div>
-<div class="p-6">
-<div class="flex items-center justify-between mb-4">
-<p class="text-lg font-bold text-on-surface">Best match: Web Platform Team</p>
-<div class="flex items-center gap-1.5 text-primary-dim">
-<span class="text-sm font-bold">92% confidence</span>
-<span class="material-symbols-outlined text-sm" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
-</div>
-</div>
-<div class="space-y-4">
-<div class="flex gap-3">
-<span class="material-symbols-outlined text-on-surface-variant mt-0.5" data-icon="fact_check">fact_check</span>
-<div>
-<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-1">Evidence</p>
-<p class="text-sm text-on-surface leading-relaxed">CMDB records link <span class="font-mono">web-prod-17</span> to 'Platform Services' namespace. 8 out of 10 prior Tomcat vulnerabilities on this subnet were resolved by @mark_dev (Lead, Web Platform Team).</p>
-</div>
-</div>
-<div class="flex gap-3">
-<span class="material-symbols-outlined text-on-surface-variant mt-0.5" data-icon="lightbulb">lightbulb</span>
-<div>
-<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-1">Recommendation</p>
-<p class="text-sm text-on-surface">Assign to Web Platform Team and draft a Jira ticket with the pre-approved remediation script for Tomcat 9.x.</p>
+<div class="prose-mock">
+<h3>Owner identification</h3>
+<p>Based on CMDB records and prior ticket analysis, the most likely owner for <code>web-prod-17</code> is the <strong>Web Platform Team</strong>.</p>
+<p><strong>Evidence:</strong></p>
+<ul>
+<li>CMDB records link <code>web-prod-17</code> to the "Platform Services" namespace</li>
+<li>8 out of 10 prior Tomcat vulnerabilities on this subnet were resolved by @mark_dev (Lead, Web Platform Team)</li>
+<li>Recent deploy logs show the team's CI pipeline targeting this host cluster</li>
+</ul>
+<p><strong>Recommendation:</strong> Assign to Web Platform Team and proceed with building a remediation plan.</p>
 </div>
 </div>
 </div>
-<div class="mt-6 flex gap-3">
-<button class="bg-primary text-white text-xs font-bold px-4 py-2 rounded-lg hover:shadow-lg hover:shadow-primary/20 transition-all">Assign &amp; Draft Ticket</button>
-<button class="text-on-surface-variant text-xs font-bold px-4 py-2 rounded-lg border border-outline-variant/30 hover:bg-surface-container-low transition-all">Ignore Result</button>
+
+<!-- User Message -->
+<div class="max-w-3xl self-end">
+<div class="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
+<p class="text-sm leading-relaxed whitespace-pre-wrap">Check the exposure and reachability of this asset - is it internet-facing? What is the blast radius?</p>
+</div>
+</div>
+
+<!-- Assistant Message with markdown-style content -->
+<div class="max-w-3xl self-start">
+<div class="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="auto_awesome">auto_awesome</span>
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+</div>
+<div class="prose-mock">
+<h3>Exposure analysis</h3>
+<p>The asset <code>web-prod-17</code> is <strong>publicly accessible</strong> via load balancer <code>lb-prod-us-east-1</code> on ports 443 and 8443.</p>
+<p><strong>Reachability:</strong></p>
+<ul>
+<li>Internet-facing: <strong>Yes</strong> &mdash; serves end-user traffic via CDN edge</li>
+<li>Internal exposure: Connected to <code>10.2.0.0/16</code> service mesh (12 downstream services)</li>
+<li>WAF coverage: CloudFlare WAF active, but no specific rule for HTTP trailer smuggling</li>
+</ul>
+<p><strong>Blast radius:</strong></p>
+<ul>
+<li>Direct impact: 3 production services sharing the Tomcat instance</li>
+<li>Indirect impact: 12 downstream services reachable via service mesh</li>
+<li>Data exposure: Customer PII and session tokens in transit</li>
+</ul>
+<p>This is a <strong>high-exposure</strong> configuration. Recommend prioritizing remediation immediately.</p>
 </div>
 </div>
 </div>
+
+<!-- User Message -->
+<div class="max-w-3xl self-end">
+<div class="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
+<p class="text-sm leading-relaxed whitespace-pre-wrap">Build a remediation plan with step-by-step fix instructions, mitigations, and a definition of done</p>
 </div>
-<!-- Spacer for chat input -->
-<div class="h-24"></div>
+</div>
+
+<!-- Streaming Indicator (text appearing incrementally with cursor block) -->
+<div class="max-w-3xl self-start">
+<div class="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="auto_awesome">auto_awesome</span>
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+</div>
+<div class="prose-mock">
+<h3>Remediation plan</h3>
+<p><strong>Step 1: Upgrade Apache Tomcat</strong></p>
+<p>Update from 9.0.82 to 10.1.16+ which includes the fix for CVE-2023-46589. Use the team's existing rolling-deploy</p>
+</div>
+<span class="inline-block w-2 h-4 bg-primary/40 rounded-sm animate-pulse ml-0.5"></span>
+</div>
+</div>
+
+<!-- Error Message Example -->
+<div class="max-w-3xl self-start">
+<div class="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
+<p class="text-sm text-error leading-relaxed">Connection interrupted. Retrying...</p>
+</div>
+</div>
+
+<!-- Thinking Indicator (bouncing dots with "Thinking..." text) -->
+<div class="max-w-3xl self-start">
+<div class="bg-indigo-50/80 border border-indigo-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary/40 dot-bounce-1"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary/60 dot-bounce-2"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary/80 dot-bounce-3"></div>
+</div>
+<p class="text-sm text-on-primary-fixed-variant font-medium">Thinking...</p>
+</div>
+</div>
+
+<!-- Bottom spacer for scroll -->
+<div class="h-4"></div>
 </section>
 <!-- Right Sidebar: Structured Context -->
 <aside class="w-80 bg-surface-container-low border-l border-surface-container overflow-y-auto">
 <div class="p-6 flex flex-col gap-8">
+<!-- Summary -->
 <section>
 <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Summary</h4>
-<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50">
-<p class="text-xs font-semibold mb-1">What</p>
-<p class="text-xs text-on-surface-variant leading-relaxed mb-3">Vulnerable Apache Tomcat 9.0.82 allows HTTP request smuggling.</p>
-<p class="text-xs font-semibold mb-1">Why</p>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
+<div>
+<p class="text-xs font-semibold mb-0.5">what</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Vulnerable Apache Tomcat 9.0.82 allows HTTP request smuggling via incomplete trailer header parsing.</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">why</p>
 <p class="text-xs text-on-surface-variant leading-relaxed">Critical for compliance and prevents unauthorized admin access to the production cluster.</p>
 </div>
+</div>
 </section>
+<!-- Evidence -->
 <section>
 <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Evidence</h4>
-<div class="space-y-2">
-<div class="flex items-center justify-between text-xs bg-surface-container-lowest p-2 rounded-lg border border-surface-container/30">
-<span class="text-on-surface-variant">Version Scan</span>
-<span class="font-mono text-error">9.0.82</span>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
+<div>
+<p class="text-xs font-semibold mb-0.5">version scan</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Apache Tomcat 9.0.82</p>
 </div>
-<div class="flex items-center justify-between text-xs bg-surface-container-lowest p-2 rounded-lg border border-surface-container/30">
-<span class="text-on-surface-variant">Public Exposure</span>
-<span class="text-error font-medium">True</span>
+<div>
+<p class="text-xs font-semibold mb-0.5">public exposure</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">true</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">exploit available</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">true</p>
 </div>
 </div>
 </section>
+<!-- Owner -->
 <section>
 <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Owner</h4>
-<div class="flex items-center gap-3">
-<div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-primary font-bold text-xs">WP</div>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
 <div>
-<p class="text-xs font-bold">Web Platform Team</p>
-<p class="text-[10px] text-primary font-medium">92% Match</p>
+<p class="text-xs font-semibold mb-0.5">team</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Web Platform Team</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">contact</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">@mark_dev</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">source</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">CMDB + prior ticket history</p>
 </div>
 </div>
 </section>
+<!-- Plan -->
 <section>
 <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Plan</h4>
-<div class="bg-surface-container-lowest p-4 rounded-xl border border-surface-container/50">
-<ul class="text-xs space-y-3">
-<li class="flex gap-2">
-<span class="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">1</span>
-<span>Upgrade to Tomcat 10.1.16+</span>
-</li>
-<li class="flex gap-2">
-<span class="w-4 h-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold">2</span>
-<span>Rotate cluster secrets</span>
-</li>
-</ul>
-<div class="mt-4 pt-4 border-t border-surface-container flex justify-between items-center">
-<span class="text-[10px] text-on-surface-variant">Target Due Date</span>
-<span class="text-xs font-bold text-error">Oct 24, 2023</span>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
+<div>
+<p class="text-xs font-semibold mb-0.5">step 1</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Upgrade to Tomcat 10.1.16+</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">step 2</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Rotate cluster secrets</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">step 3</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Update WAF rules to block smuggling patterns</p>
 </div>
 </div>
 </section>
+<!-- Definition of Done -->
 <section>
-<h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Definition of Done</h4>
-<div class="space-y-2">
-<div class="flex items-start gap-2 text-xs">
-<span class="material-symbols-outlined text-sm text-on-surface-variant" data-icon="check_box_outline_blank">check_box_outline_blank</span>
-<span>Tomcat process reports v10.1.16</span>
+<h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Definition of done</h4>
+<div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
+<div>
+<p class="text-xs font-semibold mb-0.5">verification 1</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Tomcat process reports v10.1.16+</p>
 </div>
-<div class="flex items-start gap-2 text-xs">
-<span class="material-symbols-outlined text-sm text-on-surface-variant" data-icon="check_box_outline_blank">check_box_outline_blank</span>
-<span>WAF rules updated to block smuggling patterns</span>
+<div>
+<p class="text-xs font-semibold mb-0.5">verification 2</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">WAF rules updated to block smuggling patterns</p>
+</div>
+<div>
+<p class="text-xs font-semibold mb-0.5">verification 3</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Vulnerability rescan returns clean</p>
 </div>
 </div>
 </section>
+<!-- Ticket -->
 <section>
-<h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">References</h4>
-<div class="space-y-2">
-<div class="flex items-center justify-between p-2 bg-white rounded-lg border border-surface-container text-xs">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-sm text-primary" data-icon="confirmation_number">confirmation_number</span>
-<span class="font-bold">SEC-1428</span>
-</div>
-<span class="text-[10px] text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded">Linked</span>
-</div>
-<div class="flex items-center justify-between p-2 bg-white rounded-lg border border-surface-container text-xs">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-sm text-on-surface-variant" data-icon="history">history</span>
-<span class="font-medium text-on-surface-variant">PLAT-5571</span>
-</div>
-<span class="text-[10px] text-on-surface-variant">Similar Case</span>
-</div>
-</div>
+<h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Ticket</h4>
+<p class="text-xs text-outline-variant italic">Not yet available</p>
 </section>
+<!-- Validation -->
 <section>
 <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Validation</h4>
-<div class="flex items-center gap-2 text-xs font-bold text-on-surface-variant">
-<div class="w-2 h-2 rounded-full bg-outline-variant"></div>
-<span>Status: Not started</span>
-</div>
+<p class="text-xs text-outline-variant italic">Not yet available</p>
 </section>
 </div>
 </aside>
 </div>
-<!-- Floating Chat Input Container (Redesigned for prominence) -->
-<div class="fixed bottom-8 left-[calc(20rem+5rem)] right-96 flex justify-center">
-<div class="w-full max-w-3xl bg-white rounded-2xl shadow-2xl shadow-slate-900/10 border border-slate-200 p-2 flex items-center gap-2">
-<button class="p-2 hover:bg-surface-container rounded-lg transition-colors text-on-surface-variant">
-<span class="material-symbols-outlined" data-icon="add_circle">add_circle</span>
-</button>
-<input class="flex-1 bg-transparent border-none focus:ring-0 text-sm py-3 px-2" placeholder="Type a message or use @ to mention agents..." type="text"/>
-<button class="bg-primary text-white p-2 rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20">
+<!-- Chat Input (docked to bottom, not floating) -->
+<div class="px-8 py-4 bg-surface-container-lowest border-t border-surface-container">
+<div class="max-w-3xl mx-auto flex items-end gap-3">
+<textarea placeholder="Type a message or use action chips above..." rows="1" class="flex-1 bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all resize-none"></textarea>
+<button class="bg-primary text-white p-3 rounded-xl hover:bg-primary-dim transition-all shadow-lg shadow-primary/20 active:scale-95">
 <span class="material-symbols-outlined" data-icon="send">send</span>
 </button>
 </div>
