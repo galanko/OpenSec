@@ -236,6 +236,24 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       streamingRef.current = ''
       setStreaming('')
       setSending(false)
+      setPendingPermission(null)
+    })
+
+    // Listen for permission_request events on the chat SSE stream.
+    // This handles the chat path (action chips like "Enrich finding")
+    // where OpenCode emits permission.asked directly.
+    es.addEventListener('permission_request', (event) => {
+      if (!active) return
+      try {
+        const data = JSON.parse((event as MessageEvent).data)
+        setPendingPermission({
+          id: data.id,
+          tool: data.tool,
+          patterns: data.patterns || [],
+          runId: '', // chat path has no agent run ID
+        })
+        setPermissionError(null)
+      } catch { /* parse error */ }
     })
 
     return () => {
@@ -287,13 +305,19 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }, [activeAgentRun, workspaceId])
 
-  // Permission approve/deny handler
+  // Permission approve/deny handler.
+  // Uses the chat-path endpoint when runId is empty (action chips),
+  // or the executor endpoint when runId is set (programmatic execute).
   const handlePermissionResponse = useCallback(async (approved: boolean) => {
     if (!pendingPermission) return
     setPermissionLoading(true)
     setPermissionError(null)
     try {
-      await api.respondToPermission(workspaceId, pendingPermission.runId, approved)
+      if (pendingPermission.runId) {
+        await api.respondToPermission(workspaceId, pendingPermission.runId, approved)
+      } else {
+        await api.respondToChatPermission(workspaceId, pendingPermission.id, approved)
+      }
       setPendingPermission(null)
     } catch (err) {
       setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)

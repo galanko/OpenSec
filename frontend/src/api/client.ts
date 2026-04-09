@@ -535,10 +535,17 @@ export const api = {
   streamAgentExecution: (workspaceId: string): EventSource =>
     new EventSource(`/api/workspaces/${workspaceId}/agent-execution/stream`),
 
-  // Permission approval
+  // Permission approval (programmatic execute path)
   respondToPermission: (workspaceId: string, runId: string, approved: boolean) =>
     request<{ status: string; agent_run_id: string }>(
       `/api/workspaces/${workspaceId}/agent-runs/${runId}/permission`,
       { method: 'POST', body: JSON.stringify({ approved }) },
+    ),
+
+  // Permission approval (chat path — calls OpenCode directly)
+  respondToChatPermission: (workspaceId: string, permissionId: string, approved: boolean) =>
+    request<{ status: string; permission_id: string }>(
+      `/api/workspaces/${workspaceId}/chat/permission`,
+      { method: 'POST', body: JSON.stringify({ permission_id: permissionId, approved }) },
     ),
 };

@@ -215,6 +215,52 @@ async def workspace_stream_events(
 
 
 # ---------------------------------------------------------------------------
+# Workspace-level permission approval (chat path)
+# ---------------------------------------------------------------------------
+
+
+class ChatPermissionDecision(BaseModel):
+    permission_id: str
+    approved: bool
+
+
+@router.post("/workspaces/{workspace_id}/chat/permission")
+async def respond_to_chat_permission(
+    workspace_id: str,
+    body: ChatPermissionDecision,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Approve or deny a permission request from the chat path.
+
+    Unlike the agent-execution permission endpoint, this calls
+    OpenCode's permission API directly (no executor involved).
+    """
+    workspace = await _get_workspace_or_404(db, workspace_id)
+    if not workspace.workspace_dir:
+        raise HTTPException(status_code=409, detail="Workspace has no directory")
+
+    pool = _get_pool(request)
+    client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
+
+    try:
+        if body.approved:
+            await client.grant_permission(body.permission_id)
+        else:
+            await client.deny_permission(body.permission_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to send permission decision to OpenCode: {exc}",
+        ) from exc
+
+    return {
+        "status": "approved" if body.approved else "denied",
+        "permission_id": body.permission_id,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Workspace context
 # ---------------------------------------------------------------------------
 
