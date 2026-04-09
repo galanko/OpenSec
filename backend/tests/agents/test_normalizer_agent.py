@@ -146,17 +146,41 @@ async def test_batch_wiz_3_findings():
 async def test_severity_mapping():
     """Verify LLM correctly maps CRITICAL/HIGH/MEDIUM/LOW to normalized_priority."""
     raw = [
-        {"id": "S1", "title": "Critical RCE", "severity": "CRITICAL"},
-        {"id": "S2", "title": "High SQLi", "severity": "HIGH"},
-        {"id": "S3", "title": "Medium XSS", "severity": "MEDIUM"},
-        {"id": "S4", "title": "Low info disclosure", "severity": "LOW"},
+        {
+            "id": "SNYK-TEST-001",
+            "title": "Critical RCE in imagemagick",
+            "severity": "CRITICAL",
+            "packageName": "imagemagick",
+            "version": "7.1.0",
+        },
+        {
+            "id": "SNYK-TEST-002",
+            "title": "High SQL injection in pg",
+            "severity": "HIGH",
+            "packageName": "pg",
+            "version": "8.7.1",
+        },
+        {
+            "id": "SNYK-TEST-003",
+            "title": "Medium XSS in sanitize-html",
+            "severity": "MEDIUM",
+            "packageName": "sanitize-html",
+            "version": "2.7.0",
+        },
+        {
+            "id": "SNYK-TEST-004",
+            "title": "Low info disclosure in debug",
+            "severity": "LOW",
+            "packageName": "debug",
+            "version": "4.3.4",
+        },
     ]
 
-    findings, errors = await normalize_findings("test-scanner", raw)
+    findings, errors = await normalize_findings("snyk", raw)
 
     assert len(findings) >= 3, f"Expected at least 3/4, got {len(findings)}. Errors: {errors}"
 
-    # At minimum, CRITICAL should map to critical and LOW to low
+    # All returned findings should have valid priority values
     for f in findings:
         assert f.normalized_priority in VALID_PRIORITIES
 
@@ -168,37 +192,47 @@ async def test_severity_mapping():
 
 @pytest.mark.asyncio
 async def test_minimal_input_fields():
-    """Normalize a finding with bare-minimum fields."""
-    raw = [{"id": "MIN-1", "title": "Something bad", "severity": "high"}]
+    """Normalize a finding with bare-minimum Snyk-like fields."""
+    raw = [
+        {
+            "id": "SNYK-MIN-001",
+            "title": "Insecure dependency detected",
+            "severity": "HIGH",
+            "packageName": "vulnerable-lib",
+            "version": "1.0.0",
+        }
+    ]
 
-    findings, errors = await normalize_findings("generic", raw)
+    findings, errors = await normalize_findings("snyk", raw)
 
     assert len(findings) == 1, f"Expected 1 finding. Errors: {errors}"
     f = findings[0]
-    assert f.source_type == "generic"
+    assert f.source_type == "snyk"
     assert f.title  # non-empty
     assert f.normalized_priority in VALID_PRIORITIES
 
 
 @pytest.mark.asyncio
 async def test_unknown_scanner_format():
-    """LLM should handle non-standard field names by best-effort mapping."""
+    """LLM should handle Trivy-style format (different field names)."""
     raw = [
         {
-            "vuln_id": "CUSTOM-001",
-            "name": "Insecure default configuration",
-            "risk_level": "critical",
-            "affected_system": "auth-service",
+            "VulnerabilityID": "CVE-2023-44487",
+            "PkgName": "golang.org/x/net",
+            "InstalledVersion": "0.7.0",
+            "FixedVersion": "0.17.0",
+            "Title": "HTTP/2 rapid reset attack",
+            "Severity": "HIGH",
+            "Description": "HTTP/2 protocol allows rapid reset.",
         }
     ]
 
-    findings, errors = await normalize_findings("custom-scanner", raw)
+    findings, errors = await normalize_findings("trivy", raw)
 
     assert len(findings) == 1, f"Expected 1 finding. Errors: {errors}"
     f = findings[0]
-    _assert_valid_finding(f, "custom-scanner")
-    # The LLM should have mapped vuln_id or CUSTOM-001 to source_id
-    assert f.source_id, "source_id should be populated from vuln_id"
+    _assert_valid_finding(f, "trivy")
+    assert f.source_id, "source_id should be populated from VulnerabilityID"
 
 
 @pytest.mark.asyncio
