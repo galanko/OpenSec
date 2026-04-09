@@ -79,9 +79,8 @@ def opencode_server():
 @pytest.fixture(autouse=True)
 def reset_client(opencode_server):
     """Reset the singleton OpenCode client before each test."""
-    from opensec.engine.client import OpenCodeClient
-
     import opensec.integrations.normalizer as normalizer_mod
+    from opensec.engine.client import OpenCodeClient
 
     fresh_client = OpenCodeClient(base_url=settings.opencode_url)
     normalizer_mod.opencode_client = fresh_client

@@ -92,7 +92,13 @@ Output:
   "status": "new",
   "likely_owner": null,
   "why_this_matters": "Public S3 buckets can expose sensitive data.",
-  "raw_payload": {"id": "wiz-123", "name": "S3 bucket publicly accessible", "severity": "CRITICAL", "resource": {"id": "arn:aws:s3:::my-bucket", "name": "my-bucket"}, "description": "The S3 bucket allows public read access."}
+  "raw_payload": {
+    "id": "wiz-123",
+    "name": "S3 bucket publicly accessible",
+    "severity": "CRITICAL",
+    "resource": {"id": "arn:aws:s3:::my-bucket", "name": "my-bucket"},
+    "description": "The S3 bucket allows public read access."
+  }
 }]
 
 ### Example 2: Snyk-style input
@@ -123,7 +129,14 @@ Output:
   "status": "new",
   "likely_owner": null,
   "why_this_matters": "Prototype pollution can cause DoS or RCE.",
-  "raw_payload": {"id": "SNYK-JS-LODASH-590103", "title": "Prototype Pollution in lodash", "severity": "high", "packageName": "lodash", "version": "4.17.15", "from": ["myapp@1.0.0", "lodash@4.17.15"]}
+  "raw_payload": {
+    "id": "SNYK-JS-LODASH-590103",
+    "title": "Prototype Pollution in lodash",
+    "severity": "high",
+    "packageName": "lodash",
+    "version": "4.17.15",
+    "from": ["myapp@1.0.0", "lodash@4.17.15"]
+  }
 }]
 
 ### Example 3: Snyk-style input with CVE details
@@ -161,7 +174,17 @@ Output:
   "status": "new",
   "likely_owner": null,
   "why_this_matters": "Prototype pollution with a known CVE and public exploit can lead to RCE.",
-  "raw_payload": {"id": "SNYK-JS-LODASH-1018905", "title": "Prototype Pollution in lodash", "severity": "CRITICAL", "packageName": "lodash", "version": "4.17.20", "fixedIn": ["4.17.21"], "CVSSv3": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H", "cvssScore": 9.8, "exploitMaturity": "Proof of Concept", "description": "The lodash package is vulnerable to Prototype Pollution via the set function.", "identifiers": {"CVE": ["CVE-2021-23337"], "CWE": ["CWE-1321"]}, "from": ["myapp@1.0.0", "lodash@4.17.20"], "upgradePath": ["lodash@4.17.21"]}
+  "raw_payload": {
+    "id": "SNYK-JS-LODASH-1018905",
+    "title": "Prototype Pollution in lodash",
+    "severity": "CRITICAL",
+    "packageName": "lodash",
+    "version": "4.17.20",
+    "fixedIn": ["4.17.21"],
+    "cvssScore": 9.8,
+    "exploitMaturity": "Proof of Concept",
+    "identifiers": {"CVE": ["CVE-2021-23337"], "CWE": ["CWE-1321"]}
+  }
 }]
 
 ---
@@ -173,7 +196,12 @@ IMPORTANT: Respond with ONLY the JSON array. No other text.
 
 
 def _build_prompt(source: str, raw_json: str) -> str:
-    return f"{NORMALIZER_PROMPT}\nSource: {source}\nRaw data:\n```json\n{raw_json}\n```\n\nJSON array output:"
+    return (
+        f"{NORMALIZER_PROMPT}\n"
+        f"Source: {source}\n"
+        f"Raw data:\n```json\n{raw_json}\n```\n\n"
+        "JSON array output:"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +361,9 @@ async def _call_llm_with_retry(prompt: str) -> list[dict[str, Any]] | None:
     # All attempts failed — include a snippet in the error for the user
     if last_response and not last_response.startswith("["):
         snippet = last_response[:200].replace("\n", " ").strip()
-        logger.error("Normalizer gave up after %d attempts. Last response: %s", _MAX_RETRIES + 1, snippet)
+        logger.error(
+            "Normalizer gave up after %d attempts. Last response: %s",
+            _MAX_RETRIES + 1, snippet,
+        )
 
     return None

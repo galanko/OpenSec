@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from opensec.integrations.normalizer import normalize_findings
-from opensec.models import FindingCreate
+from opensec.models import FindingCreate  # noqa: TCH001 — used in type assertions
 
 VALID_PRIORITIES = {"critical", "high", "medium", "low", "info"}
 FIXTURES_DIR = Path(__file__).resolve().parents[3] / "fixtures"
@@ -156,7 +156,6 @@ async def test_severity_mapping():
 
     assert len(findings) >= 3, f"Expected at least 3/4, got {len(findings)}. Errors: {errors}"
 
-    priority_map = {f.source_id: f.normalized_priority for f in findings}
     # At minimum, CRITICAL should map to critical and LOW to low
     for f in findings:
         assert f.normalized_priority in VALID_PRIORITIES
