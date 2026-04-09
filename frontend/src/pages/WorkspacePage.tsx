@@ -311,7 +311,8 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   // Uses the chat-path endpoint when runId is empty (action chips),
   // or the executor endpoint when runId is set (programmatic execute).
   // After approval, sending stays true — the SSE `done` event handles
-  // clearing it when the agent finishes.
+  // clearing it. After deny, the agent won't produce more output, so
+  // we reset sending immediately.
   const handlePermissionResponse = useCallback(async (approved: boolean) => {
     if (!pendingPermission) return
     setPermissionLoading(true)
@@ -323,6 +324,9 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         await api.respondToChatPermission(workspaceId, pendingPermission.id, pendingPermission.sessionId, approved)
       }
       setPendingPermission(null)
+      if (!approved) {
+        setSending(false)
+      }
     } catch (err) {
       setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)
     } finally {

@@ -98,12 +98,12 @@ class OpenCodeClient:
 
     @staticmethod
     def _extract_text(msg: dict) -> str:
-        """Extract concatenated text parts from a single message dict."""
+        """Extract concatenated text and reasoning parts from a message."""
         parts = msg.get("parts", [])
         text_parts = [
             p.get("text", "")
             for p in parts
-            if p.get("type") == "text" and p.get("text", "").strip()
+            if p.get("type") in ("text", "reasoning") and p.get("text", "").strip()
         ]
         return "\n".join(text_parts)
 
@@ -237,10 +237,11 @@ class OpenCodeClient:
             resp.raise_for_status()
             buffer = ""
             last_text = ""
-            # Track whether a permission request is pending. When OpenCode
-            # asks for permission, the session goes idle while waiting for
-            # the grant/deny. We must NOT treat that idle as "done".
-            permission_pending = False
+            # When permission.asked fires, OpenCode goes idle while waiting
+            # for the grant/deny. We skip that first idle. After the user
+            # responds (grant or deny), OpenCode resumes and eventually
+            # emits another idle — that one is the real "done".
+            idle_skip_count = 0
             async for chunk in resp.aiter_text():
                 buffer += chunk
                 while "\n\n" in buffer:
@@ -271,9 +272,6 @@ class OpenCodeClient:
                         if text and text != last_text:
                             yield {"type": "text", "content": text}
                             last_text = text
-                        # New text after permission → permission resolved
-                        if permission_pending:
-                            permission_pending = False
 
                     elif event_type == "session.error":
                         error = props.get("error", {})
@@ -281,20 +279,19 @@ class OpenCodeClient:
                         yield {"type": "error", "message": msg}
 
                     elif event_type == "session.idle":
-                        if permission_pending:
-                            # Session went idle while waiting for user to
-                            # approve/deny — this is NOT the real "done".
-                            # Keep the stream open.
+                        if idle_skip_count > 0:
+                            idle_skip_count -= 1
                             logger.debug(
-                                "Ignoring session.idle during permission wait "
-                                "for session %s", session_id,
+                                "Skipping session.idle (permission wait) "
+                                "for session %s, %d skips remaining",
+                                session_id, idle_skip_count,
                             )
                             continue
                         yield {"type": "done"}
                         return
 
                     elif event_type == "permission.asked":
-                        permission_pending = True
+                        idle_skip_count = 1
                         yield {
                             "type": "permission_request",
                             "id": props.get("id", ""),
@@ -304,10 +301,6 @@ class OpenCodeClient:
                         }
 
                     elif event_session == session_id:
-                        # Any other session-scoped event (tool calls, etc.)
-                        # signals the agent is still active.
-                        if permission_pending:
-                            permission_pending = False
                         yield {"type": "activity", "event_type": event_type}
 
     @staticmethod
