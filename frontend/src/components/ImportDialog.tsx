@@ -407,7 +407,7 @@ export default function ImportDialog({ onComplete, onClose }: ImportDialogProps)
                       value={rawJson}
                       onChange={(e) => { setRawJson(e.target.value); setError(null) }}
                       placeholder={'[\n  { "id": "...", "title": "...", "severity": "..." },\n  ...\n]'}
-                      className="w-full bg-surface-container-low rounded-lg px-3 py-2.5 text-sm font-mono text-on-surface outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-outline-variant min-h-[120px] resize-y"
+                      className="w-full bg-surface-container-low rounded-xl px-3 py-2.5 text-sm font-mono text-on-surface outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-outline-variant min-h-[180px] resize-y"
                     />
                   </div>
 
