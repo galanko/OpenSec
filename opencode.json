@@ -2,8 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "openai/gpt-4.1-nano",
   "permission": {
-    "edit": "ask",
-    "bash": "ask",
-    "webfetch": "ask"
+    "edit": "deny",
+    "bash": "deny",
+    "webfetch": "allow"
   }
 }
