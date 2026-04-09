@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRepoSettings, useUpdateRepoSettings, useTestRepoConnection } from '@/api/hooks'
 
 export default function RepoSettings() {
@@ -9,10 +9,13 @@ export default function RepoSettings() {
   const [url, setUrl] = useState('')
   const [token, setToken] = useState('')
   const [tokenTouched, setTokenTouched] = useState(false)
+  const [urlInitialized, setUrlInitialized] = useState(false)
 
-  useEffect(() => {
-    if (repoSettings?.url) setUrl(repoSettings.url)
-  }, [repoSettings?.url])
+  // Sync URL from server on first load (avoid useEffect + setState)
+  if (repoSettings?.url && !urlInitialized) {
+    setUrl(repoSettings.url)
+    setUrlInitialized(true)
+  }
 
   const isConfigured = repoSettings?.url && repoSettings?.has_token
 
@@ -27,9 +30,6 @@ export default function RepoSettings() {
   }
 
   const handleTest = async () => {
-    const testToken = tokenTouched && token ? token : '__saved__'
-    // For testing with saved token, we need to actually use the saved token.
-    // The backend test endpoint needs fresh token, so require user to enter one.
     if (!url) return
     if (!tokenTouched && !repoSettings?.has_token) return
     await testConnection.mutateAsync({
