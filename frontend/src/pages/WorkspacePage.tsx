@@ -75,8 +75,8 @@ function WorkspaceLanding() {
         <EmptyState
           icon="terminal"
           title="No active workspaces"
-          subtitle="Open a finding from the Queue to start a remediation session."
-          action={{ label: 'Go to Queue', onClick: () => navigate('/queue') }}
+          subtitle="Open a finding from Findings to start a remediation session."
+          action={{ label: 'Go to findings', onClick: () => navigate('/findings') }}
         />
       </PageShell>
     )
@@ -440,7 +440,7 @@ function FindingHeader({
     setResolving(true)
     try {
       await api.updateWorkspace(workspaceId, { state: 'closed' } as Parameters<typeof api.updateWorkspace>[1])
-      navigate('/queue')
+      navigate('/findings')
     } catch (err) {
       console.error('Failed to resolve workspace:', err)
       setResolving(false)

@@ -24,7 +24,7 @@ const SEVERITY_ORDER: Record<string, number> = {
   critical: 0, high: 1, medium: 2, low: 3,
 }
 
-export default function QueuePage() {
+export default function FindingsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('updated')
   const [solving, setSolving] = useState<string | null>(null)
@@ -66,12 +66,6 @@ export default function QueuePage() {
 
   const filterActions = (
     <>
-      <ActionButton
-        label="Import findings"
-        icon="upload_file"
-        variant="outline"
-        onClick={() => setImportOpen(!importOpen)}
-      />
       <div className="relative">
         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">
           filter_list
@@ -100,13 +94,19 @@ export default function QueuePage() {
           ))}
         </select>
       </div>
+      <ActionButton
+        label="Import"
+        icon="upload_file"
+        variant="secondary"
+        onClick={() => setImportOpen(!importOpen)}
+      />
     </>
   )
 
   return (
     <PageShell
-      title="Work queue"
-      subtitle="Security findings waiting to be resolved. Pick one and start a remediation workspace."
+      title="Findings"
+      subtitle="Security findings awaiting remediation. Pick one to start a workspace."
       actions={filterActions}
     >
       {importOpen && (
@@ -126,7 +126,7 @@ export default function QueuePage() {
       ) : sorted.length === 0 ? (
         <EmptyState
           icon="assignment_late"
-          title="Queue is clear"
+          title="No open findings"
           subtitle="All findings are being worked on. Check Workspaces for active remediations or History for completed ones."
         />
       ) : (

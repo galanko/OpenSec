@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router'
 
 const navItems = [
-  { to: '/queue', icon: 'assignment_late', title: 'Queue' },
+  { to: '/findings', icon: 'assignment_late', title: 'Findings' },
   { to: '/workspace', icon: 'terminal', title: 'Workspace' },
   { to: '/history', icon: 'history', title: 'History' },
 ]
