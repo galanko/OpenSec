@@ -89,7 +89,7 @@ export default function FindingsPage() {
       <ActionButton
         label="Import"
         icon="upload_file"
-        variant="secondary"
+        variant="primary"
         onClick={() => setImportOpen(true)}
       />
     </>
@@ -120,7 +120,7 @@ export default function FindingsPage() {
           icon="assignment_late"
           title="No findings yet"
           subtitle="Import findings from your scanner to get started."
-          action={{ label: 'Import findings', onClick: () => setImportOpen(true) }}
+          action={{ label: 'Import', icon: 'upload_file', onClick: () => setImportOpen(true) }}
           footer="Supports Snyk, Wiz, and other JSON exports"
         />
       ) : (
