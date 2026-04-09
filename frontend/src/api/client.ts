@@ -244,6 +244,43 @@ export interface IntegrationHealthStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Ingest types (ADR-0023)
+// ---------------------------------------------------------------------------
+
+export type IngestJobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+export interface IngestRequest {
+  source: string;
+  raw_data: Record<string, unknown>[];
+  model?: string;
+  chunk_size?: number;
+  dry_run?: boolean;
+}
+
+export interface IngestJobResponse {
+  job_id: string;
+  status: string;
+  total_items: number;
+  chunk_size: number;
+  total_chunks: number;
+  estimated_tokens: number | null;
+  poll_url: string;
+}
+
+export interface IngestJobProgress {
+  job_id: string;
+  status: IngestJobStatus;
+  total_items: number;
+  total_chunks: number;
+  completed_chunks: number;
+  failed_chunks: number;
+  findings_created: number;
+  errors: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+// ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
@@ -472,4 +509,18 @@ export const api = {
   // Settings — Integration Health
   getAllIntegrationsHealth: () =>
     request<IntegrationHealthStatus[]>('/api/settings/integrations/health'),
+
+  // Finding ingest (ADR-0023)
+  startIngest: (data: IngestRequest) =>
+    request<IngestJobResponse>('/api/findings/ingest', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getIngestProgress: (jobId: string) =>
+    request<IngestJobProgress>(`/api/findings/ingest/${jobId}`),
+  cancelIngest: (jobId: string) =>
+    request<{ job_id: string; status: string }>(
+      `/api/findings/ingest/${jobId}/cancel`,
+      { method: 'POST' },
+    ),
 };
