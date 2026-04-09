@@ -87,7 +87,7 @@ export default function FindingsPage() {
         </select>
       </div>
       <ActionButton
-        label="Import findings"
+        label="Import"
         icon="upload_file"
         variant="secondary"
         onClick={() => setImportOpen(true)}

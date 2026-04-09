@@ -10,9 +10,11 @@ interface IngestProgressProps {
   initialJobId?: string
   /** Source name to display when using initialJobId. */
   initialSource?: string
+  /** When true, render content only (no backdrop/card/header). For embedding inside ImportDialog. */
+  embedded?: boolean
 }
 
-export default function IngestProgress({ onComplete, onClose, initialJobId, initialSource }: IngestProgressProps) {
+export default function IngestProgress({ onComplete, onClose, initialJobId, initialSource, embedded }: IngestProgressProps) {
   const [source, setSource] = useState(initialSource ?? '')
   const [rawJson, setRawJson] = useState('')
   const [parseError, setParseError] = useState<string | null>(null)
@@ -200,44 +202,37 @@ export default function IngestProgress({ onComplete, onClose, initialJobId, init
 
   const displayModel = modelOverride.trim() || modelConfig?.model_full_id || 'default'
 
-  return (
-    // Backdrop overlay
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
-      onClick={isInputState ? onClose : undefined}
-    >
-      {/* Modal card */}
-      <div
-        className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Terminal state header strips */}
-        {isFullSuccess && (
-          <div className="bg-green-50 px-6 py-3 flex items-center gap-2">
-            <span className="material-symbols-outlined text-base text-green-700">check_circle</span>
-            <span className="text-sm font-semibold text-green-800">Import complete</span>
-          </div>
-        )}
-        {isPartialSuccess && (
-          <div className="bg-amber-50 px-6 py-3 flex items-center gap-2">
-            <span className="material-symbols-outlined text-base text-amber-600">warning</span>
-            <span className="text-sm font-semibold text-amber-800">Import completed with errors</span>
-          </div>
-        )}
-        {status === 'failed' && (
-          <div className="bg-red-50 px-6 py-3 flex items-center gap-2">
-            <span className="material-symbols-outlined text-base text-error">error</span>
-            <span className="text-sm font-semibold text-red-800">Import failed</span>
-          </div>
-        )}
-        {status === 'cancelled' && (
-          <div className="bg-surface-container-low px-6 py-3 flex items-center gap-2">
-            <span className="material-symbols-outlined text-base text-on-surface-variant">cancel</span>
-            <span className="text-sm font-semibold text-on-surface-variant">Import cancelled</span>
-          </div>
-        )}
+  const statusStrips = (
+    <>
+      {isFullSuccess && (
+        <div className="bg-green-50 px-6 py-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-base text-green-700">check_circle</span>
+          <span className="text-sm font-semibold text-green-800">Import complete</span>
+        </div>
+      )}
+      {isPartialSuccess && (
+        <div className="bg-amber-50 px-6 py-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-base text-amber-600">warning</span>
+          <span className="text-sm font-semibold text-amber-800">Import completed with errors</span>
+        </div>
+      )}
+      {status === 'failed' && (
+        <div className="bg-red-50 px-6 py-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-base text-error">error</span>
+          <span className="text-sm font-semibold text-red-800">Import failed</span>
+        </div>
+      )}
+      {status === 'cancelled' && (
+        <div className="bg-surface-container-low px-6 py-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-base text-on-surface-variant">cancel</span>
+          <span className="text-sm font-semibold text-on-surface-variant">Import cancelled</span>
+        </div>
+      )}
+    </>
+  )
 
-        <div className="p-6">
+  const content = (
+    <div className={embedded ? '' : 'p-6'}>
           {/* --- INPUT STATE --- */}
           {status === 'input' && (
             <>
@@ -450,9 +445,9 @@ export default function IngestProgress({ onComplete, onClose, initialJobId, init
                 <button
                   onClick={handleCancel}
                   disabled={cancelIngest.isPending}
-                  className="text-xs font-semibold text-on-surface-variant hover:text-error transition-colors"
+                  className="px-4 py-2 text-sm font-semibold text-on-surface-variant hover:text-on-surface rounded-lg transition-colors"
                 >
-                  Cancel import
+                  Cancel
                 </button>
               </div>
             </>
@@ -551,6 +546,25 @@ export default function IngestProgress({ onComplete, onClose, initialJobId, init
               </div>
             </>
           )}
+    </div>
+  )
+
+  if (embedded) {
+    return <>{statusStrips}{content}</>
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+      onClick={isInputState ? onClose : undefined}
+    >
+      <div
+        className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden animate-in fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {statusStrips}
+        <div className="p-6">
+          {content}
         </div>
       </div>
     </div>
