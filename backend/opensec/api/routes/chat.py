@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import logging
 
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -28,12 +31,18 @@ class ChatSendResponse(BaseModel):
 @router.post("/chat/{session_id}/send", response_model=ChatSendResponse)
 async def send_message(session_id: str, body: ChatSendRequest) -> ChatSendResponse:
     """Send a message to an OpenCode session."""
-    try:
-        await opencode_client.send_message(session_id, body.content)
-        return ChatSendResponse(session_id=session_id, status="sent")
-    except Exception as e:
-        logger.exception("Failed to send message to session %s", session_id)
-        raise HTTPException(status_code=502, detail=f"OpenCode error: {e}") from e
+    # Fire-and-forget: the SSE stream delivers the response, not this POST.
+    async def _send() -> None:
+        with contextlib.suppress(httpx.ReadTimeout):
+            await opencode_client.send_message(session_id, body.content)
+
+    task = asyncio.create_task(_send())
+    task.add_done_callback(
+        lambda t: logger.error("Background send_message failed: %s", t.exception())
+        if not t.cancelled() and t.exception()
+        else None
+    )
+    return ChatSendResponse(session_id=session_id, status="sent")
 
 
 @router.get("/chat/{session_id}/stream")

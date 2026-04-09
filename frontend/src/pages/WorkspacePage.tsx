@@ -308,6 +308,8 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   // Permission approve/deny handler.
   // Uses the chat-path endpoint when runId is empty (action chips),
   // or the executor endpoint when runId is set (programmatic execute).
+  // After approval, sending stays true — the SSE `done` event handles
+  // clearing it when the agent finishes.
   const handlePermissionResponse = useCallback(async (approved: boolean) => {
     if (!pendingPermission) return
     setPermissionLoading(true)
@@ -319,28 +321,6 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         await api.respondToChatPermission(workspaceId, pendingPermission.id, approved)
       }
       setPendingPermission(null)
-      // Keep sending=true — the SSE stream should deliver text/done
-      // events after the permission grant. As a fallback, if the SSE
-      // reconnected and missed the response, poll the session after
-      // a delay and load the assistant's reply from history.
-      const fallbackSessionId = sessionId
-      setTimeout(async () => {
-        if (!fallbackSessionId) return
-        try {
-          const detail = await api.getSession(fallbackSessionId)
-          const assistantMsgs = detail.messages.filter(m => m.role !== 'user' && m.content.trim())
-          if (assistantMsgs.length > 0) {
-            const lastReply = assistantMsgs[assistantMsgs.length - 1]
-            // Only add if we don't already have it (SSE may have delivered it)
-            setMessages(prev => {
-              const alreadyHas = prev.some(m => m.role === 'assistant' && m.content === lastReply.content)
-              if (alreadyHas) return prev
-              return [...prev, { role: 'assistant', content: lastReply.content }]
-            })
-          }
-        } catch { /* non-critical fallback */ }
-        setSending(false)
-      }, 5000)
     } catch (err) {
       setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)
     } finally {
