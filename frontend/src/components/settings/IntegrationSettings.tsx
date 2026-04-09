@@ -387,9 +387,9 @@ function ConfiguredCard({
               </span>
             )}
           </div>
-          {integration.config?.repo_url && (
+          {typeof integration.config?.repo_url === 'string' && integration.config.repo_url && (
             <div className="text-xs text-on-surface-variant mt-0.5 truncate">
-              {String(integration.config.repo_url)}
+              {integration.config.repo_url}
             </div>
           )}
         </div>
