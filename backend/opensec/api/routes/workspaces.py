@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import httpx
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse

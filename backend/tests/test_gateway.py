@@ -278,7 +278,7 @@ def test_workspace_opencode_json_includes_mcp(tmp_path, sample_finding: Finding)
     assert "github" in config["mcp"]
     assert config["mcp"]["github"]["env"]["GITHUB_PERSONAL_ACCESS_TOKEN"] == "ghp_test"
     # Permissions still present.
-    assert config["permission"]["bash"] == "allow"
+    assert config["permission"]["bash"] == "ask"
 
 
 def test_workspace_opencode_json_no_mcp_without_servers(tmp_path, sample_finding: Finding):
@@ -289,7 +289,7 @@ def test_workspace_opencode_json_no_mcp_without_servers(tmp_path, sample_finding
     config = json.loads(ws.opencode_json.read_text())
 
     assert "mcp" not in config
-    assert config["permission"]["bash"] == "allow"
+    assert config["permission"]["bash"] == "ask"
 
 
 def test_workspace_opencode_json_empty_mcp_dict(tmp_path, sample_finding: Finding):

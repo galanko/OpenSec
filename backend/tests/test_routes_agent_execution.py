@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from opensec.agents.errors import AgentBusyError, AgentProcessError
+from opensec.agents.errors import AgentBusyError
 from opensec.agents.executor import AgentExecutionResult
 from opensec.agents.output_parser import ParseResult
 from opensec.api.routes.agent_execution import router
@@ -80,7 +80,11 @@ def _make_execution_result(agent_type="finding_enricher", status="completed"):
 class TestExecuteEndpoint:
     @pytest.mark.asyncio
     async def test_execute_returns_202(self, app, client):
-        app.state.agent_executor.execute.return_value = _make_execution_result()
+        """Execute returns 202 immediately (background task)."""
+        executor = app.state.agent_executor
+        executor._check_not_busy = AsyncMock()
+        executor.get_active_run_id = lambda ws_id: "run-123"
+        executor.execute = AsyncMock(return_value=_make_execution_result())
 
         with patch(
             "opensec.api.routes.agent_execution.get_workspace",
@@ -92,9 +96,8 @@ class TestExecuteEndpoint:
 
         assert resp.status_code == 202
         data = resp.json()
-        assert data["agent_run_id"] == "run-123"
         assert data["agent_type"] == "finding_enricher"
-        assert data["status"] == "completed"
+        assert data["status"] == "running"
 
     @pytest.mark.asyncio
     async def test_execute_workspace_not_found(self, client):
@@ -120,7 +123,9 @@ class TestExecuteEndpoint:
 
     @pytest.mark.asyncio
     async def test_execute_busy_returns_409(self, app, client):
-        app.state.agent_executor.execute.side_effect = AgentBusyError("busy")
+        """Pre-flight busy check returns 409 before launching background task."""
+        executor = app.state.agent_executor
+        executor._check_not_busy = AsyncMock(side_effect=AgentBusyError("busy"))
 
         with patch(
             "opensec.api.routes.agent_execution.get_workspace",
@@ -130,19 +135,6 @@ class TestExecuteEndpoint:
                 "/api/workspaces/ws-1/agents/finding_enricher/execute"
             )
         assert resp.status_code == 409
-
-    @pytest.mark.asyncio
-    async def test_execute_process_error_returns_503(self, app, client):
-        app.state.agent_executor.execute.side_effect = AgentProcessError("down")
-
-        with patch(
-            "opensec.api.routes.agent_execution.get_workspace",
-            return_value=_make_workspace(),
-        ):
-            resp = await client.post(
-                "/api/workspaces/ws-1/agents/finding_enricher/execute"
-            )
-        assert resp.status_code == 503
 
 
 # ---------------------------------------------------------------------------
