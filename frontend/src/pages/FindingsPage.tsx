@@ -2,8 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useFindings } from '@/api/hooks'
+import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
 import FindingRow from '@/components/FindingRow'
+import IngestProgress from '@/components/IngestProgress'
 import PageShell from '@/components/PageShell'
 
 const STATUS_OPTIONS = [
@@ -22,10 +24,11 @@ const SEVERITY_ORDER: Record<string, number> = {
   critical: 0, high: 1, medium: 2, low: 3,
 }
 
-export default function QueuePage() {
+export default function FindingsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('updated')
   const [solving, setSolving] = useState<string | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   const navigate = useNavigate()
 
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
@@ -91,15 +94,31 @@ export default function QueuePage() {
           ))}
         </select>
       </div>
+      <ActionButton
+        label="Import"
+        icon="upload_file"
+        variant="secondary"
+        onClick={() => setImportOpen(!importOpen)}
+      />
     </>
   )
 
   return (
     <PageShell
-      title="Work queue"
-      subtitle="Security findings waiting to be resolved. Pick one and start a remediation workspace."
+      title="Findings"
+      subtitle="Security findings awaiting remediation. Pick one to start a workspace."
       actions={filterActions}
     >
+      {importOpen && (
+        <IngestProgress
+          onComplete={() => {
+            refetch()
+            setImportOpen(false)
+          }}
+          onClose={() => setImportOpen(false)}
+        />
+      )}
+
       {isLoading ? (
         <div className="flex justify-center py-24">
           <div className="w-8 h-8 border-3 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -107,7 +126,7 @@ export default function QueuePage() {
       ) : sorted.length === 0 ? (
         <EmptyState
           icon="assignment_late"
-          title="Queue is clear"
+          title="No open findings"
           subtitle="All findings are being worked on. Check Workspaces for active remediations or History for completed ones."
         />
       ) : (

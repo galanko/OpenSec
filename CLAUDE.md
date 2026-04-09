@@ -57,7 +57,7 @@ backend/              FastAPI app (Python)
     api/routes/       REST endpoints (health, sessions, chat, workspace-scoped chat)
 frontend/             React SPA (TypeScript + Vite + Tailwind)
   src/
-    pages/            Page components (Queue, Workspace, History, Integrations, Settings)
+    pages/            Page components (Findings, Workspace, History, Integrations, Settings)
     api/              API client + TanStack Query hooks
     components/       Shared components (layout, Markdown, ResultCard)
     layouts/          App layout (SideNav + TopBar + Outlet)
@@ -91,7 +91,7 @@ See `docs/architecture/domain-model.md` for entity details and state machines.
 
 | Page | Purpose |
 |------|---------|
-| Queue | List, filter, sort findings. "Solve" opens a Workspace |
+| Findings | List, filter, sort, and import findings. "Solve" opens a Workspace |
 | Workspace | Chat-led remediation with sidebar, agent cards, and actions |
 | History | Browse completed workspaces, replay chats |
 | Integrations | Configure adapter connections |

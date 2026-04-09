@@ -168,8 +168,8 @@ function HistoryEmptyState({ hasSearch }: { hasSearch: boolean }) {
     <EmptyState
       icon="history"
       title="No remediation history yet"
-      subtitle="Start solving findings from the Queue to build your operational memory."
-      action={{ label: 'Go to Queue', href: '/queue' }}
+      subtitle="Start solving findings to build your operational memory."
+      action={{ label: 'Go to findings', href: '/findings' }}
     />
   )
 }

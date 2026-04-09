@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING
@@ -192,16 +193,30 @@ class OpenCodeClient:
         resp.raise_for_status()
 
     async def send_and_get_response(
-        self, session_id: str, content: str
+        self, session_id: str, content: str,
+        timeout: float = 120.0, poll_interval: float = 1.0,
     ) -> str | None:
         """Send a message and return the assistant's response text.
 
-        Convenience method combining ``send_message`` (blocking) +
-        ``get_last_assistant_text``.  This is the recommended way to
-        call OpenCode when you only need the final result (Mode 1).
+        The OpenCode ``POST /session/{id}/message`` API returns
+        immediately (non-blocking). This method polls the message
+        history until an assistant reply appears or *timeout* seconds
+        have elapsed.
         """
         await self.send_message(session_id, content)
-        return await self.get_last_assistant_text(session_id)
+
+        deadline = asyncio.get_event_loop().time() + timeout
+        while asyncio.get_event_loop().time() < deadline:
+            text = await self.get_last_assistant_text(session_id)
+            if text:
+                return text
+            await asyncio.sleep(poll_interval)
+
+        logger.warning(
+            "send_and_get_response timed out after %.0fs for session %s",
+            timeout, session_id,
+        )
+        return None
 
     # --- Event streaming ---
 

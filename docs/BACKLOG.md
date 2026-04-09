@@ -46,7 +46,7 @@ These wire integrations into the workspace runtime so agents can use MCP tools d
 - [x] Integrations page: connection status indicators and test-from-UI flow (uses existing health monitor + connection testers)
 - [x] Finding normalization via dedicated agent: create `finding-normalizer` agent (`.opencode/agents/`), `POST /api/findings/ingest` route accepts `{ source, raw_data[] }`, uses singleton OpenCode process to extract structured fields into `FindingCreate`. Low-cost design: tight prompt with few-shot examples, no tool use, batch support. Works with any scanner format. See ADR-0022
 - [x] Async chunked ingest: replace synchronous ingest with job-based async processing. `POST /api/findings/ingest` returns job ID immediately, background worker chunks raw data into batches of 10, processes each independently. Includes: `ingest_job` DB table + migration, background worker coroutine (FastAPI lifespan), `GET /api/findings/ingest/{job_id}` progress endpoint, cancel endpoint, token estimation, dry-run mode, model override field. See ADR-0023
-- [ ] Ingest progress UI: frontend polling for job status, progress bar, error display, cancel button. Replace existing synchronous ingest result handling
+- [x] Ingest progress UI: frontend polling for job status, progress bar, error display, cancel button. Replace existing synchronous ingest result handling
 - [ ] Jira write-back workflow: ticket creation from workspace using Jira MCP server (zero custom code — registry entry + credential schema only)
 - [ ] Status write-back from workspace to source system (Wiz `wiz_update_finding_status` tool already exists)
 
@@ -80,7 +80,7 @@ Systematic violations found across 13 of 17 components. See `docs/design/specs/U
 **P1 — Missing UX patterns (reliability and accessibility):**
 
 - [ ] Create `ErrorState` component (like EmptyState but for API failures): icon, title, subtitle, retry button
-- [ ] Add error boundaries to QueuePage, HistoryPage, WorkspacePage, SettingsPage — catch render errors, show ErrorState
+- [ ] Add error boundaries to FindingsPage, HistoryPage, WorkspacePage, SettingsPage — catch render errors, show ErrorState
 - [ ] Add `loading` prop to ActionButton: shows spinner, disables click during async
 - [ ] Add `loading` prop to ActionChips: show spinner on the active chip while agent runs
 - [ ] Add `focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2` to all interactive elements: ActionButton, ActionChips, ListCard, nav items, tabs
@@ -106,9 +106,9 @@ Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implem
 - [ ] App preferences section: language dropdown, notification channel checkboxes
 - [ ] Save/Discard buttons fixed at page footer
 
-**Queue page (medium drift):**
+**Findings page (medium drift):**
 
-- [ ] "Sentinel Insights" right sidebar panel — contextual AI summary of queue state (e.g., "3 critical findings share the same CVE, consider batch remediation")
+- [ ] "Sentinel Insights" right sidebar panel — contextual AI summary of findings state (e.g., "3 critical findings share the same CVE, consider batch remediation")
 - [ ] Educational/promotional card ("Automated remediation is learning from your patterns")
 - [ ] Blocked finding state with opacity/grayscale visual treatment
 
@@ -121,10 +121,10 @@ Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implem
 
 - [ ] Create dedicated IntegrationsPage route (currently embedded in Settings) — mockup shows a standalone page with richer layout
 
-### Priority 7: Queue and UI gaps
+### Priority 7: Findings page and UI gaps
 
-- [ ] Queue page: search by title/asset/CVE (Phase 4 gap)
-- [ ] Queue page: "Why this matters" preview on hover/expand (Phase 4 gap)
+- [ ] Findings page: search by title/asset/CVE (Phase 4 gap)
+- [ ] Findings page: "Why this matters" preview on hover/expand (Phase 4 gap)
 - [ ] Settings page: model/provider configuration improvements
 - [ ] Permission approval UI: SSE listener for `permission_request` events in WorkspacePage, approval card component (tool name, command patterns, approve/deny buttons), POST to `/api/workspaces/{id}/agent-runs/{run_id}/permission`. Backend plumbing done in Phase 6b PR #34. Also needs: flip workspace `opencode.json` from `"allow"` to `"ask"` for bash/edit
 

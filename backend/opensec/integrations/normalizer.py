@@ -189,8 +189,7 @@ async def normalize_findings(
     raw_json = json.dumps(raw_data, separators=(",", ":"))
     prompt = _build_prompt(source, raw_json)
 
-    # Mode 1 (synchronous RPC): send_and_get_response blocks until the
-    # LLM finishes, then reads the response from the message history.
+    # Mode 1 (polling RPC): send message, then poll until assistant responds.
     session = await opencode_client.create_session()
     try:
         full_text = await opencode_client.send_and_get_response(

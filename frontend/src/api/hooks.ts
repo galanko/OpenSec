@@ -3,6 +3,7 @@ import { api } from './client'
 import type {
   AgentRunCreate,
   AgentRunUpdate,
+  IngestRequest,
   IntegrationConfigCreate,
   IntegrationConfigUpdate,
   MessageCreate,
@@ -350,5 +351,38 @@ export function useAllIntegrationsHealth(enabled: boolean = true) {
     enabled,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Finding Ingest (ADR-0023)
+// ---------------------------------------------------------------------------
+
+export function useIngestProgress(jobId: string | null) {
+  return useQuery({
+    queryKey: ['ingest-progress', jobId],
+    queryFn: () => api.getIngestProgress(jobId!),
+    enabled: !!jobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') return false
+      return 2_000
+    },
+  })
+}
+
+export function useStartIngest() {
+  return useMutation({
+    mutationFn: (data: IngestRequest) => api.startIngest(data),
+  })
+}
+
+export function useCancelIngest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (jobId: string) => api.cancelIngest(jobId),
+    onSuccess: (_, jobId) => {
+      qc.invalidateQueries({ queryKey: ['ingest-progress', jobId] })
+    },
   })
 }

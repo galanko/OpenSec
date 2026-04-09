@@ -2,7 +2,7 @@ import { NavLink } from 'react-router'
 import { useHealth } from '@/api/hooks'
 
 const topNavLinks = [
-  { to: '/queue', label: 'Queue' },
+  { to: '/findings', label: 'Findings' },
   { to: '/workspace', label: 'Workspace' },
   { to: '/history', label: 'History' },
 ]

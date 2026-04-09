@@ -1,7 +1,7 @@
 interface ActionButtonProps {
   label: string
   icon?: string
-  variant?: 'primary' | 'outline'
+  variant?: 'primary' | 'outline' | 'secondary'
   onClick: () => void
   disabled?: boolean
 }
@@ -18,6 +18,7 @@ export default function ActionButton({
   const variants = {
     primary: 'bg-primary hover:bg-primary-dim text-white shadow-sm hover:shadow-md',
     outline: 'border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container',
+    secondary: 'bg-primary/10 text-primary hover:bg-primary/15 shadow-sm',
   }
 
   return (
