@@ -141,6 +141,17 @@ class TestDockerfileStructure:
         content = (root / "docker" / "entrypoint.sh").read_text()
         assert "First run" in content, "Entrypoint must log first-run detection"
 
+    def test_dockerfile_has_git(self):
+        root = self._repo_root()
+        content = (root / "docker" / "Dockerfile").read_text()
+        assert "git" in content, "Dockerfile must install git"
+
+    def test_dockerfile_has_gh_cli(self):
+        root = self._repo_root()
+        content = (root / "docker" / "Dockerfile").read_text()
+        assert "githubcli-archive-keyring" in content, "Must use official gh CLI apt repo"
+        assert "apt-get install" in content and "gh" in content, "Must install gh CLI"
+
     def test_dockerignore_exists(self):
         root = self._repo_root()
         dockerignore = root / ".dockerignore"
