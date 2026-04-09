@@ -46,18 +46,6 @@ function FindingsPageContent() {
 
   const { data: findings, isLoading, isError, refetch } = useFindings(params)
 
-  if (isError) {
-    return (
-      <PageShell title="Findings" subtitle="Your vulnerability queue.">
-        <ErrorState
-          title="Couldn't load findings"
-          subtitle="There was a problem fetching your findings. Please try again."
-          onRetry={() => refetch()}
-        />
-      </PageShell>
-    )
-  }
-
   const seededRef = useRef(false)
   useEffect(() => {
     if (!isLoading && findings && findings.length === 0 && !seededRef.current) {
@@ -85,6 +73,18 @@ function FindingsPageContent() {
       setSolving(null)
     }
   }, [navigate])
+
+  if (isError) {
+    return (
+      <PageShell title="Findings" subtitle="Your vulnerability queue.">
+        <ErrorState
+          title="Couldn't load findings"
+          subtitle="There was a problem fetching your findings. Please try again."
+          onRetry={() => refetch()}
+        />
+      </PageShell>
+    )
+  }
 
   const filterActions = (
     <>
