@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useFindings } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
 import FindingRow from '@/components/FindingRow'
-import IngestProgress from '@/components/IngestProgress'
+import ImportDialog from '@/components/ImportDialog'
 import PageShell from '@/components/PageShell'
 
 const STATUS_OPTIONS = [
@@ -35,14 +35,6 @@ export default function FindingsPage() {
   if (statusFilter) params.status = statusFilter
 
   const { data: findings, isLoading, refetch } = useFindings(params)
-
-  const seededRef = useRef(false)
-  useEffect(() => {
-    if (!isLoading && findings && findings.length === 0 && !seededRef.current) {
-      seededRef.current = true
-      api.seed().then(() => refetch())
-    }
-  }, [isLoading, findings, refetch])
 
   const sorted = [...(findings ?? [])].sort((a, b) => {
     if (sortBy === 'severity') {
@@ -95,10 +87,10 @@ export default function FindingsPage() {
         </select>
       </div>
       <ActionButton
-        label="Import"
+        label="Import findings"
         icon="upload_file"
         variant="secondary"
-        onClick={() => setImportOpen(!importOpen)}
+        onClick={() => setImportOpen(true)}
       />
     </>
   )
@@ -110,7 +102,7 @@ export default function FindingsPage() {
       actions={filterActions}
     >
       {importOpen && (
-        <IngestProgress
+        <ImportDialog
           onComplete={() => {
             refetch()
             setImportOpen(false)
@@ -126,8 +118,10 @@ export default function FindingsPage() {
       ) : sorted.length === 0 ? (
         <EmptyState
           icon="assignment_late"
-          title="No open findings"
-          subtitle="All findings are being worked on. Check Workspaces for active remediations or History for completed ones."
+          title="No findings yet"
+          subtitle="Import findings from your scanner to get started."
+          action={{ label: 'Import findings', onClick: () => setImportOpen(true) }}
+          footer="Supports Snyk, Wiz, and other JSON exports"
         />
       ) : (
         <div className="space-y-3">

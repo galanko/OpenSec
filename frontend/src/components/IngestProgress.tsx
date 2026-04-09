@@ -6,13 +6,17 @@ import { useCancelIngest, useIngestProgress, useModelConfig, useProviders, useSt
 interface IngestProgressProps {
   onComplete: () => void
   onClose: () => void
+  /** When provided, skip the input state and start tracking this job immediately. */
+  initialJobId?: string
+  /** Source name to display when using initialJobId. */
+  initialSource?: string
 }
 
-export default function IngestProgress({ onComplete, onClose }: IngestProgressProps) {
-  const [source, setSource] = useState('')
+export default function IngestProgress({ onComplete, onClose, initialJobId, initialSource }: IngestProgressProps) {
+  const [source, setSource] = useState(initialSource ?? '')
   const [rawJson, setRawJson] = useState('')
   const [parseError, setParseError] = useState<string | null>(null)
-  const [jobId, setJobId] = useState<string | null>(null)
+  const [jobId, setJobId] = useState<string | null>(initialJobId ?? null)
   const [estimate, setEstimate] = useState<{
     total_items: number
     total_chunks: number

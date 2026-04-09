@@ -7,9 +7,10 @@ interface EmptyStateProps {
     href?: string
     onClick?: () => void
   }
+  footer?: string
 }
 
-export default function EmptyState({ icon, title, subtitle, action }: EmptyStateProps) {
+export default function EmptyState({ icon, title, subtitle, action, footer }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-24">
       <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center mb-6">
@@ -37,6 +38,9 @@ export default function EmptyState({ icon, title, subtitle, action }: EmptyState
             {action.label}
           </button>
         )
+      )}
+      {footer && (
+        <p className="text-xs text-on-surface-variant mt-4">{footer}</p>
       )}
     </div>
   )
