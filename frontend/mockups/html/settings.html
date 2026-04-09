@@ -7,7 +7,6 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <script id="tailwind-config">
       tailwind.config = {
         darkMode: "class",
@@ -87,6 +86,10 @@
         h1, h2, h3 {
             font-family: 'Manrope', sans-serif;
         }
+        @keyframes ping {
+          75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        .animate-ping { animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite; }
     </style>
 </head>
 <body class="bg-background text-on-background antialiased">
@@ -132,196 +135,493 @@
 </div>
 </header>
 <main class="ml-20 min-h-[calc(100vh-64px)] p-8 lg:p-12">
-<div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-12">
-<!-- Internal Settings Navigation -->
-<nav class="w-full md:w-64 flex-shrink-0 space-y-1">
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface-container-lowest text-primary font-semibold shadow-sm shadow-slate-200/50" href="#model">
-<span class="material-symbols-outlined text-[20px]" data-icon="neurology">neurology</span>
-<span class="text-sm">Model settings</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#agents">
-<span class="material-symbols-outlined text-[20px]" data-icon="smart_toy">smart_toy</span>
-<span class="text-sm">Agent settings</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#workspace">
-<span class="material-symbols-outlined text-[20px]" data-icon="workspaces">workspaces</span>
-<span class="text-sm">Workspace defaults</span>
-</a>
-<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors" href="#preferences">
-<span class="material-symbols-outlined text-[20px]" data-icon="tune">tune</span>
-<span class="text-sm">App preferences</span>
-</a>
-</nav>
+<div class="max-w-4xl mx-auto">
+<!-- Page header -->
+<div class="mb-10">
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface mb-1">Settings</h1>
+<p class="text-on-surface-variant text-sm">Configure providers, integrations, and preferences.</p>
+</div>
+
 <!-- Settings Content Canvas -->
-<div class="flex-1 space-y-16 pb-24">
-<!-- Section: Model Settings -->
-<section class="scroll-mt-24" id="model">
+<div class="pb-24 space-y-0">
+
+<!-- ================================================================ -->
+<!-- Section: Providers                                               -->
+<!-- ================================================================ -->
+<section id="providers">
 <div class="mb-8">
-<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">Model settings</h2>
-<p class="text-on-surface-variant text-sm max-w-xl">Configure the underlying intelligence engine that powers the sentinel's reasoning and detection logic.</p>
+<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">Providers</h2>
+<p class="text-on-surface-variant text-sm max-w-xl">Configure your AI provider, model, and authentication. Changes take effect immediately.</p>
 </div>
-<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm shadow-slate-200/50 space-y-8">
-<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-<div class="space-y-2">
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Provider</label>
-<div class="relative">
-<select class="w-full appearance-none bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none cursor-pointer">
-<option>OpenAI (Cloud)</option>
-<option>Anthropic (Cloud)</option>
-<option>Llama 3 (Local Runtime)</option>
-<option>Mistral (Enterprise)</option>
-</select>
-<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant text-[20px]" data-icon="expand_more">expand_more</span>
-</div>
-</div>
-<div class="space-y-2">
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Model name</label>
-<input class="w-full bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none font-mono" type="text" value="gpt-4-turbo-preview"/>
-</div>
-</div>
+
 <div class="space-y-4">
-<div class="flex justify-between items-center">
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Temperature</label>
-<span class="text-sm font-medium text-primary bg-primary-container px-2 py-0.5 rounded-full">0.7</span>
+
+<!-- Active configuration card -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm shadow-slate-200/50 space-y-4">
+<div class="flex items-center gap-2 mb-1">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Active configuration</label>
+<span class="w-2 h-2 rounded-full bg-green-500"></span>
+<span class="text-[11px] text-on-surface-variant">Running &middot; v0.3.1</span>
 </div>
-<input class="w-full h-1.5 bg-surface-container-high rounded-full appearance-none cursor-pointer accent-primary" max="1" min="0" step="0.1" type="range" value="0.7"/>
-<div class="flex justify-between text-[10px] text-on-surface-variant font-medium uppercase tracking-widest">
-<span>Precise</span>
-<span>Balanced</span>
-<span>Creative</span>
-</div>
-</div>
-</div>
-</section>
-<!-- Section: Agent Settings -->
-<section class="scroll-mt-24" id="agents">
-<div class="mb-8">
-<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">Agent settings</h2>
-<p class="text-on-surface-variant text-sm max-w-xl">Enable specialized sub-routines and control how the sidebar reflects background activity.</p>
-</div>
-<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm shadow-slate-200/50 space-y-6">
-<div class="flex items-center justify-between p-4 rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer group">
-<div class="flex items-center gap-4">
-<div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-<span class="material-symbols-outlined" data-icon="security">security</span>
+
+<!-- Provider + Model display -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div>
+<label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant block mb-1.5">Provider</label>
+<div class="bg-surface-container-low rounded-lg px-4 py-2.5 text-sm font-semibold text-on-surface">Anthropic</div>
 </div>
 <div>
-<p class="text-sm font-semibold">Active threat hunting</p>
-<p class="text-xs text-on-surface-variant">Real-time scan for anomalous network patterns.</p>
+<label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant block mb-1.5">Model</label>
+<div class="bg-surface-container-low rounded-lg px-4 py-2.5 text-sm font-mono text-on-surface">claude-sonnet-4-20250514</div>
 </div>
 </div>
-<div class="w-11 h-6 bg-primary rounded-full relative transition-colors cursor-pointer">
-<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+
+<!-- Auth status for active provider -->
+<div class="bg-surface-container-low rounded-lg px-4 py-3">
+<div class="flex items-center justify-between mb-1">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">Authentication</label>
+<span class="text-[11px] font-mono text-on-surface-variant/50">ANTHROPIC_API_KEY</span>
+</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-500"></span>
+<span class="text-xs font-mono text-on-surface-variant">
+<span class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-green-600">lock</span>
+Configured via environment
+</span>
+</span>
+<button class="ml-auto px-2.5 py-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded-md text-xs transition-colors">Override</button>
 </div>
 </div>
-<div class="flex items-center justify-between p-4 rounded-lg hover:bg-surface-container-low transition-colors cursor-pointer group">
-<div class="flex items-center gap-4">
-<div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
-<span class="material-symbols-outlined" data-icon="auto_awesome">auto_awesome</span>
+
+<!-- Success feedback -->
+<p class="text-xs text-green-600 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+Model updated
+</p>
+
+<p class="text-[11px] text-on-surface-variant/60 flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">info</span>
+Model changes apply to new workspaces. Existing workspaces keep their original model.
+</p>
+</div>
+
+<!-- Search for different provider / model -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm shadow-slate-200/50">
+<label class="text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant block mb-2">Change provider or model</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-lg">search</span>
+<input type="text" value="claude" placeholder="Search providers or models (e.g. anthropic, gpt-4, claude...)" class="w-full bg-surface-container-low rounded-lg pl-10 pr-10 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:ring-2 focus:ring-primary/20"/>
+<button class="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">close</span>
+</button>
+</div>
+
+<!-- Search results -->
+<div class="mt-3 space-y-2">
+
+<!-- Anthropic result (active provider) -->
+<div class="rounded-lg overflow-hidden ring-1 ring-primary/20 bg-primary/[0.02]">
+<!-- Provider header -->
+<div class="flex items-center gap-3 px-4 py-2.5">
+<span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-green-500"></span>
+<span class="text-sm font-semibold text-on-surface flex-1">
+Anthropic
+<span class="ml-2 text-[10px] font-semibold uppercase tracking-wider text-primary bg-primary/10 px-1.5 py-0.5 rounded">active</span>
+</span>
+<span class="text-[11px] font-mono text-on-surface-variant/50 flex items-center gap-1">
+<span class="material-symbols-outlined text-[11px] text-green-600">lock</span>
+env
+</span>
+</div>
+<!-- Models -->
+<div class="px-4 pb-3">
+<div class="flex flex-wrap gap-1.5">
+<button class="px-3 py-1.5 rounded-md text-xs font-mono bg-primary text-on-primary shadow-sm disabled:opacity-60">claude-sonnet-4-20250514</button>
+<button class="px-3 py-1.5 rounded-md text-xs font-mono bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all">claude-opus-4-20250514 <span class="ml-1 opacity-60" title="Reasoning">R</span><span class="ml-0.5 opacity-60" title="Tool use">T</span></button>
+<button class="px-3 py-1.5 rounded-md text-xs font-mono bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all">claude-haiku-3-5 <span class="ml-0.5 opacity-60" title="Tool use">T</span></button>
+</div>
+</div>
+</div>
+
+<!-- OpenAI result (no key) -->
+<div class="rounded-lg overflow-hidden bg-surface-container-low">
+<div class="flex items-center gap-3 px-4 py-2.5">
+<span class="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-error/60"></span>
+<span class="text-sm font-semibold text-on-surface flex-1">OpenAI</span>
+<button class="text-[11px] text-primary font-semibold hover:bg-primary/5 px-2 py-0.5 rounded transition-colors">Set key</button>
+</div>
+<!-- Inline key editor (shown when user clicks "Set key") -->
+<div class="px-4 pb-2">
+<div class="bg-surface-container-lowest rounded-md px-3 py-2 flex items-center gap-2">
+<input type="password" placeholder="Enter API key" class="flex-1 bg-surface-container-low rounded-md px-3 py-1.5 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/20"/>
+<button class="px-3 py-1.5 bg-primary text-on-primary rounded-md text-xs font-semibold disabled:opacity-40">Save</button>
+<button class="text-xs text-on-surface-variant hover:text-on-surface">Cancel</button>
+</div>
+</div>
+<!-- Models -->
+<div class="px-4 pb-3">
+<div class="flex flex-wrap gap-1.5">
+<button class="px-3 py-1.5 rounded-md text-xs font-mono bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all">gpt-4o <span class="ml-0.5 opacity-60" title="Tool use">T</span></button>
+<button class="px-3 py-1.5 rounded-md text-xs font-mono bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all">gpt-4-turbo <span class="ml-0.5 opacity-60" title="Tool use">T</span></button>
+<button class="px-3 py-1.5 rounded-md text-xs font-mono bg-surface-container-lowest text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest transition-all">o3 <span class="ml-1 opacity-60" title="Reasoning">R</span></button>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- Divider                                                          -->
+<!-- ================================================================ -->
+<hr class="border-outline-variant/20 my-12"/>
+
+<!-- ================================================================ -->
+<!-- Section: Integrations                                            -->
+<!-- ================================================================ -->
+<section id="integrations">
+<div class="mb-8">
+<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">Integrations</h2>
+<p class="text-on-surface-variant text-sm max-w-xl">Connect vulnerability scanners, ticketing systems, and validation tools to power the remediation pipeline.</p>
+</div>
+
+<!-- Setup panel (shown when user clicks "Set up" on a registry entry) -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm shadow-slate-200/50 mb-6">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center">
+<span class="material-symbols-outlined text-xl text-on-surface-variant">bug_report</span>
 </div>
 <div>
-<p class="text-sm font-semibold">Auto-remediation</p>
-<p class="text-xs text-on-surface-variant">Allow AI to patch known vulnerabilities automatically.</p>
+<h3 class="text-lg font-bold text-on-surface">Snyk</h3>
+<p class="text-xs text-on-surface-variant">finding source</p>
 </div>
 </div>
-<div class="w-11 h-6 bg-surface-container-high rounded-full relative transition-colors cursor-pointer">
-<div class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface rounded-md transition-colors">
+<span class="material-symbols-outlined text-xl">close</span>
+</button>
 </div>
+
+<!-- Setup guide -->
+<div class="text-sm text-on-surface-variant mb-6 leading-relaxed">
+Generate a Snyk API token from your account settings at snyk.io/account. The token needs read access to your organization's projects.
 </div>
-<div class="pt-6 border-t border-slate-100">
-<div class="flex items-center justify-between">
-<div class="space-y-1">
-<p class="text-sm font-semibold">Auto-update sidebar</p>
-<p class="text-xs text-on-surface-variant">Dynamically refresh agent status in the main navigation.</p>
-</div>
-<div class="w-11 h-6 bg-primary rounded-full relative transition-colors cursor-pointer">
-<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm"></div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- Section: Workspace Defaults -->
-<section class="scroll-mt-24" id="workspace">
-<div class="mb-8">
-<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">Workspace defaults</h2>
-<p class="text-on-surface-variant text-sm max-w-xl">Global behaviors for incident handling and session management.</p>
-</div>
-<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm shadow-slate-200/50 space-y-8">
-<div class="space-y-3">
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Default actions</label>
-<div class="flex flex-wrap gap-2">
-<span class="px-3 py-1.5 rounded-full bg-primary text-white text-xs font-medium cursor-pointer">Quarantine</span>
-<span class="px-3 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-medium hover:bg-slate-200 transition-colors cursor-pointer">Notify admin</span>
-<span class="px-3 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-medium hover:bg-slate-200 transition-colors cursor-pointer">Ignore low-risk</span>
-<span class="px-3 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-xs font-medium hover:bg-slate-200 transition-colors cursor-pointer">Log only</span>
-</div>
-</div>
+
+<!-- Credential form -->
+<div>
+<h4 class="text-sm font-semibold text-on-surface mb-3">Credentials</h4>
 <div class="space-y-4">
-<div class="flex items-center gap-2 mb-2">
-<span class="material-symbols-outlined text-primary text-[20px]" data-icon="history_toggle_off">history_toggle_off</span>
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">History behavior</label>
+<div>
+<label class="text-xs font-semibold text-on-surface-variant block mb-1">API token <span class="text-error ml-0.5">*</span></label>
+<input type="password" value="" placeholder="snyk-api-token-xxxx" class="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"/>
 </div>
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-<div class="p-4 rounded-lg border-2 border-primary bg-primary/5 cursor-pointer">
-<p class="text-sm font-semibold text-primary">Persistence</p>
-<p class="text-xs text-on-primary-fixed-variant mt-1">Keep all interaction history across sessions.</p>
+<div>
+<label class="text-xs font-semibold text-on-surface-variant block mb-1">Organization ID</label>
+<input type="text" value="" placeholder="org-xxxxxxxx" class="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"/>
+<p class="text-xs text-on-surface-variant mt-1">Optional. Leave blank to use your default organization.</p>
 </div>
-<div class="p-4 rounded-lg border border-slate-100 hover:border-slate-200 transition-all cursor-pointer">
-<p class="text-sm font-semibold">Ephemeral</p>
-<p class="text-xs text-on-surface-variant mt-1">Clear history every time the workspace closes.</p>
+
+<!-- Test result (success) -->
+<div class="rounded-lg px-4 py-3 text-sm bg-green-50 text-green-800">
+<span class="material-symbols-outlined text-base align-text-bottom mr-1">check_circle</span>
+Connection successful. Found 47 projects.
+</div>
+
+<div class="flex gap-2">
+<button class="px-4 py-2 bg-primary text-on-primary rounded-md text-sm font-semibold transition-colors hover:bg-primary/90">Save & test</button>
+<button class="px-4 py-2 text-on-surface-variant hover:text-on-surface rounded-md text-sm transition-colors">Done</button>
 </div>
 </div>
 </div>
 </div>
-</section>
-<!-- Section: App Preferences -->
-<section class="scroll-mt-24" id="preferences">
-<div class="mb-8">
-<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">App preferences</h2>
-<p class="text-on-surface-variant text-sm max-w-xl">Customize the interface language and notification delivery systems.</p>
-</div>
-<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm shadow-slate-200/50">
-<div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-<div class="space-y-6">
+
+<!-- Connected integrations -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm shadow-slate-200/50 mb-6">
+<h3 class="text-sm font-semibold text-on-surface mb-3">Connected</h3>
 <div class="space-y-2">
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Display language</label>
-<div class="relative">
-<select class="w-full appearance-none bg-surface-container-low border-none rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none cursor-pointer">
-<option>English (US)</option>
-<option>Deutsch</option>
-<option>日本語</option>
-<option>Français</option>
-</select>
-<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant text-[20px]" data-icon="language">language</span>
+
+<!-- Connected card: healthy -->
+<div class="bg-surface-container-low rounded-lg px-4 py-3 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">bug_report</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-semibold text-on-surface">Snyk</div>
+<div class="flex items-center gap-3 mt-0.5">
+<span class="text-xs text-on-surface-variant">finding source</span>
+<span class="text-xs text-on-surface-variant">2 credentials</span>
+</div>
+</div>
+<!-- Health indicator: green / connected -->
+<div class="flex items-center gap-2 min-w-0 flex-shrink-0">
+<span class="relative flex h-2 w-2 flex-shrink-0">
+<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-40"></span>
+<span class="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+</span>
+<span class="text-xs font-medium text-on-surface-variant">Connected</span>
+<span class="text-[10px] text-outline-variant flex-shrink-0">2m ago</span>
+</div>
+<!-- Test button -->
+<button class="p-1.5 text-on-surface-variant hover:text-primary rounded-md transition-all" title="Test connection">
+<span class="material-symbols-outlined text-base">sync</span>
+</button>
+<!-- Delete button -->
+<button class="p-1.5 text-on-surface-variant hover:text-error rounded-md transition-colors" title="Remove integration">
+<span class="material-symbols-outlined text-base">delete</span>
+</button>
+</div>
+</div>
+
+<!-- Connected card: amber / credentials ok but unchecked -->
+<div class="bg-surface-container-low rounded-lg px-4 py-3 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">confirmation_number</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-semibold text-on-surface">Jira</div>
+<div class="flex items-center gap-3 mt-0.5">
+<span class="text-xs text-on-surface-variant">ticketing</span>
+<span class="text-xs text-on-surface-variant">3 credentials</span>
+</div>
+</div>
+<!-- Health indicator: amber / credentials ok -->
+<div class="flex items-center gap-2 min-w-0 flex-shrink-0">
+<span class="relative flex h-2 w-2 flex-shrink-0">
+<span class="relative inline-flex h-2 w-2 rounded-full bg-amber-400"></span>
+</span>
+<span class="text-xs font-medium text-on-surface-variant">Credentials ok</span>
+<span class="text-[10px] text-outline-variant flex-shrink-0">15m ago</span>
+</div>
+<button class="p-1.5 text-on-surface-variant hover:text-primary rounded-md transition-all" title="Test connection">
+<span class="material-symbols-outlined text-base">sync</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-error rounded-md transition-colors" title="Remove integration">
+<span class="material-symbols-outlined text-base">delete</span>
+</button>
+</div>
+</div>
+
+<!-- Connected card: error state -->
+<div class="bg-surface-container-low rounded-lg px-4 py-3 transition-colors">
+<div class="flex items-center gap-4">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">verified_user</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="text-sm font-semibold text-on-surface">AWS Inspector</div>
+<div class="flex items-center gap-3 mt-0.5">
+<span class="text-xs text-on-surface-variant">validation</span>
+<span class="text-xs text-on-surface-variant">1 credential</span>
+</div>
+</div>
+<!-- Health indicator: red / error -->
+<div class="flex items-center gap-2 min-w-0 flex-shrink-0">
+<span class="relative flex h-2 w-2 flex-shrink-0">
+<span class="relative inline-flex h-2 w-2 rounded-full bg-error"></span>
+</span>
+<span class="text-xs font-medium text-error">Connection failed</span>
+<span class="text-[10px] text-outline-variant flex-shrink-0">1h ago</span>
+</div>
+<button class="p-1.5 text-on-surface-variant hover:text-primary rounded-md transition-all" title="Test connection">
+<span class="material-symbols-outlined text-base">sync</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-error rounded-md transition-colors" title="Remove integration">
+<span class="material-symbols-outlined text-base">delete</span>
+</button>
+</div>
+<!-- Error detail row -->
+<div class="mt-2 rounded-md bg-error-container/15 px-3 py-2 text-xs text-on-error-container">
+AccessDeniedException: User is not authorized to perform inspector2:ListFindings
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- Available integrations (registry catalog) -->
+<div class="bg-surface-container-lowest rounded-xl p-6 shadow-sm shadow-slate-200/50">
+<h3 class="text-sm font-semibold text-on-surface mb-4">Available integrations</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+
+<!-- Card: Snyk (connected) -->
+<div class="rounded-lg p-4 bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="flex items-start gap-3 mb-2">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">bug_report</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">Snyk</span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Available</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5 line-clamp-2">Open-source vulnerability scanner with container and IaC support.</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-3">
+<div class="flex gap-1">
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">sca</span>
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">container</span>
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">iac</span>
+</div>
+<span class="text-xs text-green-600 font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+Connected
+</span>
+</div>
+</div>
+
+<!-- Card: Dependabot (available, not connected) -->
+<div class="rounded-lg p-4 bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="flex items-start gap-3 mb-2">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">security</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">Dependabot</span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Available</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5 line-clamp-2">GitHub-native dependency vulnerability alerts and automated PRs.</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-3">
+<div class="flex gap-1">
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">sca</span>
+</div>
+<button class="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">Set up</button>
+</div>
+</div>
+
+<!-- Card: Jira (connected) -->
+<div class="rounded-lg p-4 bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="flex items-start gap-3 mb-2">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">confirmation_number</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">Jira</span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Available</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5 line-clamp-2">Atlassian issue tracker for remediation ticket management.</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-3">
+<div class="flex gap-1">
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">tickets</span>
+</div>
+<span class="text-xs text-green-600 font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+Connected
+</span>
+</div>
+</div>
+
+<!-- Card: GitHub (coming soon) -->
+<div class="rounded-lg p-4 bg-surface-container-low opacity-60">
+<div class="flex items-start gap-3 mb-2">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">code</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">GitHub GHAS</span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">Coming soon</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5 line-clamp-2">GitHub Advanced Security code scanning and secret alerts.</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-3">
+<div class="flex gap-1">
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">sast</span>
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">secrets</span>
 </div>
 </div>
 </div>
-<div class="space-y-4">
-<label class="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Notification channels</label>
-<div class="space-y-3">
-<label class="flex items-center gap-3 cursor-pointer">
-<input checked="" class="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300" type="checkbox"/>
-<span class="text-sm">In-app banners</span>
-</label>
-<label class="flex items-center gap-3 cursor-pointer">
-<input checked="" class="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300" type="checkbox"/>
-<span class="text-sm">Email digests</span>
-</label>
-<label class="flex items-center gap-3 cursor-pointer">
-<input class="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300" type="checkbox"/>
-<span class="text-sm">Desktop push</span>
-</label>
+
+<!-- Card: PagerDuty (coming soon) -->
+<div class="rounded-lg p-4 bg-surface-container-low opacity-60">
+<div class="flex items-start gap-3 mb-2">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">notifications_active</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">PagerDuty</span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded-full">Coming soon</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5 line-clamp-2">Incident management and ownership resolution context.</p>
 </div>
 </div>
+<div class="flex items-center justify-between mt-3">
+<div class="flex gap-1">
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">ownership</span>
+</div>
+</div>
+</div>
+
+<!-- Card: AWS Inspector (connected) -->
+<div class="rounded-lg p-4 bg-surface-container-low hover:bg-surface-container transition-colors">
+<div class="flex items-start gap-3 mb-2">
+<div class="w-9 h-9 rounded-lg bg-surface-container-lowest flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-lg text-on-surface-variant">verified_user</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-2">
+<span class="text-sm font-semibold text-on-surface">AWS Inspector</span>
+<span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">Available</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5 line-clamp-2">AWS vulnerability assessment for EC2, Lambda, and container images.</p>
+</div>
+</div>
+<div class="flex items-center justify-between mt-3">
+<div class="flex gap-1">
+<span class="text-[10px] text-on-surface-variant bg-surface-container-lowest px-1.5 py-0.5 rounded">validation</span>
+</div>
+<span class="text-xs text-green-600 font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+Connected
+</span>
+</div>
+</div>
+
+</div>
+</div>
+
+</section>
+
+<!-- ================================================================ -->
+<!-- Divider                                                          -->
+<!-- ================================================================ -->
+<hr class="border-outline-variant/20 my-12"/>
+
+<!-- ================================================================ -->
+<!-- Section: About                                                   -->
+<!-- ================================================================ -->
+<section id="about">
+<div class="mb-8">
+<h2 class="text-2xl font-bold tracking-tight text-on-surface mb-2">About</h2>
+</div>
+<div class="bg-surface-container-lowest rounded-xl p-8 shadow-sm shadow-outline-variant/10">
+<p class="text-sm text-on-surface-variant leading-relaxed">
+<span class="font-bold text-on-surface">OpenSec</span> is a self-hosted
+cybersecurity remediation copilot. It ingests vulnerability findings, enriches
+them with AI agents, and guides you through planning, ticketing, validating, and
+closing remediations.
+</p>
+<div class="mt-6 flex items-center gap-2 text-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">code</span>
+Single-user community edition &middot; AGPL-3.0 licensed
 </div>
 </div>
 </section>
-<!-- Footer Actions -->
-<div class="flex items-center justify-end gap-4 pt-8 border-t border-slate-200/50">
-<button class="px-6 py-2.5 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">Discard changes</button>
-<button class="px-8 py-2.5 text-sm font-semibold text-white bg-gradient-to-tr from-primary to-primary-dim rounded-lg shadow-md shadow-indigo-200/50 active:scale-95 transition-transform">Save settings</button>
-</div>
+
 </div>
 </div>
 </main>

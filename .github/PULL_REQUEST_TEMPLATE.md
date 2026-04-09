@@ -2,6 +2,12 @@
 
 What does this PR do and why?
 
+## References
+
+- PRD: <!-- docs/product/prds/PRD-XXXX.md or N/A -->
+- UX Spec: <!-- docs/design/specs/UX-XXXX.md or N/A -->
+- Impl Plan: <!-- docs/architecture/plans/IMPL-XXXX.md or N/A -->
+
 ## Changes
 
 -
