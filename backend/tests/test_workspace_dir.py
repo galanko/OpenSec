@@ -342,8 +342,8 @@ def test_opencode_json_valid(manager: WorkspaceDirManager, sample_finding: Findi
     data = json.loads(ws.opencode_json.read_text())
     assert "$schema" in data
     assert data["$schema"] == "https://opencode.ai/config.json"
-    assert data["permission"]["bash"] == "allow"
-    assert data["permission"]["edit"] == "allow"
+    assert data["permission"]["bash"] == "ask"
+    assert data["permission"]["edit"] == "ask"
 
 
 def test_finding_json_roundtrip(

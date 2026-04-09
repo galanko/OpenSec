@@ -8,6 +8,7 @@ import EmptyState from '@/components/EmptyState'
 import ListCard from '@/components/ListCard'
 import Markdown from '@/components/Markdown'
 import PageShell from '@/components/PageShell'
+import PermissionApprovalCard from '@/components/PermissionApprovalCard'
 import SeverityBadge from '@/components/SeverityBadge'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar'
 
@@ -123,13 +124,24 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const [streaming, setStreaming] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const agentEventSourceRef = useRef<EventSource | null>(null)
   const lastUserMessageRef = useRef('')
   const streamingRef = useRef('')
 
-  // Auto-scroll
+  // Permission approval state
+  // The executor serializes permission requests (blocks on each one),
+  // so a single pendingPermission state is sufficient.
+  const [pendingPermission, setPendingPermission] = useState<{
+    id: string; tool: string; patterns: string[]; runId: string
+  } | null>(null)
+  const [permissionLoading, setPermissionLoading] = useState(false)
+  const [permissionError, setPermissionError] = useState<string | null>(null)
+  const [activeAgentRun, setActiveAgentRun] = useState<string | null>(null)
+
+  // Auto-scroll (includes pendingPermission to scroll to approval card)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streaming])
+  }, [messages, streaming, pendingPermission])
 
   // Restore or create OpenCode session, load existing chat history.
   useEffect(() => {
@@ -232,6 +244,63 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       eventSourceRef.current = null
     }
   }, [sessionId])
+
+  // Agent execution SSE listener — connects while an agent is running
+  useEffect(() => {
+    if (!activeAgentRun) return
+    let active = true
+
+    const es = api.streamAgentExecution(workspaceId)
+    agentEventSourceRef.current = es
+
+    es.addEventListener('permission_request', (event) => {
+      if (!active) return
+      try {
+        const data = JSON.parse((event as MessageEvent).data)
+        setPendingPermission({
+          id: data.id,
+          tool: data.tool,
+          patterns: data.patterns || [],
+          runId: data.run_id || activeAgentRun,
+        })
+        setPermissionError(null)
+      } catch { /* parse error */ }
+    })
+
+    es.addEventListener('done', () => {
+      if (!active) return
+      setPendingPermission(null)
+      setPermissionLoading(false)
+      setPermissionError(null)
+      setActiveAgentRun(null)
+    })
+
+    es.addEventListener('error', () => {
+      if (!active) return
+      setActiveAgentRun(null)
+    })
+
+    return () => {
+      active = false
+      es.close()
+      agentEventSourceRef.current = null
+    }
+  }, [activeAgentRun, workspaceId])
+
+  // Permission approve/deny handler
+  const handlePermissionResponse = useCallback(async (approved: boolean) => {
+    if (!pendingPermission) return
+    setPermissionLoading(true)
+    setPermissionError(null)
+    try {
+      await api.respondToPermission(workspaceId, pendingPermission.runId, approved)
+      setPendingPermission(null)
+    } catch (err) {
+      setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)
+    } finally {
+      setPermissionLoading(false)
+    }
+  }, [workspaceId, pendingPermission])
 
   // Send a chat message (used by both text input and action chips).
   const sendChatMessage = useCallback(async (content: string) => {
@@ -363,7 +432,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           )}
 
           {/* Thinking indicator */}
-          {sending && !streaming && (
+          {sending && !streaming && !pendingPermission && (
             <div className="max-w-3xl self-start">
               <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
                 <div className="flex gap-1">
@@ -374,6 +443,18 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
                 <p className="text-sm text-on-primary-fixed-variant font-medium">Thinking...</p>
               </div>
             </div>
+          )}
+
+          {/* Permission approval card */}
+          {pendingPermission && (
+            <PermissionApprovalCard
+              tool={pendingPermission.tool}
+              patterns={pendingPermission.patterns}
+              onApprove={() => handlePermissionResponse(true)}
+              onDeny={() => handlePermissionResponse(false)}
+              loading={permissionLoading}
+              error={permissionError}
+            />
           )}
 
           <div ref={messagesEndRef} />
@@ -397,8 +478,8 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message or use action chips above..."
-              disabled={sending || !sessionId}
+              placeholder={pendingPermission ? "Approve or deny the tool request to continue..." : "Type a message or use action chips above..."}
+              disabled={sending || !sessionId || !!pendingPermission}
               rows={1}
               className="flex-1 bg-surface-container-low border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all resize-none"
             />

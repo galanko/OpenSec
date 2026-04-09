@@ -86,8 +86,8 @@ class WorkspaceDirManager:
         opencode_config: dict = {
             "$schema": "https://opencode.ai/config.json",
             "permission": {
-                "bash": "allow",
-                "edit": "allow",
+                "bash": "ask",
+                "edit": "ask",
                 "webfetch": "allow",
             },
         }

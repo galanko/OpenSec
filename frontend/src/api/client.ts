@@ -523,4 +523,22 @@ export const api = {
       `/api/findings/ingest/${jobId}/cancel`,
       { method: 'POST' },
     ),
+
+  // Agent execution
+  executeAgent: (workspaceId: string, agentType: string) =>
+    request<{ agent_run_id: string; agent_type: string; status: string }>(
+      `/api/workspaces/${workspaceId}/agents/${agentType}/execute`,
+      { method: 'POST' },
+    ),
+
+  // Agent execution SSE stream (connect when agent starts, disconnect on completion)
+  streamAgentExecution: (workspaceId: string): EventSource =>
+    new EventSource(`/api/workspaces/${workspaceId}/agent-execution/stream`),
+
+  // Permission approval
+  respondToPermission: (workspaceId: string, runId: string, approved: boolean) =>
+    request<{ status: string; agent_run_id: string }>(
+      `/api/workspaces/${workspaceId}/agent-runs/${runId}/permission`,
+      { method: 'POST', body: JSON.stringify({ approved }) },
+    ),
 };

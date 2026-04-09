@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
 from opensec.agents.errors import AgentBusyError, AgentProcessError
 from opensec.agents.pipeline import PIPELINE_ORDER, suggest_next
@@ -52,10 +55,11 @@ async def execute_agent(
     request: Request,
     db=Depends(get_db),
 ):
-    """Start an agent run. Returns immediately with the agent_run_id.
+    """Start an agent run as a background task.
 
-    The execution runs as a background task. Use the SSE stream endpoint
-    to follow progress.
+    Returns immediately with the agent_run_id. Connect to the
+    agent-execution SSE stream to receive permission_request events
+    and a done signal.
     """
     workspace = await get_workspace(db, workspace_id)
     if not workspace:
@@ -71,22 +75,47 @@ async def execute_agent(
 
     executor = request.app.state.agent_executor
 
+    # Pre-flight check: fail fast if another agent is already running.
     try:
-        result = await executor.execute(
-            workspace_id,
-            agent_type,
-            db,
-            workspace_dir=workspace.workspace_dir,
-        )
+        await executor._check_not_busy(db, workspace_id)
     except AgentBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    except AgentProcessError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Launch execution as a background task so we can return immediately.
+    async def _run_in_background() -> None:
+        try:
+            await executor.execute(
+                workspace_id,
+                agent_type,
+                db,
+                workspace_dir=workspace.workspace_dir,
+                on_permission=lambda evt: executor.push_permission_event(
+                    workspace_id, evt
+                ),
+            )
+        except (AgentBusyError, AgentProcessError):
+            logger.exception(
+                "Agent execution failed for workspace %s", workspace_id
+            )
+        except Exception:
+            logger.exception(
+                "Unexpected error in background agent execution for workspace %s",
+                workspace_id,
+            )
+
+    asyncio.create_task(_run_in_background())
+
+    # Return the run_id from the active_runs tracking (set by execute()).
+    # The run record is created inside execute() synchronously before
+    # any async work, so active_runs will have the ID by the time
+    # the background task yields.
+    await asyncio.sleep(0.05)  # yield to let execute() register the run
+    run_id = executor.get_active_run_id(workspace_id) or "pending"
 
     return ExecuteResponse(
-        agent_run_id=result.agent_run_id,
-        agent_type=result.agent_type,
-        status=result.status,
+        agent_run_id=run_id,
+        agent_type=agent_type,
+        status="running",
     )
 
 
@@ -201,3 +230,79 @@ async def respond_to_permission(
         "status": "approved" if body.approved else "denied",
         "agent_run_id": run_id,
     }
+
+
+# ---------------------------------------------------------------------------
+# Agent execution SSE stream
+# ---------------------------------------------------------------------------
+
+
+@router.get("/workspaces/{workspace_id}/agent-execution/stream")
+async def stream_agent_execution(
+    workspace_id: str,
+    request: Request,
+):
+    """Stream permission_request and done events during agent execution.
+
+    The frontend connects to this while an agent is running. Events:
+    - permission_request: agent needs user approval for a tool
+    - done: agent execution has completed (success or failure)
+
+    If the client disconnects while a permission is pending, the pending
+    approval is auto-denied to unblock the executor.
+    """
+    executor = request.app.state.agent_executor
+
+    async def event_generator():
+        queue = executor.get_permission_queue(workspace_id)
+        if not queue:
+            # No active execution — send done immediately
+            yield {"event": "done", "data": "{}"}
+            return
+
+        try:
+            while True:
+                # Check for client disconnect
+                if await request.is_disconnected():
+                    # Auto-deny any pending approval to unblock executor
+                    run_id = executor.get_active_run_id(workspace_id)
+                    if run_id:
+                        executor.deny_tool(run_id)
+                        logger.info(
+                            "Client disconnected, auto-denied permission "
+                            "for workspace %s run %s",
+                            workspace_id, run_id,
+                        )
+                    return
+
+                # Poll queue with timeout to allow disconnect checks
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=2.0)
+                except TimeoutError:
+                    continue
+
+                event_type = event.get("type", "permission_request")
+                if event_type == "done":
+                    yield {"event": "done", "data": "{}"}
+                    return
+                else:
+                    yield {
+                        "event": "permission_request",
+                        "data": json.dumps({
+                            "id": event.get("id", ""),
+                            "tool": event.get("tool", "unknown"),
+                            "patterns": event.get("patterns", []),
+                            "run_id": event.get("run_id", ""),
+                        }),
+                    }
+        except Exception:
+            logger.exception(
+                "Error in agent execution stream for workspace %s",
+                workspace_id,
+            )
+            yield {
+                "event": "error",
+                "data": json.dumps({"message": "Stream disconnected"}),
+            }
+
+    return EventSourceResponse(event_generator())
