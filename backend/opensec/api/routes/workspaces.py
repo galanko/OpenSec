@@ -213,6 +213,7 @@ async def workspace_stream_events(
                             "id": event.get("id", ""),
                             "tool": event.get("tool", "unknown"),
                             "patterns": event.get("patterns", []),
+                            "session_id": session_id,
                         }),
                     }
                 elif event_type == "done":
@@ -239,6 +240,7 @@ async def workspace_stream_events(
 
 class ChatPermissionDecision(BaseModel):
     permission_id: str
+    session_id: str
     approved: bool
 
 
@@ -263,9 +265,13 @@ async def respond_to_chat_permission(
 
     try:
         if body.approved:
-            await client.grant_permission(body.permission_id)
+            await client.grant_permission(
+                body.permission_id, session_id=body.session_id,
+            )
         else:
-            await client.deny_permission(body.permission_id)
+            await client.deny_permission(
+                body.permission_id, session_id=body.session_id,
+            )
     except Exception as exc:
         raise HTTPException(
             status_code=502,

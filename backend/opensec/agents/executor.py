@@ -624,7 +624,9 @@ class AgentExecutor:
                     "Auto-approving %s tool (permission %s)",
                     tool, permission_id,
                 )
-                await client.grant_permission(permission_id)
+                await client.grant_permission(
+                    permission_id, session_id=session_id,
+                )
                 return
 
             # User-tier: store pending approval and wait
@@ -662,9 +664,13 @@ class AgentExecutor:
             last_event_time = time.monotonic()
 
             if pending.approved:
-                await client.grant_permission(permission_id)
+                await client.grant_permission(
+                    permission_id, session_id=session_id,
+                )
             else:
-                await client.deny_permission(permission_id)
+                await client.deny_permission(
+                    permission_id, session_id=session_id,
+                )
 
             self._pending_approvals.pop(agent_run_id, None)
 

@@ -55,18 +55,20 @@ class TestPermissionEventDetection:
         async for event in client.stream_events("ses_test"):
             events.append(event)
 
-        assert len(events) == 2
+        # permission_pending logic: session.idle after permission.asked
+        # is skipped, so only the permission_request event comes through.
+        # The stream ends when the SSE connection closes (no more data).
+        assert len(events) == 1
         assert events[0]["type"] == "permission_request"
         assert events[0]["id"] == "per_123"
         assert events[0]["tool"] == "bash"
         assert events[0]["patterns"] == ["ls -la"]
-        assert events[1]["type"] == "done"
 
 
 class TestPermissionGrantDeny:
     @pytest.mark.asyncio
     async def test_grant_permission(self):
-        """grant_permission POSTs to /permission/{id}/grant."""
+        """grant_permission POSTs to /session/{sid}/permissions/{pid}."""
         client = OpenCodeClient(base_url="http://localhost:9999")
         mock_http = _make_mock_http_client()
         mock_resp = MagicMock()
@@ -74,14 +76,31 @@ class TestPermissionGrantDeny:
         mock_http.post.return_value = mock_resp
         client._client = mock_http
 
-        await client.grant_permission("per_123")
+        await client.grant_permission("per_123", session_id="ses_abc")
         mock_http.post.assert_called_once_with(
-            "/permission/per_123/grant"
+            "/session/ses_abc/permissions/per_123",
+            json={"response": "once"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_grant_permission_always(self):
+        """grant_permission with always=True sends 'always' response."""
+        client = OpenCodeClient(base_url="http://localhost:9999")
+        mock_http = _make_mock_http_client()
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = lambda: None
+        mock_http.post.return_value = mock_resp
+        client._client = mock_http
+
+        await client.grant_permission("per_123", session_id="ses_abc", always=True)
+        mock_http.post.assert_called_once_with(
+            "/session/ses_abc/permissions/per_123",
+            json={"response": "always"},
         )
 
     @pytest.mark.asyncio
     async def test_deny_permission(self):
-        """deny_permission POSTs to /permission/{id}/deny."""
+        """deny_permission POSTs reject to /session/{sid}/permissions/{pid}."""
         client = OpenCodeClient(base_url="http://localhost:9999")
         mock_http = _make_mock_http_client()
         mock_resp = MagicMock()
@@ -89,7 +108,33 @@ class TestPermissionGrantDeny:
         mock_http.post.return_value = mock_resp
         client._client = mock_http
 
-        await client.deny_permission("per_456")
+        await client.deny_permission("per_456", session_id="ses_abc")
         mock_http.post.assert_called_once_with(
-            "/permission/per_456/deny"
+            "/session/ses_abc/permissions/per_456",
+            json={"response": "reject"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_grant_permission_resolves_session(self):
+        """grant_permission looks up session_id when not provided."""
+        client = OpenCodeClient(base_url="http://localhost:9999")
+        mock_http = _make_mock_http_client()
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = lambda: None
+
+        # Mock GET /permission to return the permission with sessionID
+        perm_resp = MagicMock()
+        perm_resp.raise_for_status = lambda: None
+        perm_resp.json.return_value = [
+            {"id": "per_789", "sessionID": "ses_resolved"}
+        ]
+
+        mock_http.get.return_value = perm_resp
+        mock_http.post.return_value = mock_resp
+        client._client = mock_http
+
+        await client.grant_permission("per_789")
+        mock_http.post.assert_called_once_with(
+            "/session/ses_resolved/permissions/per_789",
+            json={"response": "once"},
         )

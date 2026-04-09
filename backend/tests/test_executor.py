@@ -709,7 +709,7 @@ class TestPermissionApproval:
 
         assert result.status == "completed"
         # Auto-approved: grant_permission should have been called
-        client.grant_permission.assert_called_once_with("per_auto")
+        client.grant_permission.assert_called_once_with("per_auto", session_id="ses-1")
 
     @pytest.mark.asyncio
     async def test_user_tier_surfaces_callback(
@@ -781,4 +781,4 @@ class TestPermissionApproval:
         assert len(permission_calls) == 1
         assert permission_calls[0]["tool"] == "bash"
         # Should have called grant after approval
-        client.grant_permission.assert_called_once_with("per_bash")
+        client.grant_permission.assert_called_once_with("per_bash", session_id="ses-1")

@@ -132,7 +132,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   // The executor serializes permission requests (blocks on each one),
   // so a single pendingPermission state is sufficient.
   const [pendingPermission, setPendingPermission] = useState<{
-    id: string; tool: string; patterns: string[]; runId: string
+    id: string; tool: string; patterns: string[]; runId: string; sessionId: string
   } | null>(null)
   const [permissionLoading, setPermissionLoading] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
@@ -251,6 +251,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           tool: data.tool,
           patterns: data.patterns || [],
           runId: '', // chat path has no agent run ID
+          sessionId: data.session_id || '',
         })
         setPermissionError(null)
       } catch { /* parse error */ }
@@ -280,6 +281,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           tool: data.tool,
           patterns: data.patterns || [],
           runId: data.run_id || activeAgentRun,
+          sessionId: data.session_id || '',
         })
         setPermissionError(null)
       } catch { /* parse error */ }
@@ -318,7 +320,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       if (pendingPermission.runId) {
         await api.respondToPermission(workspaceId, pendingPermission.runId, approved)
       } else {
-        await api.respondToChatPermission(workspaceId, pendingPermission.id, approved)
+        await api.respondToChatPermission(workspaceId, pendingPermission.id, pendingPermission.sessionId, approved)
       }
       setPendingPermission(null)
     } catch (err) {

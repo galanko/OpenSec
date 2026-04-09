@@ -543,9 +543,9 @@ export const api = {
     ),
 
   // Permission approval (chat path — calls OpenCode directly)
-  respondToChatPermission: (workspaceId: string, permissionId: string, approved: boolean) =>
+  respondToChatPermission: (workspaceId: string, permissionId: string, sessionId: string, approved: boolean) =>
     request<{ status: string; permission_id: string }>(
       `/api/workspaces/${workspaceId}/chat/permission`,
-      { method: 'POST', body: JSON.stringify({ permission_id: permissionId, approved }) },
+      { method: 'POST', body: JSON.stringify({ permission_id: permissionId, session_id: sessionId, approved }) },
     ),
 };
