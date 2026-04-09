@@ -16,5 +16,12 @@ echo "==============="
 # Ensure data directory exists
 mkdir -p "$DATA_DIR"
 
+# First-run detection
+if [ ! -f "$DATA_DIR/opensec.db" ]; then
+    echo "  First run: no existing database found"
+else
+    echo "  Existing database: $DATA_DIR/opensec.db"
+fi
+
 # Start all services via supervisord
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/opensec.conf

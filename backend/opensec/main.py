@@ -63,6 +63,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting OpenSec...")
     # Initialize persistence layer.
     db_path = settings.resolve_data_dir() / "opensec.db"
+    first_run = not db_path.exists()
+    if first_run:
+        logger.info("First run detected — no existing database at %s", db_path)
+    else:
+        logger.info("Existing database found at %s", db_path)
     await init_db(db_path)
     # Start AI engine (non-fatal if unavailable).
     try:

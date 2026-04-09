@@ -136,6 +136,11 @@ class TestDockerfileStructure:
         assert "volumes:" in content
         assert "healthcheck" in content
 
+    def test_entrypoint_has_first_run_check(self):
+        root = self._repo_root()
+        content = (root / "docker" / "entrypoint.sh").read_text()
+        assert "First run" in content, "Entrypoint must log first-run detection"
+
     def test_dockerignore_exists(self):
         root = self._repo_root()
         dockerignore = root / ".dockerignore"
