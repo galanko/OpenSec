@@ -319,6 +319,10 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         await api.respondToChatPermission(workspaceId, pendingPermission.id, approved)
       }
       setPendingPermission(null)
+      // Reset sending state — the SSE stream will resume with new
+      // text/done events. Without this, the UI stays stuck on
+      // "Thinking..." if the SSE reconnected during the approval wait.
+      setSending(false)
     } catch (err) {
       setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)
     } finally {
