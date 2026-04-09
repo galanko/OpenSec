@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>OpenSec | MVP Workspace — Remediation Flow</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "tertiary-fixed":"#d2d9f8","on-error-container":"#782232","outline-variant":"#abb3b7",
+                    "error-dim":"#4f0116","primary-fixed":"#e2dfff","tertiary-fixed-dim":"#c4cbe9",
+                    "surface-variant":"#dbe4e7","secondary-container":"#dde1ff","inverse-on-surface":"#9b9d9e",
+                    "on-tertiary":"#faf8ff","on-error":"#fff7f7","primary-container":"#e2dfff",
+                    "inverse-surface":"#0c0f10","primary":"#4d44e3","on-surface-variant":"#586064",
+                    "on-secondary-fixed-variant":"#555a74","surface-container-low":"#f1f4f6",
+                    "surface-dim":"#d1dce0","on-secondary":"#faf8ff","on-tertiary-container":"#444c65",
+                    "tertiary-container":"#d2d9f8","on-secondary-container":"#4c506a",
+                    "on-primary-fixed-variant":"#4a40e0","surface-bright":"#f8f9fa",
+                    "primary-fixed-dim":"#d2d0ff","outline":"#737c7f",
+                    "surface-container-highest":"#dbe4e7","on-primary":"#faf6ff",
+                    "on-tertiary-fixed":"#323951","secondary-fixed-dim":"#cfd3f2",
+                    "surface":"#f8f9fa","background":"#f8f9fa",
+                    "surface-container-lowest":"#ffffff","tertiary":"#575e78",
+                    "secondary":"#595e78","primary-dim":"#4034d7",
+                    "error-container":"#ff8b9a","on-surface":"#2b3437",
+                    "surface-container-high":"#e3e9ec","secondary-fixed":"#dde1ff",
+                    "inverse-primary":"#8582ff","on-tertiary-fixed-variant":"#4e556f",
+                    "on-secondary-fixed":"#393e57","on-primary-fixed":"#2a13c5",
+                    "secondary-dim":"#4d526b","surface-tint":"#4d44e3",
+                    "surface-container":"#eaeff1","error":"#9e3f4e",
+                    "on-primary-container":"#3f33d6","on-background":"#2b3437",
+                    "tertiary-dim":"#4b526c"
+                },
+                fontFamily: {"headline":["Manrope"],"body":["Inter"],"label":["Inter"]},
+                borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},
+            },
+        },
+    }
+</script>
+<style>
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        vertical-align: middle;
+    }
+    body { font-family: 'Inter', sans-serif; }
+    h1, h2, h3, h4 { font-family: 'Manrope', sans-serif; }
+    @keyframes bounce-dot {
+        0%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-4px); }
+    }
+    .dot-bounce-1 { animation: bounce-dot 1s infinite; animation-delay: 0ms; }
+    .dot-bounce-2 { animation: bounce-dot 1s infinite; animation-delay: 150ms; }
+    .dot-bounce-3 { animation: bounce-dot 1s infinite; animation-delay: 300ms; }
+    @keyframes subtle-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(77, 68, 227, 0.1); }
+        50% { box-shadow: 0 0 0 4px rgba(77, 68, 227, 0.05); }
+    }
+    .suggest-pulse { animation: subtle-pulse 2s ease-in-out infinite; }
+</style>
+</head>
+<body class="bg-background text-on-background antialiased selection:bg-primary-container selection:text-on-primary-container">
+
+<!-- SideNav -->
+<aside class="fixed left-0 top-0 h-full w-20 bg-surface-container-low flex flex-col items-center py-8 gap-y-6 z-50">
+    <div class="mb-4"><span class="text-xl font-bold text-on-surface tracking-tighter font-headline">O</span></div>
+    <nav class="flex flex-col items-center gap-y-4 w-full">
+        <a class="p-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" href="#"><span class="material-symbols-outlined">assignment_late</span></a>
+        <a class="p-3 rounded-xl text-primary bg-primary-container/30 transition-all scale-95" href="#"><span class="material-symbols-outlined">terminal</span></a>
+        <a class="p-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" href="#"><span class="material-symbols-outlined">history</span></a>
+        <a class="p-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" href="#"><span class="material-symbols-outlined">extension</span></a>
+    </nav>
+    <div class="mt-auto"><a class="p-3 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" href="#"><span class="material-symbols-outlined">settings</span></a></div>
+</aside>
+
+<!-- TopBar -->
+<header class="sticky top-0 w-full z-40 bg-surface-container-lowest/80 backdrop-blur-xl flex justify-between items-center px-8 h-16 ml-20 shadow-sm shadow-surface-container/50">
+    <div class="flex items-center gap-4">
+        <span class="text-lg font-extrabold tracking-tight font-headline">OpenSec</span>
+        <div class="h-4 w-[1px] bg-outline-variant/30"></div>
+        <div class="flex gap-6 font-headline text-sm font-medium">
+            <a class="text-on-surface-variant hover:text-primary transition-colors" href="#">Findings</a>
+            <a class="text-primary font-semibold" href="#">Workspace</a>
+            <a class="text-on-surface-variant hover:text-primary transition-colors" href="#">History</a>
+        </div>
+    </div>
+</header>
+
+<main class="ml-20 flex flex-col h-[calc(100vh-4rem)]">
+    <!-- Finding Header Bar -->
+    <section class="bg-surface-container-lowest px-8 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+            <div class="p-2 bg-error-container/20 rounded-lg"><span class="material-symbols-outlined text-error">warning</span></div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight font-headline">lodash prototype pollution (CVE-2024-48930)</h1>
+                <div class="flex gap-3 mt-1 items-center">
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-error bg-error-container/30">critical</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold text-tertiary bg-tertiary-container/30">remediated</span>
+                    <span class="text-xs text-on-surface-variant">lodash@4.17.20</span>
+                    <span class="text-xs text-on-surface-variant flex items-center gap-1">
+                        <span class="material-symbols-outlined" style="font-size: 13px;">neurology</span>
+                        <span class="font-mono text-on-surface">claude-sonnet-4-6</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <button class="flex items-center gap-2 px-4 py-2 rounded-lg bg-tertiary hover:bg-tertiary-dim text-on-tertiary text-sm font-bold transition-all shadow-sm">
+                <span class="material-symbols-outlined text-sm">done_all</span> Resolve
+            </button>
+        </div>
+    </section>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Chat Area -->
+        <section class="flex-1 overflow-y-auto px-8 py-8 bg-surface-container-low flex flex-col gap-6 scroll-smooth">
+
+            <!-- Action Chips — MVP pipeline (4 agents, no Owner Resolver) -->
+            <div class="flex flex-wrap gap-2 max-w-3xl">
+                <button class="px-4 py-2 rounded-full bg-surface-container-lowest text-xs font-medium text-on-surface-variant shadow-sm transition-all flex items-center gap-1.5 opacity-80">
+                    <span class="material-symbols-outlined text-tertiary" style="font-size:14px">check_circle</span> Enrich finding
+                </button>
+                <button class="px-4 py-2 rounded-full bg-surface-container-lowest text-xs font-medium text-on-surface-variant shadow-sm transition-all flex items-center gap-1.5 opacity-80">
+                    <span class="material-symbols-outlined text-tertiary" style="font-size:14px">check_circle</span> Check exposure
+                </button>
+                <button class="px-4 py-2 rounded-full bg-surface-container-lowest text-xs font-medium text-on-surface-variant shadow-sm transition-all flex items-center gap-1.5 opacity-80">
+                    <span class="material-symbols-outlined text-tertiary" style="font-size:14px">check_circle</span> Build plan
+                </button>
+                <button class="px-4 py-2 rounded-full bg-surface-container-lowest text-xs font-medium text-on-surface-variant shadow-sm transition-all flex items-center gap-1.5 opacity-80">
+                    <span class="material-symbols-outlined text-tertiary" style="font-size:14px">check_circle</span> Remediate
+                </button>
+            </div>
+
+            <!-- Enricher Result Card -->
+            <div class="max-w-3xl self-start">
+                <div class="bg-surface-container-lowest rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Enricher result</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-start gap-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary-container/40 text-primary shrink-0 mt-0.5">CVE</span>
+                            <div>
+                                <p class="text-sm font-semibold text-on-surface">CVE-2024-48930</p>
+                                <p class="text-xs text-on-surface-variant">Prototype pollution in lodash via merge and zipObjectDeep functions</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-6">
+                            <div>
+                                <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">CVSS</p>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-20 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                                        <div class="w-4/5 h-full bg-error rounded-full"></div>
+                                    </div>
+                                    <span class="text-sm font-bold text-error">8.1</span>
+                                    <span class="text-[10px] font-semibold text-error">High</span>
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Affected</p>
+                                <p class="text-sm font-mono text-on-surface">4.17.20</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Fixed</p>
+                                <p class="text-sm font-mono text-tertiary font-semibold">4.17.21</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 p-2 bg-error-container/10 rounded-lg">
+                            <span class="material-symbols-outlined text-error text-sm">warning</span>
+                            <span class="text-xs text-error font-medium">Public exploit available</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-1">
+                                <span class="text-[10px] text-on-surface-variant">Confidence</span>
+                                <span class="text-primary">●●●</span><span class="text-surface-container-high">●</span>
+                                <span class="text-[10px] font-semibold text-on-surface-variant">High</span>
+                            </div>
+                            <button class="text-xs text-primary font-medium hover:underline flex items-center gap-1">
+                                <span class="material-symbols-outlined" style="font-size:14px">expand_more</span> View details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exposure Result Card (compact) -->
+            <div class="max-w-3xl self-start">
+                <div class="bg-surface-container-lowest rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Exposure analysis</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="grid grid-cols-2 gap-x-6 gap-y-2">
+                            <div><span class="text-xs font-semibold">Reachability</span><p class="text-xs text-on-surface-variant">● Likely reachable</p></div>
+                            <div><span class="text-xs font-semibold">Environment</span><p class="text-xs text-on-surface-variant">production</p></div>
+                            <div><span class="text-xs font-semibold">Internet-facing</span><p class="text-xs text-on-surface-variant">No (internal dependency)</p></div>
+                            <div><span class="text-xs font-semibold">Criticality</span><p class="text-xs text-on-surface-variant">Medium</p></div>
+                        </div>
+                        <div class="p-2 bg-surface-container-low rounded-lg">
+                            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Import chain</p>
+                            <p class="text-xs font-mono text-on-surface">src/api/auth.ts → lodash.merge()</p>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px] text-on-surface-variant">Confidence</span>
+                            <span class="text-primary">●●</span><span class="text-surface-container-high">●●</span>
+                            <span class="text-[10px] font-semibold text-on-surface-variant">Medium</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Planner Result Card -->
+            <div class="max-w-3xl self-start">
+                <div class="bg-surface-container-lowest rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Remediation plan</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-xs font-semibold mb-1.5">Fix steps</p>
+                            <div class="space-y-1.5">
+                                <div class="flex items-start gap-2"><span class="text-xs font-bold text-primary shrink-0">1.</span><p class="text-xs text-on-surface-variant">Upgrade lodash from 4.17.20 → 4.17.21 in package.json</p></div>
+                                <div class="flex items-start gap-2"><span class="text-xs font-bold text-primary shrink-0">2.</span><p class="text-xs text-on-surface-variant">Run <code class="text-primary bg-primary-container/30 px-1 rounded text-[11px]">npm install</code> to update lockfile</p></div>
+                                <div class="flex items-start gap-2"><span class="text-xs font-bold text-primary shrink-0">3.</span><p class="text-xs text-on-surface-variant">Run full test suite to verify no regressions</p></div>
+                            </div>
+                        </div>
+                        <div class="p-2 bg-surface-container-low rounded-lg">
+                            <p class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Effort</p>
+                            <p class="text-xs text-on-surface">○ Small — single dependency bump</p>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold mb-1.5">Definition of done</p>
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2"><span class="material-symbols-outlined text-on-surface-variant/40" style="font-size:14px">check_box_outline_blank</span><span class="text-xs text-on-surface-variant">lodash ≥ 4.17.21 in package.json</span></div>
+                                <div class="flex items-center gap-2"><span class="material-symbols-outlined text-on-surface-variant/40" style="font-size:14px">check_box_outline_blank</span><span class="text-xs text-on-surface-variant">All tests pass</span></div>
+                                <div class="flex items-center gap-2"><span class="material-symbols-outlined text-on-surface-variant/40" style="font-size:14px">check_box_outline_blank</span><span class="text-xs text-on-surface-variant">Snyk re-scan shows finding resolved</span></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px] text-on-surface-variant">Confidence</span>
+                            <span class="text-primary">●●●●</span>
+                            <span class="text-[10px] font-semibold text-on-surface-variant">High</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plan Approval Card (interactive) -->
+            <div class="max-w-3xl self-start">
+                <div class="bg-surface-container-lowest rounded-2xl rounded-bl-md px-5 py-4 shadow-sm ring-2 ring-primary/10">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-symbols-outlined text-primary text-sm">checklist</span>
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Approve plan before execution</span>
+                    </div>
+                    <p class="text-sm text-on-surface-variant mb-3">Before I make changes to your code, please review the planned fix:</p>
+                    <div class="p-3 bg-surface-container-low rounded-xl mb-3 space-y-1.5">
+                        <div class="flex items-start gap-2"><span class="text-xs font-bold text-primary shrink-0">1.</span><p class="text-xs text-on-surface">Upgrade lodash: 4.17.20 → 4.17.21</p></div>
+                        <div class="flex items-start gap-2"><span class="text-xs font-bold text-primary shrink-0">2.</span><p class="text-xs text-on-surface">Run npm install</p></div>
+                        <div class="flex items-start gap-2"><span class="text-xs font-bold text-primary shrink-0">3.</span><p class="text-xs text-on-surface">Run full test suite</p></div>
+                        <div class="mt-2 pt-2">
+                            <p class="text-[10px] font-mono text-on-surface-variant">Branch: opensec/fix/cve-2024-48930-lodash</p>
+                        </div>
+                    </div>
+                    <p class="text-xs text-on-surface-variant mb-3">You can modify this plan by typing in the chat.</p>
+                    <div class="flex gap-2">
+                        <button class="px-4 py-2 rounded-lg bg-primary text-on-primary text-sm font-bold transition-all shadow-sm hover:bg-primary-dim active:scale-95">Approve and start</button>
+                        <button class="px-4 py-2 rounded-lg bg-surface-container text-on-surface-variant text-sm font-medium transition-all hover:bg-surface-container-high">Modify plan</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Remediation Complete Card (with PR) -->
+            <div class="max-w-3xl self-start">
+                <div class="bg-surface-container-lowest rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="material-symbols-outlined text-tertiary text-sm">check_circle</span>
+                        <span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Remediation complete</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 p-2 bg-tertiary-container/20 rounded-lg">
+                            <span class="material-symbols-outlined text-tertiary" style="font-size:16px">check_circle</span>
+                            <span class="text-sm font-semibold text-tertiary">Fix applied and tests passing</span>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold mb-1.5">Files changed</p>
+                            <div class="space-y-1 font-mono text-xs">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-on-surface-variant">M</span>
+                                    <span class="text-on-surface">package.json</span>
+                                    <span class="text-tertiary">+1</span>
+                                    <span class="text-error">-1</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-on-surface-variant">M</span>
+                                    <span class="text-on-surface">package-lock.json</span>
+                                    <span class="text-tertiary">+12</span>
+                                    <span class="text-error">-8</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-semibold">Tests</span>
+                            <span class="text-xs text-tertiary font-medium">✓ 47 passed</span>
+                            <span class="text-xs text-on-surface-variant">· 0 failed</span>
+                        </div>
+                        <!-- PR Card (nested) -->
+                        <div class="p-4 bg-surface-container-low rounded-xl">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="material-symbols-outlined text-primary" style="font-size:18px">merge</span>
+                                <span class="text-sm font-bold text-on-surface">Draft PR #42</span>
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-primary-container/30 text-primary">draft</span>
+                            </div>
+                            <p class="text-sm text-on-surface mb-1">fix: lodash prototype pollution (CVE-2024-48930)</p>
+                            <p class="text-xs text-on-surface-variant font-mono mb-3">opensec/fix/cve-2024-48930 → main</p>
+                            <a href="#" class="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+                                Review on GitHub <span class="material-symbols-outlined" style="font-size:16px">open_in_new</span>
+                            </a>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <span class="text-[10px] text-on-surface-variant">Confidence</span>
+                            <span class="text-primary">●●●●</span>
+                            <span class="text-[10px] font-semibold text-on-surface-variant">High</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="h-4"></div>
+        </section>
+
+        <!-- Right Sidebar -->
+        <aside class="w-80 bg-surface-container-low overflow-y-auto">
+            <div class="p-6 flex flex-col gap-8">
+                <!-- Summary -->
+                <section>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Summary</h4>
+                    <div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm space-y-2">
+                        <div><p class="text-xs font-semibold mb-0.5">what</p><p class="text-xs text-on-surface-variant leading-relaxed">Prototype pollution in lodash ≤4.17.20 via merge() and zipObjectDeep() allows property injection on Object.prototype.</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">why</p><p class="text-xs text-on-surface-variant leading-relaxed">Used in auth module (src/api/auth.ts). Public exploit exists. Reachable in production.</p></div>
+                    </div>
+                </section>
+                <!-- Evidence -->
+                <section>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Evidence</h4>
+                    <div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm space-y-2">
+                        <div><p class="text-xs font-semibold mb-0.5">CVE</p><p class="text-xs text-on-surface-variant">CVE-2024-48930 · CVSS 8.1</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">exploit</p><p class="text-xs text-error font-medium">Public exploit available</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">versions</p><p class="text-xs text-on-surface-variant">Affected: ≤4.17.20 · Fixed: 4.17.21</p></div>
+                    </div>
+                </section>
+                <!-- Exposure -->
+                <section>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Exposure</h4>
+                    <div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm space-y-2">
+                        <div><p class="text-xs font-semibold mb-0.5">reachability</p><p class="text-xs text-on-surface-variant">Likely reachable via src/api/auth.ts</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">environment</p><p class="text-xs text-on-surface-variant">production</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">urgency</p><p class="text-xs text-on-surface-variant">Moderate</p></div>
+                    </div>
+                </section>
+                <!-- Plan -->
+                <section>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Plan</h4>
+                    <div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm space-y-2">
+                        <div><p class="text-xs font-semibold mb-0.5">step 1</p><p class="text-xs text-on-surface-variant">Upgrade lodash to 4.17.21</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">step 2</p><p class="text-xs text-on-surface-variant">Run npm install + test suite</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">effort</p><p class="text-xs text-on-surface-variant">Small — single dependency bump</p></div>
+                    </div>
+                </section>
+                <!-- Pull Request (NEW — replaces Owner + Ticket) -->
+                <section>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Pull request</h4>
+                    <div class="bg-surface-container-lowest p-4 rounded-xl shadow-sm space-y-2">
+                        <div><p class="text-xs font-semibold mb-0.5">status</p><p class="text-xs text-on-surface-variant flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span> Draft PR #42</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">branch</p><p class="text-xs text-on-surface-variant font-mono">opensec/fix/cve-2024-48930</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">files</p><p class="text-xs text-on-surface-variant">2 changed (+13 -9)</p></div>
+                        <div><p class="text-xs font-semibold mb-0.5">tests</p><p class="text-xs text-tertiary font-medium">47 passed</p></div>
+                        <a href="#" class="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline mt-1">
+                            Review on GitHub <span class="material-symbols-outlined" style="font-size:14px">open_in_new</span>
+                        </a>
+                    </div>
+                </section>
+                <!-- Validation -->
+                <section>
+                    <h4 class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant mb-3">Validation</h4>
+                    <p class="text-xs text-outline-variant italic">Merge the PR and re-run Snyk to validate</p>
+                </section>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Chat Input -->
+    <div class="px-8 py-4 bg-surface-container-lowest">
+        <div class="max-w-3xl mx-auto flex items-end gap-3">
+            <textarea placeholder="Type a message to guide the agent..." rows="1" class="flex-1 bg-surface-container-low rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 transition-all resize-none" style="border:none;outline:none;"></textarea>
+            <button class="bg-primary text-on-primary p-3 rounded-xl hover:bg-primary-dim transition-all shadow-lg shadow-primary/20 active:scale-95">
+                <span class="material-symbols-outlined">send</span>
+            </button>
+        </div>
+    </div>
+</main>
+</body></html>

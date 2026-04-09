@@ -246,3 +246,6 @@ config.json
 
 # Data directory
 data/
+
+# Runtime workspace directories
+backend/workspaces/
