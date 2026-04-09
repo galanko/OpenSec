@@ -232,7 +232,7 @@ export default function IngestProgress({ onComplete, onClose, initialJobId, init
   )
 
   const content = (
-    <div className={embedded ? '' : 'p-6'}>
+    <div className="p-6">
           {/* --- INPUT STATE --- */}
           {status === 'input' && (
             <>
