@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, type Finding, type EnrichmentOutput, type ExposureOutput, type PlanOutput } from '@/api/client'
-import { useAgentRuns, useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
+import { useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
 import EmptyState from '@/components/EmptyState'
@@ -123,7 +123,6 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const { data: workspace } = useWorkspace(workspaceId)
   const { data: finding } = useFinding(workspace?.finding_id)
   const { data: sidebar } = useSidebar(workspaceId)
-  const { data: agentRuns } = useAgentRuns(workspaceId)
 
   // Chat state
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -205,7 +204,25 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       }
     }
 
-    initSession().catch(console.error)
+    initSession().then(async () => {
+      // Restore completed agent runs as structured cards in the timeline.
+      if (cancelled) return
+      try {
+        const runs = await api.listAgentRuns(workspaceId)
+        const completedRuns: ChatMessage[] = runs
+          .filter((r) => r.status === 'completed' && r.structured_output)
+          .map((r) => ({
+            role: 'assistant' as const,
+            content: r.summary_markdown ?? '',
+            agentType: r.agent_type,
+            structuredOutput: r.structured_output ?? undefined,
+            confidence: r.confidence,
+          }))
+        if (completedRuns.length > 0 && !cancelled) {
+          setMessages((prev) => [...prev, ...completedRuns])
+        }
+      } catch { /* non-critical */ }
+    }).catch(console.error)
     return () => { cancelled = true }
   }, [workspace, workspaceId])
 
@@ -303,12 +320,45 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       setPendingPermission(null)
       setPermissionLoading(false)
       setPermissionError(null)
+      const runId = activeAgentRun
       setActiveAgentRun(null)
+      setSending(false)
+
+      // Fetch the completed run and add its result to the chat timeline
+      if (runId) {
+        api.listAgentRuns(workspaceId).then((runs) => {
+          if (!active) return
+          const completed = runs.find((r) => r.id === runId && r.status === 'completed')
+          if (completed) {
+            setMessages((prev) => [...prev, {
+              role: 'assistant' as const,
+              content: completed.summary_markdown ?? 'Agent completed.',
+              agentType: completed.agent_type,
+              structuredOutput: completed.structured_output ?? undefined,
+              confidence: completed.confidence,
+            }])
+          } else {
+            // Agent may have failed
+            const failed = runs.find((r) => r.id === runId && r.status === 'failed')
+            if (failed) {
+              setMessages((prev) => [...prev, {
+                role: 'error' as const,
+                content: failed.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
+              }])
+            }
+          }
+        }).catch(() => { /* non-critical */ })
+      }
     })
 
     es.addEventListener('error', () => {
       if (!active) return
+      setMessages((prev) => [...prev, {
+        role: 'error' as const,
+        content: 'Agent execution failed. Try again or ask a question in the chat.',
+      }])
       setActiveAgentRun(null)
+      setSending(false)
     })
 
     return () => {
@@ -377,10 +427,18 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }
 
-  // Action chips send their prompt as a chat message to OpenCode.
-  const handleAgentAction = useCallback((prompt: string) => {
-    sendChatMessage(prompt)
-  }, [sendChatMessage])
+  // Action chips trigger programmatic agent execution (not chat).
+  const handleAgentAction = useCallback(async (agentType: string) => {
+    if (sending) return
+    setSending(true)
+    try {
+      const result = await api.executeAgent(workspaceId, agentType)
+      setActiveAgentRun(result.agent_run_id)
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'error', content: `Failed to start agent: ${err}` }])
+      setSending(false)
+    }
+  }, [workspaceId, sending])
 
   const isResolved = workspace?.state === 'closed'
 
@@ -438,62 +496,45 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           )}
 
           {/* Chat messages */}
-          {messages.map((msg, i) => {
-            // Try to match this assistant message with a completed agent run
-            const matchedRun = msg.role === 'assistant' && agentRuns
-              ? agentRuns.find(
-                  (run) =>
-                    run.status === 'completed' &&
-                    run.structured_output &&
-                    run.summary_markdown &&
-                    msg.content.includes(run.summary_markdown.slice(0, 40))
-                )
-              : undefined
-
-            const agentType = msg.agentType ?? matchedRun?.agent_type
-            const structuredOutput = msg.structuredOutput ?? matchedRun?.structured_output
-            const confidence = msg.confidence ?? matchedRun?.confidence
-
-            return (
-              <div key={i} className={`max-w-3xl ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
-                {msg.role === 'user' ? (
-                  <div className="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+          {messages.map((msg, i) => (
+            <div key={i} className={`max-w-3xl ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
+              {msg.role === 'user' ? (
+                <div className="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                </div>
+              ) : msg.role === 'error' ? (
+                <div className="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
+                  <p className="text-sm text-error leading-relaxed">{msg.content}</p>
+                </div>
+              ) : msg.agentType === 'finding_enricher' && msg.structuredOutput ? (
+                <EnricherResultCard
+                  data={msg.structuredOutput as unknown as EnrichmentOutput}
+                  confidence={msg.confidence}
+                  markdown={msg.content}
+                />
+              ) : msg.agentType === 'exposure_analyzer' && msg.structuredOutput ? (
+                <ExposureResultCard
+                  data={msg.structuredOutput as unknown as ExposureOutput}
+                  confidence={msg.confidence}
+                  markdown={msg.content}
+                />
+              ) : msg.agentType === 'remediation_planner' && msg.structuredOutput ? (
+                <PlannerResultCard
+                  data={msg.structuredOutput as unknown as PlanOutput}
+                  confidence={msg.confidence}
+                  markdown={msg.content}
+                />
+              ) : (
+                <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
                   </div>
-                ) : msg.role === 'error' ? (
-                  <div className="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
-                    <p className="text-sm text-error leading-relaxed">{msg.content}</p>
-                  </div>
-                ) : agentType === 'finding_enricher' && structuredOutput ? (
-                  <EnricherResultCard
-                    data={structuredOutput as unknown as EnrichmentOutput}
-                    confidence={confidence}
-                    markdown={matchedRun?.summary_markdown ?? undefined}
-                  />
-                ) : agentType === 'exposure_analyzer' && structuredOutput ? (
-                  <ExposureResultCard
-                    data={structuredOutput as unknown as ExposureOutput}
-                    confidence={confidence}
-                    markdown={matchedRun?.summary_markdown ?? undefined}
-                  />
-                ) : agentType === 'remediation_planner' && structuredOutput ? (
-                  <PlannerResultCard
-                    data={structuredOutput as unknown as PlanOutput}
-                    confidence={confidence}
-                    markdown={matchedRun?.summary_markdown ?? undefined}
-                  />
-                ) : (
-                  <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
-                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
-                    </div>
-                    <Markdown content={msg.content} />
-                  </div>
-                )}
-              </div>
-            )
-          })}
+                  <Markdown content={msg.content} />
+                </div>
+              )}
+            </div>
+          ))}
 
           {/* Streaming indicator */}
           {streaming && (
@@ -509,7 +550,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
             </div>
           )}
 
-          {/* Thinking indicator */}
+          {/* Thinking / running indicator */}
           {sending && !streaming && !pendingPermission && (
             <div className="max-w-3xl self-start">
               <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
@@ -518,7 +559,9 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <p className="text-sm text-on-primary-fixed-variant font-medium">Thinking...</p>
+                <p className="text-sm text-on-primary-fixed-variant font-medium">
+                  {activeAgentRun ? 'Running agent...' : 'Thinking...'}
+                </p>
               </div>
             </div>
           )}

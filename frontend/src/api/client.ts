@@ -164,6 +164,12 @@ export interface PlanOutput {
   validation_method: string | null;
 }
 
+export interface AgentChipConfig {
+  agent_type: string;
+  label: string;
+  icon: string;
+}
+
 export interface SidebarState {
   workspace_id: string;
   summary: Record<string, unknown> | null;
@@ -560,6 +566,10 @@ export const api = {
       `/api/findings/ingest/${jobId}/cancel`,
       { method: 'POST' },
     ),
+
+  // Agent chips (UI metadata from backend registry)
+  listAgentChips: () =>
+    request<AgentChipConfig[]>('/api/agents/chips'),
 
   // Agent execution
   executeAgent: (workspaceId: string, agentType: string) =>

@@ -112,6 +112,18 @@ export function useCreateMessage(workspaceId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Agent chips (UI metadata)
+// ---------------------------------------------------------------------------
+
+export function useAgentChips() {
+  return useQuery({
+    queryKey: ['agent-chips'],
+    queryFn: () => api.listAgentChips(),
+    staleTime: Infinity,
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Agent runs (Phase 5)
 // ---------------------------------------------------------------------------
 
