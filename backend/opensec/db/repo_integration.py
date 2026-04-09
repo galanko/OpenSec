@@ -27,9 +27,12 @@ def _row_to_integration(row: aiosqlite.Row) -> IntegrationConfig:
 
 
 async def create_integration(
-    db: aiosqlite.Connection, data: IntegrationConfigCreate
+    db: aiosqlite.Connection,
+    data: IntegrationConfigCreate,
+    *,
+    override_id: str | None = None,
 ) -> IntegrationConfig:
-    integration_id = str(uuid.uuid4())
+    integration_id = override_id or str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
     await db.execute(
         """

@@ -11,9 +11,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from opensec.api.routes.settings import REPO_INTEGRATION_ID, REPO_PAT_KEY, REPO_URL_SETTING
 from opensec.api.tasks import fire_and_forget_send
 from opensec.db.connection import get_db
 from opensec.db.repo_finding import get_finding
+from opensec.db.repo_setting import get_setting
 from opensec.db.repo_workspace import (
     get_workspace,
     list_workspaces,
@@ -22,6 +24,8 @@ from opensec.db.repo_workspace import (
 from opensec.models import Workspace, WorkspaceCreate, WorkspaceUpdate
 
 if TYPE_CHECKING:
+    import aiosqlite
+
     from opensec.engine.pool import WorkspaceProcessPool
     from opensec.workspace.context_builder import WorkspaceContextBuilder
 
@@ -41,6 +45,36 @@ def _get_pool(request: Request) -> WorkspaceProcessPool:
 
 def _get_context_builder(request: Request) -> WorkspaceContextBuilder:
     return request.app.state.context_builder
+
+
+async def _resolve_repo_env_vars(
+    request: Request, db: aiosqlite.Connection
+) -> dict[str, str]:
+    """Read GH_TOKEN and OPENSEC_REPO_URL from vault/settings.
+
+    Returns a dict of env vars to inject into workspace processes.
+    Failures are non-fatal — returns partial or empty dict.
+    """
+    env_vars: dict[str, str] = {}
+
+    # Repo URL from app_setting
+    try:
+        setting = await get_setting(db, REPO_URL_SETTING)
+        if setting and setting.value and setting.value.get("url"):
+            env_vars["OPENSEC_REPO_URL"] = setting.value["url"]
+    except Exception:
+        logger.warning("Failed to read repo URL setting", exc_info=True)
+
+    # GitHub PAT from vault
+    vault = getattr(request.app.state, "vault", None)
+    if vault is not None:
+        try:
+            token = await vault.retrieve(REPO_INTEGRATION_ID, REPO_PAT_KEY)
+            env_vars["GH_TOKEN"] = token
+        except (KeyError, Exception):
+            pass  # No token configured — not an error
+
+    return env_vars
 
 
 async def _get_workspace_or_404(db, workspace_id: str) -> Workspace:
@@ -128,7 +162,10 @@ async def create_workspace_session(
         raise HTTPException(status_code=409, detail="Workspace has no directory")
 
     pool = _get_pool(request)
-    client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
+    env_vars = await _resolve_repo_env_vars(request, db)
+    client = await pool.get_or_start(
+        workspace_id, Path(workspace.workspace_dir), env_vars=env_vars
+    )
     session = await client.create_session()
     return {"session_id": session.id, "workspace_id": workspace_id}
 
@@ -156,7 +193,10 @@ async def workspace_send_message(
         raise HTTPException(status_code=409, detail="Workspace has no directory")
 
     pool = _get_pool(request)
-    client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
+    env_vars = await _resolve_repo_env_vars(request, db)
+    client = await pool.get_or_start(
+        workspace_id, Path(workspace.workspace_dir), env_vars=env_vars
+    )
 
     fire_and_forget_send(client.send_message(body.session_id, body.content))
     return {"session_id": body.session_id, "status": "sent"}
@@ -175,7 +215,10 @@ async def workspace_stream_events(
         raise HTTPException(status_code=409, detail="Workspace has no directory")
 
     pool = _get_pool(request)
-    client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
+    env_vars = await _resolve_repo_env_vars(request, db)
+    client = await pool.get_or_start(
+        workspace_id, Path(workspace.workspace_dir), env_vars=env_vars
+    )
 
     async def event_generator():
         try:
@@ -245,7 +288,10 @@ async def respond_to_chat_permission(
         raise HTTPException(status_code=409, detail="Workspace has no directory")
 
     pool = _get_pool(request)
-    client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
+    env_vars = await _resolve_repo_env_vars(request, db)
+    client = await pool.get_or_start(
+        workspace_id, Path(workspace.workspace_dir), env_vars=env_vars
+    )
 
     try:
         if body.approved:

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
-import { useFindings } from '@/api/hooks'
+import { useFindings, useRepoSettings } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
 import FindingRow from '@/components/FindingRow'
@@ -29,7 +29,10 @@ export default function FindingsPage() {
   const [sortBy, setSortBy] = useState('updated')
   const [solving, setSolving] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [showRepoGuard, setShowRepoGuard] = useState(false)
+  const [pendingFinding, setPendingFinding] = useState<Finding | null>(null)
   const navigate = useNavigate()
+  const { data: repoSettings } = useRepoSettings()
 
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
   if (statusFilter) params.status = statusFilter
@@ -53,7 +56,7 @@ export default function FindingsPage() {
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   })
 
-  const handleSolve = useCallback(async (finding: Finding) => {
+  const doSolve = useCallback(async (finding: Finding) => {
     setSolving(finding.id)
     try {
       const workspace = await api.createWorkspace({ finding_id: finding.id })
@@ -63,6 +66,15 @@ export default function FindingsPage() {
       setSolving(null)
     }
   }, [navigate])
+
+  const handleSolve = useCallback((finding: Finding) => {
+    if (!repoSettings?.url || !repoSettings?.has_token) {
+      setPendingFinding(finding)
+      setShowRepoGuard(true)
+      return
+    }
+    doSolve(finding)
+  }, [repoSettings, doSolve])
 
   const filterActions = (
     <>
@@ -139,6 +151,49 @@ export default function FindingsPage() {
               disabled={solving === finding.id}
             />
           ))}
+        </div>
+      )}
+      {/* Repo guard dialog */}
+      {showRepoGuard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div
+            className="bg-surface-container-lowest rounded-xl shadow-xl w-full max-w-md mx-4 p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center mb-4">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant">
+                link_off
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-on-surface text-center mb-2">
+              Repository not configured
+            </h3>
+            <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
+              A GitHub repository and access token are needed for the agent to create
+              pull requests. You can still explore findings without a repo.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setShowRepoGuard(false)
+                  navigate('/settings#repo')
+                }}
+                className="w-full bg-primary text-on-primary py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Configure repository
+              </button>
+              <button
+                onClick={() => {
+                  setShowRepoGuard(false)
+                  if (pendingFinding) doSolve(pendingFinding)
+                  setPendingFinding(null)
+                }}
+                className="w-full text-on-surface-variant py-2.5 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors"
+              >
+                Continue without repo
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </PageShell>

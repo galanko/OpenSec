@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -117,7 +118,11 @@ class WorkspaceProcessPool:
     # ------------------------------------------------------------------
 
     async def start(
-        self, workspace_id: str, workspace_dir: Path
+        self,
+        workspace_id: str,
+        workspace_dir: Path,
+        *,
+        env_vars: dict[str, str] | None = None,
     ) -> OpenCodeClient:
         """Start a new OpenCode process for a workspace.
 
@@ -125,12 +130,28 @@ class WorkspaceProcessPool:
         waits for it to become healthy, and returns an ``OpenCodeClient``
         bound to that instance.
 
+        Args:
+            workspace_id: Unique workspace identifier.
+            workspace_dir: Working directory for the subprocess.
+            env_vars: Extra environment variables to inject (e.g. GH_TOKEN).
+                Merged with the current process environment. Pass None or
+                empty dict to inherit the parent environment unchanged.
+
         Raises:
             RuntimeError: If no ports are available or the process fails to start.
             TimeoutError: If the process doesn't become healthy in time.
         """
         binary = settings.opencode_binary_path
         port = self._ports.allocate()
+
+        # Merge extra env vars with system environment (if provided).
+        env = {**os.environ, **env_vars} if env_vars else None
+        if env_vars:
+            logger.info(
+                "Injecting env vars for workspace %s: %s",
+                workspace_id,
+                list(env_vars.keys()),
+            )
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -143,6 +164,7 @@ class WorkspaceProcessPool:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=str(workspace_dir),
+                env=env,
             )
 
             wp = WorkspaceProcess(
@@ -174,12 +196,19 @@ class WorkspaceProcessPool:
             raise
 
     async def get_or_start(
-        self, workspace_id: str, workspace_dir: Path
+        self,
+        workspace_id: str,
+        workspace_dir: Path,
+        *,
+        env_vars: dict[str, str] | None = None,
     ) -> OpenCodeClient:
         """Return existing client or start a new process.
 
         This is the main entry point. Uses a per-workspace lock to prevent
         double-start race conditions from concurrent requests.
+
+        Note: ``env_vars`` are only applied when a *new* process is started.
+        Already-running processes keep their original environment.
         """
         # Fast path: already running
         wp = self._processes.get(workspace_id)
@@ -199,7 +228,7 @@ class WorkspaceProcessPool:
             if wp:
                 await self._cleanup(workspace_id)
 
-            return await self.start(workspace_id, workspace_dir)
+            return await self.start(workspace_id, workspace_dir, env_vars=env_vars)
 
     async def get(self, workspace_id: str) -> OpenCodeClient | None:
         """Return client for an already-running workspace, or None."""

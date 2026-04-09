@@ -341,6 +341,31 @@ class IntegrationHealthStatus(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Repository settings models (WP2)
+# ---------------------------------------------------------------------------
+
+
+class RepoSettingsResponse(BaseModel):
+    url: str | None = None
+    has_token: bool = False
+
+
+class RepoSettingsUpdate(BaseModel):
+    url: str | None = None
+    token: str | None = None
+
+
+class RepoTestRequest(BaseModel):
+    url: str
+    token: str
+
+
+# ---------------------------------------------------------------------------
+# Finding ingest models (ADR-0022 + ADR-0023)
+# ---------------------------------------------------------------------------
+
+
 class IngestRequest(BaseModel):
     source: str
     raw_data: list[dict[str, Any]]

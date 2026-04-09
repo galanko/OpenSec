@@ -281,6 +281,20 @@ export interface IngestJobProgress {
 }
 
 // ---------------------------------------------------------------------------
+// Repository settings types (WP2)
+// ---------------------------------------------------------------------------
+
+export interface RepoSettings {
+  url: string | null;
+  has_token: boolean;
+}
+
+export interface RepoTestResult {
+  success: boolean;
+  message: string;
+}
+
+// ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
@@ -523,6 +537,20 @@ export const api = {
       `/api/findings/ingest/${jobId}/cancel`,
       { method: 'POST' },
     ),
+
+  // Settings — Repository
+  getRepoSettings: () =>
+    request<RepoSettings>('/api/settings/repo'),
+  updateRepoSettings: (data: { url?: string; token?: string }) =>
+    request<RepoSettings>('/api/settings/repo', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  testRepoConnection: (data: { url: string; token: string }) =>
+    request<RepoTestResult>('/api/settings/repo/test', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 
   // Agent execution
   executeAgent: (workspaceId: string, agentType: string) =>
