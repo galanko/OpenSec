@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
 
+    # Demo mode — auto-seed sample findings on startup
+    demo: bool = False
+
     # OpenCode engine (singleton)
     opencode_host: str = "127.0.0.1"
     opencode_port: int = 4096

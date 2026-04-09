@@ -46,3 +46,13 @@ def test_resolve_data_dir_creates(tmp_path):
 def test_find_repo_root():
     root = _find_repo_root()
     assert (root / ".opencode-version").exists()
+
+
+def test_demo_field_defaults_to_false():
+    s = Settings()
+    assert s.demo is False
+
+
+def test_demo_field_settable():
+    s = Settings(demo=True)
+    assert s.demo is True
