@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { api, type Finding } from '@/api/client'
-import { useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
+import { api, type Finding, type EnrichmentOutput, type ExposureOutput, type PlanOutput } from '@/api/client'
+import { useAgentRuns, useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
 import EmptyState from '@/components/EmptyState'
+import EnricherResultCard from '@/components/EnricherResultCard'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import ExposureResultCard from '@/components/ExposureResultCard'
 import ListCard from '@/components/ListCard'
 import Markdown from '@/components/Markdown'
 import PageShell from '@/components/PageShell'
 import PermissionApprovalCard from '@/components/PermissionApprovalCard'
+import PlannerResultCard from '@/components/PlannerResultCard'
 import SeverityBadge from '@/components/SeverityBadge'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar'
 
@@ -19,6 +23,9 @@ import WorkspaceSidebar from '@/components/WorkspaceSidebar'
 interface ChatMessage {
   role: 'user' | 'assistant' | 'error'
   content: string
+  agentType?: string
+  structuredOutput?: Record<string, unknown>
+  confidence?: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -105,15 +112,18 @@ function WorkspaceLanding() {
 export default function WorkspacePage() {
   const { id: workspaceId } = useParams<{ id: string }>()
 
-  if (!workspaceId) return <WorkspaceLanding />
-
-  return <ActiveWorkspace workspaceId={workspaceId} />
+  return (
+    <ErrorBoundary fallbackTitle="Workspace error" fallbackSubtitle="Something went wrong loading this workspace.">
+      {workspaceId ? <ActiveWorkspace workspaceId={workspaceId} /> : <WorkspaceLanding />}
+    </ErrorBoundary>
+  )
 }
 
 function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const { data: workspace } = useWorkspace(workspaceId)
   const { data: finding } = useFinding(workspace?.finding_id)
   const { data: sidebar } = useSidebar(workspaceId)
+  const { data: agentRuns } = useAgentRuns(workspaceId)
 
   // Chat state
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -231,6 +241,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       if (!active) return
       const text = streamingRef.current
       if (text) {
+        // Try to extract structured output from agent runs (will be attached on next render via agentRuns query)
         setMessages((msgs) => [...msgs, { role: 'assistant', content: text }])
       }
       streamingRef.current = ''
@@ -427,27 +438,62 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           )}
 
           {/* Chat messages */}
-          {messages.map((msg, i) => (
-            <div key={i} className={`max-w-3xl ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
-              {msg.role === 'user' ? (
-                <div className="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                </div>
-              ) : msg.role === 'error' ? (
-                <div className="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
-                  <p className="text-sm text-error leading-relaxed">{msg.content}</p>
-                </div>
-              ) : (
-                <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+          {messages.map((msg, i) => {
+            // Try to match this assistant message with a completed agent run
+            const matchedRun = msg.role === 'assistant' && agentRuns
+              ? agentRuns.find(
+                  (run) =>
+                    run.status === 'completed' &&
+                    run.structured_output &&
+                    run.summary_markdown &&
+                    msg.content.includes(run.summary_markdown.slice(0, 40))
+                )
+              : undefined
+
+            const agentType = msg.agentType ?? matchedRun?.agent_type
+            const structuredOutput = msg.structuredOutput ?? matchedRun?.structured_output
+            const confidence = msg.confidence ?? matchedRun?.confidence
+
+            return (
+              <div key={i} className={`max-w-3xl ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
+                {msg.role === 'user' ? (
+                  <div className="bg-primary text-white rounded-2xl rounded-br-md px-5 py-3 shadow-sm">
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                   </div>
-                  <Markdown content={msg.content} />
-                </div>
-              )}
-            </div>
-          ))}
+                ) : msg.role === 'error' ? (
+                  <div className="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
+                    <p className="text-sm text-error leading-relaxed">{msg.content}</p>
+                  </div>
+                ) : agentType === 'finding_enricher' && structuredOutput ? (
+                  <EnricherResultCard
+                    data={structuredOutput as unknown as EnrichmentOutput}
+                    confidence={confidence}
+                    markdown={matchedRun?.summary_markdown ?? undefined}
+                  />
+                ) : agentType === 'exposure_analyzer' && structuredOutput ? (
+                  <ExposureResultCard
+                    data={structuredOutput as unknown as ExposureOutput}
+                    confidence={confidence}
+                    markdown={matchedRun?.summary_markdown ?? undefined}
+                  />
+                ) : agentType === 'remediation_planner' && structuredOutput ? (
+                  <PlannerResultCard
+                    data={structuredOutput as unknown as PlanOutput}
+                    confidence={confidence}
+                    markdown={matchedRun?.summary_markdown ?? undefined}
+                  />
+                ) : (
+                  <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+                    </div>
+                    <Markdown content={msg.content} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
 
           {/* Streaming indicator */}
           {streaming && (

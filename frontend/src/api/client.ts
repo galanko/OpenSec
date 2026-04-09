@@ -127,6 +127,43 @@ export interface AgentRunUpdate {
   next_action_hint?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Structured output types (mirror backend agents/schemas.py)
+// ---------------------------------------------------------------------------
+
+export interface EnrichmentOutput {
+  normalized_title: string;
+  cve_ids: string[];
+  cvss_score: number | null;
+  cvss_vector: string | null;
+  description: string | null;
+  affected_versions: string | null;
+  fixed_version: string | null;
+  known_exploits: boolean;
+  exploit_details: string | null;
+  references: string[];
+}
+
+export interface ExposureOutput {
+  recommended_urgency: string;
+  environment: string | null;
+  internet_facing: boolean | null;
+  reachable: string | null;
+  reachability_evidence: string | null;
+  business_criticality: string | null;
+  blast_radius: string | null;
+}
+
+export interface PlanOutput {
+  plan_steps: string[];
+  definition_of_done: string[];
+  interim_mitigation: string | null;
+  dependencies: string[];
+  estimated_effort: string | null;
+  suggested_due_date: string | null;
+  validation_method: string | null;
+}
+
 export interface SidebarState {
   workspace_id: string;
   summary: Record<string, unknown> | null;

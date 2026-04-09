@@ -4,6 +4,8 @@ import { api, type Finding } from '@/api/client'
 import { useFindings } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import ErrorState from '@/components/ErrorState'
 import FindingRow from '@/components/FindingRow'
 import IngestProgress from '@/components/IngestProgress'
 import PageShell from '@/components/PageShell'
@@ -25,6 +27,14 @@ const SEVERITY_ORDER: Record<string, number> = {
 }
 
 export default function FindingsPage() {
+  return (
+    <ErrorBoundary fallbackTitle="Findings error" fallbackSubtitle="Something went wrong loading findings.">
+      <FindingsPageContent />
+    </ErrorBoundary>
+  )
+}
+
+function FindingsPageContent() {
   const [statusFilter, setStatusFilter] = useState('')
   const [sortBy, setSortBy] = useState('updated')
   const [solving, setSolving] = useState<string | null>(null)
@@ -34,7 +44,19 @@ export default function FindingsPage() {
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
   if (statusFilter) params.status = statusFilter
 
-  const { data: findings, isLoading, refetch } = useFindings(params)
+  const { data: findings, isLoading, isError, refetch } = useFindings(params)
+
+  if (isError) {
+    return (
+      <PageShell title="Findings" subtitle="Your vulnerability queue.">
+        <ErrorState
+          title="Couldn't load findings"
+          subtitle="There was a problem fetching your findings. Please try again."
+          onRetry={() => refetch()}
+        />
+      </PageShell>
+    )
+  }
 
   const seededRef = useRef(false)
   useEffect(() => {
