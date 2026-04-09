@@ -216,6 +216,7 @@ export interface RegistryEntry {
   status: 'available' | 'coming_soon' | 'community';
   setup_guide_md: string;
   credentials_schema: CredentialField[];
+  config_fields?: CredentialField[];
   capabilities: string[];
   docs_url: string | null;
   mcp_config: Record<string, unknown> | null;
@@ -281,19 +282,6 @@ export interface IngestJobProgress {
 }
 
 // ---------------------------------------------------------------------------
-// Repository settings types (WP2)
-// ---------------------------------------------------------------------------
-
-export interface RepoSettings {
-  url: string | null;
-  has_token: boolean;
-}
-
-export interface RepoTestResult {
-  success: boolean;
-  message: string;
-}
-
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
@@ -537,20 +525,6 @@ export const api = {
       `/api/findings/ingest/${jobId}/cancel`,
       { method: 'POST' },
     ),
-
-  // Settings — Repository
-  getRepoSettings: () =>
-    request<RepoSettings>('/api/settings/repo'),
-  updateRepoSettings: (data: { url?: string; token?: string }) =>
-    request<RepoSettings>('/api/settings/repo', {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
-  testRepoConnection: (data: { url: string; token: string }) =>
-    request<RepoTestResult>('/api/settings/repo/test', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
 
   // Agent execution
   executeAgent: (workspaceId: string, agentType: string) =>

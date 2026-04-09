@@ -372,36 +372,6 @@ export function useIngestProgress(jobId: string | null) {
 }
 
 // ---------------------------------------------------------------------------
-// Repository settings (WP2)
-// ---------------------------------------------------------------------------
-
-export function useRepoSettings() {
-  return useQuery({
-    queryKey: ['repo-settings'],
-    queryFn: () => api.getRepoSettings(),
-    staleTime: 30_000,
-  })
-}
-
-export function useUpdateRepoSettings() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (data: { url?: string; token?: string }) =>
-      api.updateRepoSettings(data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['repo-settings'] })
-    },
-  })
-}
-
-export function useTestRepoConnection() {
-  return useMutation({
-    mutationFn: (data: { url: string; token: string }) =>
-      api.testRepoConnection(data),
-  })
-}
-
-// ---------------------------------------------------------------------------
 // Finding ingest
 // ---------------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
-import { useFindings, useRepoSettings } from '@/api/hooks'
+import { useFindings, useIntegrations, useAllIntegrationsHealth } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
 import FindingRow from '@/components/FindingRow'
@@ -32,7 +32,11 @@ export default function FindingsPage() {
   const [showRepoGuard, setShowRepoGuard] = useState(false)
   const [pendingFinding, setPendingFinding] = useState<Finding | null>(null)
   const navigate = useNavigate()
-  const { data: repoSettings } = useRepoSettings()
+  const { data: integrations } = useIntegrations()
+  const { data: healthStatuses } = useAllIntegrationsHealth((integrations?.length ?? 0) > 0)
+  const githubInt = integrations?.find(i => i.provider_name === 'GitHub')
+  const githubHealth = healthStatuses?.find(h => h.integration_id === githubInt?.id)
+  const repoConfigured = !!githubInt?.config?.repo_url && githubHealth?.credential_status === 'ok'
 
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
   if (statusFilter) params.status = statusFilter
@@ -68,13 +72,13 @@ export default function FindingsPage() {
   }, [navigate])
 
   const handleSolve = useCallback((finding: Finding) => {
-    if (!repoSettings?.url || !repoSettings?.has_token) {
+    if (!repoConfigured) {
       setPendingFinding(finding)
       setShowRepoGuard(true)
       return
     }
     doSolve(finding)
-  }, [repoSettings, doSolve])
+  }, [repoConfigured, doSolve])
 
   const filterActions = (
     <>
@@ -166,21 +170,22 @@ export default function FindingsPage() {
               </span>
             </div>
             <h3 className="text-lg font-bold text-on-surface text-center mb-2">
-              Repository not configured
+              GitHub integration not configured
             </h3>
             <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
-              A GitHub repository and access token are needed for the agent to create
-              pull requests. You can still explore findings without a repo.
+              A GitHub integration with repository URL and access token is needed for the
+              agent to clone code and create pull requests. You can still explore findings
+              without it.
             </p>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => {
                   setShowRepoGuard(false)
-                  navigate('/settings#repo')
+                  navigate('/settings#integrations')
                 }}
                 className="w-full bg-primary text-on-primary py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors"
               >
-                Configure repository
+                Configure integration
               </button>
               <button
                 onClick={() => {

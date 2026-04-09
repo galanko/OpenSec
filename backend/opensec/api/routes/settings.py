@@ -1,11 +1,9 @@
-"""Settings API endpoints — model, API keys, integrations, registry, credentials, repo."""
+"""Settings API endpoints — model, API keys, integrations, registry, credentials."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
@@ -17,7 +15,6 @@ from opensec.db.repo_integration import (
     list_integrations,
     update_integration,
 )
-from opensec.db.repo_setting import get_setting, upsert_setting
 from opensec.engine.config_manager import config_manager
 from opensec.integrations.audit import AuditEvent
 from opensec.integrations.connection_tester import run_connection_test
@@ -38,9 +35,6 @@ from opensec.models import (
     IntegrationHealthStatus,
     ModelConfig,
     ModelUpdateRequest,
-    RepoSettingsResponse,
-    RepoSettingsUpdate,
-    RepoTestRequest,
     TestConnectionResult,
 )
 
@@ -415,146 +409,3 @@ async def check_all_integrations_health(
     """Run health checks for all enabled integrations."""
     monitor = _get_health_monitor(request)
     return await monitor.check_all(db)
-
-
-# ---------------------------------------------------------------------------
-# Repository settings (WP2 — T2.5, T2.6)
-# ---------------------------------------------------------------------------
-
-REPO_INTEGRATION_ID = "__repo__"
-REPO_PAT_KEY = "github_pat"
-REPO_URL_SETTING = "repo:url"
-
-
-def _get_vault_optional(request: Request):
-    """Get the vault from app.state, or None if not initialized."""
-    return getattr(request.app.state, "vault", None)
-
-
-async def _ensure_repo_integration(db: aiosqlite.Connection) -> None:
-    """Ensure the __repo__ pseudo-integration row exists for FK constraints."""
-    existing = await get_integration(db, REPO_INTEGRATION_ID)
-    if existing is None:
-        from opensec.models import IntegrationConfigCreate
-
-        await create_integration(
-            db,
-            IntegrationConfigCreate(
-                adapter_type="repo",
-                provider_name="GitHub Repository",
-                enabled=True,
-                config={"hidden": True},
-            ),
-            override_id=REPO_INTEGRATION_ID,
-        )
-
-
-async def _has_repo_token(vault) -> bool:
-    """Check if a GitHub PAT is stored in the vault."""
-    if vault is None:
-        return False
-    try:
-        keys = await vault.list_keys(REPO_INTEGRATION_ID)
-        return any(k["key_name"] == REPO_PAT_KEY for k in keys)
-    except Exception:
-        return False
-
-
-@router.get("/settings/repo", response_model=RepoSettingsResponse)
-async def get_repo_settings(
-    request: Request, db: aiosqlite.Connection = Depends(get_db)
-):
-    """Get repository access configuration."""
-    setting = await get_setting(db, REPO_URL_SETTING)
-    url = setting.value.get("url") if setting and setting.value else None
-
-    vault = _get_vault_optional(request)
-    has_token = await _has_repo_token(vault)
-
-    return RepoSettingsResponse(url=url, has_token=has_token)
-
-
-@router.put("/settings/repo", response_model=RepoSettingsResponse)
-async def update_repo_settings(
-    body: RepoSettingsUpdate,
-    request: Request,
-    db: aiosqlite.Connection = Depends(get_db),
-):
-    """Update repository URL and/or GitHub personal access token."""
-    # Store URL if provided
-    if body.url is not None:
-        await upsert_setting(db, REPO_URL_SETTING, {"url": body.url})
-
-    # Store or clear token if provided
-    if body.token is not None:
-        vault = _get_vault_optional(request)
-        if vault is None:
-            raise HTTPException(
-                status_code=503,
-                detail="Credential vault not initialized. Set OPENSEC_CREDENTIAL_KEY.",
-            )
-        if body.token == "":
-            # Clear token
-            await vault.delete(REPO_INTEGRATION_ID, REPO_PAT_KEY)
-        else:
-            await _ensure_repo_integration(db)
-            await vault.store(REPO_INTEGRATION_ID, REPO_PAT_KEY, body.token)
-
-    # Return current state
-    setting = await get_setting(db, REPO_URL_SETTING)
-    url = setting.value.get("url") if setting and setting.value else None
-    vault = _get_vault_optional(request)
-    has_token = await _has_repo_token(vault)
-
-    return RepoSettingsResponse(url=url, has_token=has_token)
-
-
-@router.post("/settings/repo/test", response_model=TestConnectionResult)
-async def test_repo_connection(body: RepoTestRequest):
-    """Test repository access by running git ls-remote."""
-    # Validate URL scheme
-    parsed = urlparse(body.url)
-    if parsed.scheme != "https" or not parsed.netloc:
-        return TestConnectionResult(
-            success=False,
-            message="Repository URL must use HTTPS (e.g. https://github.com/org/repo).",
-        )
-
-    # Build authenticated URL for git ls-remote
-    auth_url = urlunparse(parsed._replace(
-        netloc=f"{body.token}@{parsed.netloc}"
-    ))
-
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            "git", "ls-remote", "--heads", auth_url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={"GIT_TERMINAL_PROMPT": "0", "PATH": "/usr/bin:/usr/local/bin:/bin"},
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15.0)
-    except FileNotFoundError:
-        return TestConnectionResult(
-            success=False,
-            message="git is not installed on the server.",
-        )
-    except TimeoutError:
-        return TestConnectionResult(
-            success=False,
-            message="Connection timed out after 15 seconds.",
-        )
-
-    if proc.returncode == 0:
-        branches = [line for line in stdout.decode().strip().split("\n") if line]
-        return TestConnectionResult(
-            success=True,
-            message=f"Repository accessible. Found {len(branches)} branch(es).",
-        )
-
-    # Sanitize stderr — remove token from error messages
-    error_text = stderr.decode(errors="replace").strip()
-    error_text = error_text.replace(body.token, "***")
-    return TestConnectionResult(
-        success=False,
-        message=f"Cannot access repository: {error_text[:200]}",
-    )

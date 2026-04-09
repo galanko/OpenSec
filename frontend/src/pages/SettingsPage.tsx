@@ -1,4 +1,3 @@
-import RepoSettings from '@/components/settings/RepoSettings'
 import ProviderSettings from '@/components/settings/ProviderSettings'
 import IntegrationSettings from '@/components/settings/IntegrationSettings'
 import PageShell from '@/components/PageShell'
@@ -7,8 +6,6 @@ export default function SettingsPage() {
   return (
     <PageShell title="Settings" subtitle="Configure providers, integrations, and preferences.">
       <div className="pb-24">
-        <RepoSettings />
-        <hr className="border-outline-variant/20 my-12" />
         <ProviderSettings />
         <hr className="border-outline-variant/20 my-12" />
         <IntegrationSettings />

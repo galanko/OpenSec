@@ -16,6 +16,16 @@
       "placeholder": "github_pat_..."
     }
   ],
+  "config_fields": [
+    {
+      "key_name": "repo_url",
+      "label": "Repository URL",
+      "type": "url",
+      "required": false,
+      "help_text": "HTTPS URL of the repository for cloning and PR creation.",
+      "placeholder": "https://github.com/org/repo"
+    }
+  ],
   "capabilities": ["collect", "enrich", "investigate"],
   "docs_url": "https://github.com/github/github-mcp-server",
   "mcp_config": {
