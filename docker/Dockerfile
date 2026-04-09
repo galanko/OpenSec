@@ -25,13 +25,23 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 FROM python:3.11-slim AS runtime
 
-# System dependencies: supervisor, curl for health checks and OpenCode download
+# System dependencies: supervisor, curl, git for health checks, cloning, and OpenCode download
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         supervisor \
         curl \
         unzip \
+        git \
     && rm -rf /var/lib/apt/lists/*
+
+# GitHub CLI — needed for PR creation by remediation agent
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends gh && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast Python dependency management
 RUN pip install --no-cache-dir uv
