@@ -98,12 +98,12 @@ class OpenCodeClient:
 
     @staticmethod
     def _extract_text(msg: dict) -> str:
-        """Extract concatenated text parts from a single message dict."""
+        """Extract concatenated text and reasoning parts from a message."""
         parts = msg.get("parts", [])
         text_parts = [
             p.get("text", "")
             for p in parts
-            if p.get("type") == "text" and p.get("text", "").strip()
+            if p.get("type") in ("text", "reasoning") and p.get("text", "").strip()
         ]
         return "\n".join(text_parts)
 
@@ -237,6 +237,11 @@ class OpenCodeClient:
             resp.raise_for_status()
             buffer = ""
             last_text = ""
+            # When permission.asked fires, OpenCode goes idle while waiting
+            # for the grant/deny. We skip that first idle. After the user
+            # responds (grant or deny), OpenCode resumes and eventually
+            # emits another idle — that one is the real "done".
+            idle_skip_count = 0
             async for chunk in resp.aiter_text():
                 buffer += chunk
                 while "\n\n" in buffer:
@@ -274,10 +279,19 @@ class OpenCodeClient:
                         yield {"type": "error", "message": msg}
 
                     elif event_type == "session.idle":
+                        if idle_skip_count > 0:
+                            idle_skip_count -= 1
+                            logger.debug(
+                                "Skipping session.idle (permission wait) "
+                                "for session %s, %d skips remaining",
+                                session_id, idle_skip_count,
+                            )
+                            continue
                         yield {"type": "done"}
                         return
 
                     elif event_type == "permission.asked":
+                        idle_skip_count = 1
                         yield {
                             "type": "permission_request",
                             "id": props.get("id", ""),
@@ -287,8 +301,6 @@ class OpenCodeClient:
                         }
 
                     elif event_session == session_id:
-                        # Any other session-scoped event (tool calls, etc.)
-                        # signals the agent is still active.
                         yield {"type": "activity", "event_type": event_type}
 
     @staticmethod
@@ -309,16 +321,31 @@ class OpenCodeClient:
 
     # --- Permissions ---
 
-    async def grant_permission(self, permission_id: str) -> None:
-        """Grant a pending permission request."""
+    async def grant_permission(
+        self, permission_id: str, *, session_id: str, always: bool = False,
+    ) -> None:
+        """Grant a pending permission request.
+
+        Uses OpenCode's session-scoped permission API:
+        POST /session/{sessionId}/permissions/{permissionId}
+        """
+        response = "always" if always else "once"
         client = await self._get_client()
-        resp = await client.post(f"/permission/{permission_id}/grant")
+        resp = await client.post(
+            f"/session/{session_id}/permissions/{permission_id}",
+            json={"response": response},
+        )
         resp.raise_for_status()
 
-    async def deny_permission(self, permission_id: str) -> None:
+    async def deny_permission(
+        self, permission_id: str, *, session_id: str,
+    ) -> None:
         """Deny a pending permission request."""
         client = await self._get_client()
-        resp = await client.post(f"/permission/{permission_id}/deny")
+        resp = await client.post(
+            f"/session/{session_id}/permissions/{permission_id}",
+            json={"response": "reject"},
+        )
         resp.raise_for_status()
 
     # --- Health ---

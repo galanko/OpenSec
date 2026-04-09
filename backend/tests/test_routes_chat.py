@@ -16,7 +16,9 @@ def test_send_message_success(client):
     assert data["status"] == "sent"
 
 
-def test_send_message_engine_down(client, mock_opencode_client):
+def test_send_message_engine_down_still_returns_200(client, mock_opencode_client):
+    """send_message is fire-and-forget — POST returns 200 even if the engine
+    is down. Errors are logged in the background and surfaced via the SSE stream."""
     mock_opencode_client.chat.send_message = AsyncMock(
         side_effect=Exception("Connection refused")
     )
@@ -24,7 +26,7 @@ def test_send_message_engine_down(client, mock_opencode_client):
         "/api/chat/test-session-123/send",
         json={"content": "hello"},
     )
-    assert resp.status_code == 502
+    assert resp.status_code == 200
 
 
 def test_stream_events_endpoint_exists(client, mock_opencode_client):

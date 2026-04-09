@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from opensec.api.tasks import fire_and_forget_send
 from opensec.db.connection import get_db
 from opensec.db.repo_finding import get_finding
 from opensec.db.repo_workspace import (
@@ -156,7 +157,8 @@ async def workspace_send_message(
 
     pool = _get_pool(request)
     client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
-    await client.send_message(body.session_id, body.content)
+
+    fire_and_forget_send(client.send_message(body.session_id, body.content))
     return {"session_id": body.session_id, "status": "sent"}
 
 
@@ -195,6 +197,7 @@ async def workspace_stream_events(
                             "id": event.get("id", ""),
                             "tool": event.get("tool", "unknown"),
                             "patterns": event.get("patterns", []),
+                            "session_id": session_id,
                         }),
                     }
                 elif event_type == "done":
@@ -212,6 +215,57 @@ async def workspace_stream_events(
             }
 
     return EventSourceResponse(event_generator())
+
+
+# ---------------------------------------------------------------------------
+# Workspace-level permission approval (chat path)
+# ---------------------------------------------------------------------------
+
+
+class ChatPermissionDecision(BaseModel):
+    permission_id: str
+    session_id: str
+    approved: bool
+
+
+@router.post("/workspaces/{workspace_id}/chat/permission")
+async def respond_to_chat_permission(
+    workspace_id: str,
+    body: ChatPermissionDecision,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Approve or deny a permission request from the chat path.
+
+    Unlike the agent-execution permission endpoint, this calls
+    OpenCode's permission API directly (no executor involved).
+    """
+    workspace = await _get_workspace_or_404(db, workspace_id)
+    if not workspace.workspace_dir:
+        raise HTTPException(status_code=409, detail="Workspace has no directory")
+
+    pool = _get_pool(request)
+    client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
+
+    try:
+        if body.approved:
+            await client.grant_permission(
+                body.permission_id, session_id=body.session_id,
+            )
+        else:
+            await client.deny_permission(
+                body.permission_id, session_id=body.session_id,
+            )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to send permission decision to OpenCode: {exc}",
+        ) from exc
+
+    return {
+        "status": "approved" if body.approved else "denied",
+        "permission_id": body.permission_id,
+    }
 
 
 # ---------------------------------------------------------------------------

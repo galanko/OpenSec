@@ -523,4 +523,29 @@ export const api = {
       `/api/findings/ingest/${jobId}/cancel`,
       { method: 'POST' },
     ),
+
+  // Agent execution
+  executeAgent: (workspaceId: string, agentType: string) =>
+    request<{ agent_run_id: string; agent_type: string; status: string }>(
+      `/api/workspaces/${workspaceId}/agents/${agentType}/execute`,
+      { method: 'POST' },
+    ),
+
+  // Agent execution SSE stream (connect when agent starts, disconnect on completion)
+  streamAgentExecution: (workspaceId: string): EventSource =>
+    new EventSource(`/api/workspaces/${workspaceId}/agent-execution/stream`),
+
+  // Permission approval (programmatic execute path)
+  respondToPermission: (workspaceId: string, runId: string, approved: boolean) =>
+    request<{ status: string; agent_run_id: string }>(
+      `/api/workspaces/${workspaceId}/agent-runs/${runId}/permission`,
+      { method: 'POST', body: JSON.stringify({ approved }) },
+    ),
+
+  // Permission approval (chat path — calls OpenCode directly)
+  respondToChatPermission: (workspaceId: string, permissionId: string, sessionId: string, approved: boolean) =>
+    request<{ status: string; permission_id: string }>(
+      `/api/workspaces/${workspaceId}/chat/permission`,
+      { method: 'POST', body: JSON.stringify({ permission_id: permissionId, session_id: sessionId, approved }) },
+    ),
 };

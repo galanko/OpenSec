@@ -93,7 +93,7 @@ async def test_full_gateway_flow(db: aiosqlite.Connection, vault: CredentialVaul
     gh_env = oc_config["mcp"]["github"]["environment"]
     assert gh_env["GITHUB_PERSONAL_ACCESS_TOKEN"] == "ghp_e2e_test_token"
     # Permissions still present.
-    assert oc_config["permission"]["bash"] == "allow"
+    assert oc_config["permission"]["bash"] == "ask"
 
     # 5. Verify workspace-integrations.json manifest.
     manifest = json.loads((ws_dir / "workspace-integrations.json").read_text())

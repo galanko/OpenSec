@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from opensec.api.tasks import fire_and_forget_send
 from opensec.engine.client import opencode_client
 
 logger = logging.getLogger(__name__)
@@ -28,12 +29,8 @@ class ChatSendResponse(BaseModel):
 @router.post("/chat/{session_id}/send", response_model=ChatSendResponse)
 async def send_message(session_id: str, body: ChatSendRequest) -> ChatSendResponse:
     """Send a message to an OpenCode session."""
-    try:
-        await opencode_client.send_message(session_id, body.content)
-        return ChatSendResponse(session_id=session_id, status="sent")
-    except Exception as e:
-        logger.exception("Failed to send message to session %s", session_id)
-        raise HTTPException(status_code=502, detail=f"OpenCode error: {e}") from e
+    fire_and_forget_send(opencode_client.send_message(session_id, body.content))
+    return ChatSendResponse(session_id=session_id, status="sent")
 
 
 @router.get("/chat/{session_id}/stream")

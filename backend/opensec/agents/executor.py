@@ -45,6 +45,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT: float = 120.0
+# Extra buffer for asyncio.wait_for when permission waits are possible.
+# The real timeout is enforced by stall detection, which accounts for
+# time spent waiting for user permission decisions.
+PERMISSION_WAIT_BUFFER: float = 600.0
 
 # ---------------------------------------------------------------------------
 # Permission tier classification for tool-use approval.
@@ -262,6 +266,9 @@ class AgentExecutor:
         self._pool = pool
         self._context_builder = context_builder
         self._pending_approvals: dict[str, _PendingApproval] = {}
+        self._permission_queues: dict[str, asyncio.Queue] = {}  # workspace_id -> SSE queue
+        self._active_runs: dict[str, str] = {}  # workspace_id -> agent_run_id
+        self._permission_pending: dict[str, bool] = {}  # agent_run_id -> pauses stall detection
 
     def approve_tool(self, run_id: str) -> bool:
         """Approve a pending tool-use permission request.
@@ -286,6 +293,32 @@ class AgentExecutor:
         pending.approved = False
         pending.event.set()
         return True
+
+    def push_permission_event(self, workspace_id: str, event: dict) -> None:
+        """Push a permission event to the workspace's SSE queue."""
+        queue = self._permission_queues.get(workspace_id)
+        if queue:
+            queue.put_nowait(event)
+
+    def get_permission_queue(self, workspace_id: str) -> asyncio.Queue | None:
+        """Get the permission event queue for a workspace (for SSE streaming)."""
+        return self._permission_queues.get(workspace_id)
+
+    def get_active_run_id(self, workspace_id: str) -> str | None:
+        """Get the currently active agent run ID for a workspace."""
+        return self._active_runs.get(workspace_id)
+
+    def _cleanup_workspace_state(
+        self, workspace_id: str, agent_run_id: str
+    ) -> None:
+        """Clean up per-workspace state after execution completes."""
+        self._pending_approvals.pop(agent_run_id, None)
+        self._permission_pending.pop(agent_run_id, None)
+        self._active_runs.pop(workspace_id, None)
+        queue = self._permission_queues.pop(workspace_id, None)
+        if queue:
+            # Signal completion to any SSE listener
+            queue.put_nowait({"type": "done"})
 
     async def execute(
         self,
@@ -320,7 +353,7 @@ class AgentExecutor:
         start_time = time.monotonic()
 
         # 1. Check no other agent is running
-        await self._check_not_busy(db, workspace_id)
+        await self.check_not_busy(db, workspace_id)
 
         # 2. Create AgentRun record
         agent_run = await create_agent_run(
@@ -328,6 +361,10 @@ class AgentExecutor:
             workspace_id,
             AgentRunCreate(agent_type=agent_type, status="running"),
         )
+
+        # Set up per-workspace state for permission event streaming
+        self._permission_queues[workspace_id] = asyncio.Queue()
+        self._active_runs[workspace_id] = agent_run.id
 
         try:
             # 3. Get or start workspace OpenCode process
@@ -418,6 +455,7 @@ class AgentExecutor:
                 ),
             )
 
+            self._cleanup_workspace_state(workspace_id, agent_run.id)
             return AgentExecutionResult(
                 agent_run_id=agent_run.id,
                 agent_type=agent_type,
@@ -429,7 +467,7 @@ class AgentExecutor:
             )
 
         except AgentTimeoutError:
-            self._pending_approvals.pop(agent_run.id, None)
+            self._cleanup_workspace_state(workspace_id, agent_run.id)
             duration = time.monotonic() - start_time
             await update_agent_run(
                 db,
@@ -451,7 +489,7 @@ class AgentExecutor:
             )
 
         except AgentProcessError as exc:
-            self._pending_approvals.pop(agent_run.id, None)
+            self._cleanup_workspace_state(workspace_id, agent_run.id)
             duration = time.monotonic() - start_time
             await update_agent_run(
                 db,
@@ -474,7 +512,7 @@ class AgentExecutor:
             )
 
         except Exception as exc:
-            self._pending_approvals.pop(agent_run.id, None)
+            self._cleanup_workspace_state(workspace_id, agent_run.id)
             duration = time.monotonic() - start_time
             logger.exception("Unexpected error during agent execution")
             await update_agent_run(
@@ -537,7 +575,7 @@ class AgentExecutor:
                 with contextlib.suppress(asyncio.CancelledError):
                     await send_task
 
-    async def _check_not_busy(
+    async def check_not_busy(
         self, db: aiosqlite.Connection, workspace_id: str
     ) -> None:
         """Raise AgentBusyError if another agent is already running."""
@@ -573,6 +611,7 @@ class AgentExecutor:
         """
         collected_text = ""
         last_event_time = time.monotonic()
+        permission_wait_total = 0.0  # Total seconds spent waiting for user approval
 
         async def _handle_permission(event: dict) -> None:
             """Handle a permission request based on tool tier."""
@@ -585,7 +624,9 @@ class AgentExecutor:
                     "Auto-approving %s tool (permission %s)",
                     tool, permission_id,
                 )
-                await client.grant_permission(permission_id)
+                await client.grant_permission(
+                    permission_id, session_id=session_id,
+                )
                 return
 
             # User-tier: store pending approval and wait
@@ -610,13 +651,26 @@ class AgentExecutor:
                     "run_id": agent_run_id,
                 })
 
-            # Wait for user to approve/deny (or timeout)
+            # Pause stall detection while waiting for user decision
+            self._permission_pending[agent_run_id] = True
+            wait_start = time.monotonic()
             await pending.event.wait()
+            wait_elapsed = time.monotonic() - wait_start
+            self._permission_pending.pop(agent_run_id, None)
+            nonlocal permission_wait_total
+            permission_wait_total += wait_elapsed
+            # Extend the stall timer to exclude user decision time
+            nonlocal last_event_time
+            last_event_time = time.monotonic()
 
             if pending.approved:
-                await client.grant_permission(permission_id)
+                await client.grant_permission(
+                    permission_id, session_id=session_id,
+                )
             else:
-                await client.deny_permission(permission_id)
+                await client.deny_permission(
+                    permission_id, session_id=session_id,
+                )
 
             self._pending_approvals.pop(agent_run_id, None)
 
@@ -641,11 +695,19 @@ class AgentExecutor:
             return collected_text
 
         async def _stream_with_stall_detection() -> str:
-            """Wrap stream with stall detection."""
+            """Wrap stream with stall detection.
+
+            The overall timeout excludes time spent waiting for user
+            permission decisions (tracked via permission_wait_total).
+            """
+            stream_start = time.monotonic()
             stream_task = asyncio.create_task(_stream())
             try:
                 while not stream_task.done():
                     await asyncio.sleep(2.0)
+                    # Skip stall detection while waiting for user permission
+                    if self._permission_pending.get(agent_run_id):
+                        continue
                     idle = time.monotonic() - last_event_time
                     if idle > stall_timeout and collected_text:
                         # Stream stalled with content — treat as complete
@@ -653,6 +715,18 @@ class AgentExecutor:
                         with contextlib.suppress(asyncio.CancelledError):
                             await stream_task
                         return collected_text
+                    # Check effective timeout (wall clock minus permission wait)
+                    effective_elapsed = (
+                        time.monotonic() - stream_start - permission_wait_total
+                    )
+                    if effective_elapsed > timeout:
+                        stream_task.cancel()
+                        with contextlib.suppress(asyncio.CancelledError):
+                            await stream_task
+                        raise AgentTimeoutError(
+                            f"Agent did not complete within {timeout:.0f}s "
+                            f"(excludes {permission_wait_total:.0f}s user approval time)."
+                        )
                 return stream_task.result()
             except asyncio.CancelledError:
                 stream_task.cancel()
@@ -660,12 +734,15 @@ class AgentExecutor:
                     await stream_task
                 raise
 
+        max_wall_clock = timeout + PERMISSION_WAIT_BUFFER
         try:
             return await asyncio.wait_for(
-                _stream_with_stall_detection(), timeout=timeout
+                _stream_with_stall_detection(), timeout=max_wall_clock
             )
         except TimeoutError as exc:
+            effective_timeout = timeout + permission_wait_total
             raise AgentTimeoutError(
-                f"Agent did not complete within {timeout:.0f}s. "
+                f"Agent did not complete within {effective_timeout:.0f}s "
+                f"(includes {permission_wait_total:.0f}s user approval time). "
                 f"Collected {len(collected_text)} chars before timeout."
             ) from exc

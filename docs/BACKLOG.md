@@ -126,7 +126,7 @@ Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implem
 - [ ] Findings page: search by title/asset/CVE (Phase 4 gap)
 - [ ] Findings page: "Why this matters" preview on hover/expand (Phase 4 gap)
 - [ ] Settings page: model/provider configuration improvements
-- [ ] Permission approval UI: SSE listener for `permission_request` events in WorkspacePage, approval card component (tool name, command patterns, approve/deny buttons), POST to `/api/workspaces/{id}/agent-runs/{run_id}/permission`. Backend plumbing done in Phase 6b PR #34. Also needs: flip workspace `opencode.json` from `"allow"` to `"ask"` for bash/edit
+- [x] Permission approval UI: SSE listener for `permission_request` events in WorkspacePage, approval card component (tool name, command patterns, approve/deny buttons), POST to `/api/workspaces/{id}/agent-runs/{run_id}/permission`. Backend plumbing done in Phase 6b PR #34. Also needs: flip workspace `opencode.json` from `"allow"` to `"ask"` for bash/edit
 
 ### Priority 8: Packaging (depends on Phase 6b + Phase 7 completion)
 
