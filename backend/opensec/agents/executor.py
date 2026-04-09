@@ -45,6 +45,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT: float = 120.0
+# Extra buffer for asyncio.wait_for when permission waits are possible.
+# The real timeout is enforced by stall detection, which accounts for
+# time spent waiting for user permission decisions.
+PERMISSION_WAIT_BUFFER: float = 600.0
 
 # ---------------------------------------------------------------------------
 # Permission tier classification for tool-use approval.
@@ -262,13 +266,9 @@ class AgentExecutor:
         self._pool = pool
         self._context_builder = context_builder
         self._pending_approvals: dict[str, _PendingApproval] = {}
-        # Per-workspace queues for surfacing permission events to SSE endpoints.
-        # Keyed by workspace_id. Created on execute(), cleaned up on completion.
-        self._permission_queues: dict[str, asyncio.Queue] = {}
-        # Track active agent run IDs per workspace (for SSE done signals).
-        self._active_runs: dict[str, str] = {}
-        # Track whether a permission wait is in progress (to pause stall detection).
-        self._permission_pending: dict[str, bool] = {}
+        self._permission_queues: dict[str, asyncio.Queue] = {}  # workspace_id -> SSE queue
+        self._active_runs: dict[str, str] = {}  # workspace_id -> agent_run_id
+        self._permission_pending: dict[str, bool] = {}  # agent_run_id -> pauses stall detection
 
     def approve_tool(self, run_id: str) -> bool:
         """Approve a pending tool-use permission request.
@@ -734,10 +734,7 @@ class AgentExecutor:
                     await stream_task
                 raise
 
-        # Use a generous upper bound for wait_for (timeout + 10min for
-        # permission waits). The stall detection loop handles the real
-        # timeout logic, accounting for permission_wait_total.
-        max_wall_clock = timeout + 600.0
+        max_wall_clock = timeout + PERMISSION_WAIT_BUFFER
         try:
             return await asyncio.wait_for(
                 _stream_with_stall_detection(), timeout=max_wall_clock

@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
-import contextlib
 import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from opensec.api.tasks import fire_and_forget_send
 from opensec.db.connection import get_db
 from opensec.db.repo_finding import get_finding
 from opensec.db.repo_workspace import (
@@ -160,20 +158,7 @@ async def workspace_send_message(
     pool = _get_pool(request)
     client = await pool.get_or_start(workspace_id, Path(workspace.workspace_dir))
 
-    # Fire-and-forget: the SSE stream delivers the response, not this POST.
-    # send_message() blocks until the LLM finishes (up to 120s), which hangs
-    # the HTTP response and breaks the permission approval flow.
-    async def _send() -> None:
-        with contextlib.suppress(httpx.ReadTimeout):
-            await client.send_message(body.session_id, body.content)
-
-    task = asyncio.create_task(_send())
-    task.add_done_callback(
-        lambda t: logger.error("Background send_message failed: %s", t.exception())
-        if not t.cancelled() and t.exception()
-        else None
-    )
-
+    fire_and_forget_send(client.send_message(body.session_id, body.content))
     return {"session_id": body.session_id, "status": "sent"}
 
 

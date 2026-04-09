@@ -105,11 +105,7 @@ async def execute_agent(
 
     asyncio.create_task(_run_in_background())
 
-    # Return the run_id from the active_runs tracking (set by execute()).
-    # The run record is created inside execute() synchronously before
-    # any async work, so active_runs will have the ID by the time
-    # the background task yields.
-    await asyncio.sleep(0.05)  # yield to let execute() register the run
+    await asyncio.sleep(0.05)  # yield to let execute() register the run ID
     run_id = executor.get_active_run_id(workspace_id) or "pending"
 
     return ExecuteResponse(
