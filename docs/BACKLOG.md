@@ -131,7 +131,7 @@ Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implem
 
 ### MVP — Frontend (PRD-0001, IMPL-0001):
 
-- [ ] **WP1: Docker first-run** — seed demo mode (OPENSEC_DEMO env var), `gh` CLI in Docker image
+- [x] **WP1: Docker first-run** — seed demo mode (OPENSEC_DEMO env var), `gh` CLI in Docker image
 - [ ] **WP2: Repo settings UI** — RepoSettingsSection component (URL + PAT + test connection), "solve without repo" guard dialog
 - [ ] **WP3: Import UX** — ImportDialog component (file upload + paste JSON tabs), ImportButton in toolbar, empty state with import CTA
 - [ ] **WP7: Structured result cards** — EnricherResultCard, ExposureResultCard, PlannerResultCard, RemediationResultCard, ConfidenceBadge
@@ -150,8 +150,8 @@ Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implem
 
 ### Priority 8: Packaging (depends on Phase 6b + Phase 7 completion)
 
-- [ ] Startup migration runner
-- [ ] Seed demo data mode (`OPENSEC_DEMO=true`)
+- [x] Startup migration runner
+- [x] Seed demo data mode (`OPENSEC_DEMO=true`)
 - [ ] Install + upgrade documentation
 - [ ] First tagged release (v0.1.0-alpha)
 

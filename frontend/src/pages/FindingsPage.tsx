@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, type Finding } from '@/api/client'
-import { useFindings } from '@/api/hooks'
+import { useFindings, useIntegrations, useAllIntegrationsHealth } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import EmptyState from '@/components/EmptyState'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import ErrorState from '@/components/ErrorState'
 import FindingRow from '@/components/FindingRow'
-import IngestProgress from '@/components/IngestProgress'
+import ImportDialog from '@/components/ImportDialog'
 import PageShell from '@/components/PageShell'
 
 const STATUS_OPTIONS = [
@@ -39,20 +39,19 @@ function FindingsPageContent() {
   const [sortBy, setSortBy] = useState('updated')
   const [solving, setSolving] = useState<string | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [showRepoGuard, setShowRepoGuard] = useState(false)
+  const [pendingFinding, setPendingFinding] = useState<Finding | null>(null)
   const navigate = useNavigate()
+  const { data: integrations } = useIntegrations()
+  const { data: healthStatuses } = useAllIntegrationsHealth((integrations?.length ?? 0) > 0)
+  const githubInt = integrations?.find(i => i.provider_name === 'GitHub')
+  const githubHealth = healthStatuses?.find(h => h.integration_id === githubInt?.id)
+  const repoConfigured = !!githubInt?.config?.repo_url && githubHealth?.credential_status === 'ok'
 
   const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
   if (statusFilter) params.status = statusFilter
 
   const { data: findings, isLoading, isError, refetch } = useFindings(params)
-
-  const seededRef = useRef(false)
-  useEffect(() => {
-    if (!isLoading && findings && findings.length === 0 && !seededRef.current) {
-      seededRef.current = true
-      api.seed().then(() => refetch())
-    }
-  }, [isLoading, findings, refetch])
 
   const sorted = [...(findings ?? [])].sort((a, b) => {
     if (sortBy === 'severity') {
@@ -63,7 +62,7 @@ function FindingsPageContent() {
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   })
 
-  const handleSolve = useCallback(async (finding: Finding) => {
+  const doSolve = useCallback(async (finding: Finding) => {
     setSolving(finding.id)
     try {
       const workspace = await api.createWorkspace({ finding_id: finding.id })
@@ -73,6 +72,15 @@ function FindingsPageContent() {
       setSolving(null)
     }
   }, [navigate])
+
+  const handleSolve = useCallback((finding: Finding) => {
+    if (!repoConfigured) {
+      setPendingFinding(finding)
+      setShowRepoGuard(true)
+      return
+    }
+    doSolve(finding)
+  }, [repoConfigured, doSolve])
 
   if (isError) {
     return (
@@ -119,8 +127,8 @@ function FindingsPageContent() {
       <ActionButton
         label="Import"
         icon="upload_file"
-        variant="secondary"
-        onClick={() => setImportOpen(!importOpen)}
+        variant="primary"
+        onClick={() => setImportOpen(true)}
       />
     </>
   )
@@ -132,7 +140,7 @@ function FindingsPageContent() {
       actions={filterActions}
     >
       {importOpen && (
-        <IngestProgress
+        <ImportDialog
           onComplete={() => {
             refetch()
             setImportOpen(false)
@@ -148,8 +156,10 @@ function FindingsPageContent() {
       ) : sorted.length === 0 ? (
         <EmptyState
           icon="assignment_late"
-          title="No open findings"
-          subtitle="All findings are being worked on. Check Workspaces for active remediations or History for completed ones."
+          title="No findings yet"
+          subtitle="Import findings from your scanner to get started."
+          action={{ label: 'Import', icon: 'upload_file', onClick: () => setImportOpen(true) }}
+          footer="Supports Snyk, Wiz, and other JSON exports"
         />
       ) : (
         <div className="space-y-3">
@@ -161,6 +171,50 @@ function FindingsPageContent() {
               disabled={solving === finding.id}
             />
           ))}
+        </div>
+      )}
+      {/* Repo guard dialog */}
+      {showRepoGuard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <div
+            className="bg-surface-container-lowest rounded-xl shadow-xl w-full max-w-md mx-4 p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center mb-4">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant">
+                link_off
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-on-surface text-center mb-2">
+              GitHub integration not configured
+            </h3>
+            <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
+              A GitHub integration with repository URL and access token is needed for the
+              agent to clone code and create pull requests. You can still explore findings
+              without it.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setShowRepoGuard(false)
+                  navigate('/settings#integrations')
+                }}
+                className="w-full bg-primary text-on-primary py-2.5 rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors"
+              >
+                Configure integration
+              </button>
+              <button
+                onClick={() => {
+                  setShowRepoGuard(false)
+                  if (pendingFinding) doSolve(pendingFinding)
+                  setPendingFinding(null)
+                }}
+                className="w-full text-on-surface-variant py-2.5 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors"
+              >
+                Continue without repo
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </PageShell>

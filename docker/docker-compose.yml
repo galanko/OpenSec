@@ -17,6 +17,8 @@ services:
       - OPENSEC_CREDENTIAL_KEY=${OPENSEC_CREDENTIAL_KEY:-}
       # Data
       - OPENSEC_DATA_DIR=/data
+      # Demo mode — seed sample findings on first run
+      # - OPENSEC_DEMO=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

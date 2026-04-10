@@ -3,6 +3,7 @@ import {
   useIntegrations,
   useCreateIntegration,
   useDeleteIntegration,
+  useUpdateIntegration,
   useRegistry,
   useCredentials,
   useStoreCredential,
@@ -116,15 +117,26 @@ function HealthIndicator({ health }: { health: IntegrationHealthStatus | undefin
 function CredentialForm({
   entry,
   integrationId,
+  integration,
   onDone,
 }: {
   entry: RegistryEntry
   integrationId: string
+  integration?: IntegrationConfigItem | null
   onDone: () => void
 }) {
   const storeCredential = useStoreCredential()
+  const updateIntegration = useUpdateIntegration()
   const testIntegration = useTestIntegration()
   const [values, setValues] = useState<Record<string, string>>({})
+  const [configValues, setConfigValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    for (const field of entry.config_fields ?? []) {
+      const existing = integration?.config?.[field.key_name]
+      if (typeof existing === 'string') initial[field.key_name] = existing
+    }
+    return initial
+  })
   const [saving, setSaving] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
 
@@ -132,7 +144,7 @@ function CredentialForm({
     setSaving(true)
     setTestResult(null)
     try {
-      // Store each credential
+      // Store each credential in vault
       for (const field of entry.credentials_schema) {
         const val = values[field.key_name]
         if (val && val.trim()) {
@@ -142,6 +154,20 @@ function CredentialForm({
             value: val.trim(),
           })
         }
+      }
+      // Store config fields in integration config
+      const configFields = entry.config_fields ?? []
+      if (configFields.length > 0) {
+        const existingConfig = integration?.config ?? {}
+        const mergedConfig = { ...existingConfig }
+        for (const field of configFields) {
+          const val = configValues[field.key_name]
+          if (val !== undefined) mergedConfig[field.key_name] = val
+        }
+        await updateIntegration.mutateAsync({
+          id: integrationId,
+          data: { config: mergedConfig },
+        })
       }
       // Test connection
       const result = await testIntegration.mutateAsync(integrationId)
@@ -157,26 +183,43 @@ function CredentialForm({
     .filter((f) => f.required)
     .every((f) => values[f.key_name]?.trim())
 
+  const renderField = (field: CredentialField, value: string, onChange: (v: string) => void) => (
+    <div key={field.key_name}>
+      <label className="text-xs font-semibold text-on-surface-variant block mb-1">
+        {field.label}
+        {field.required && <span className="text-error ml-0.5">*</span>}
+      </label>
+      <input
+        type={field.type === 'password' ? 'password' : 'text'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={field.placeholder || ''}
+        className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+      />
+      {field.help_text && (
+        <p className="text-xs text-on-surface-variant mt-1">{field.help_text}</p>
+      )}
+    </div>
+  )
+
   return (
     <div className="space-y-4">
-      {entry.credentials_schema.map((field: CredentialField) => (
-        <div key={field.key_name}>
-          <label className="text-xs font-semibold text-on-surface-variant block mb-1">
-            {field.label}
-            {field.required && <span className="text-error ml-0.5">*</span>}
-          </label>
-          <input
-            type={field.type === 'password' ? 'password' : 'text'}
-            value={values[field.key_name] || ''}
-            onChange={(e) => setValues({ ...values, [field.key_name]: e.target.value })}
-            placeholder={field.placeholder || ''}
-            className="w-full bg-surface-container-lowest rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-          />
-          {field.help_text && (
-            <p className="text-xs text-on-surface-variant mt-1">{field.help_text}</p>
+      {entry.credentials_schema.map((field: CredentialField) =>
+        renderField(field, values[field.key_name] || '', (v) =>
+          setValues({ ...values, [field.key_name]: v }),
+        ),
+      )}
+
+      {(entry.config_fields ?? []).length > 0 && (
+        <>
+          <h4 className="text-sm font-semibold text-on-surface mt-2">Configuration</h4>
+          {(entry.config_fields ?? []).map((field: CredentialField) =>
+            renderField(field, configValues[field.key_name] || '', (v) =>
+              setConfigValues({ ...configValues, [field.key_name]: v }),
+            ),
           )}
-        </div>
-      ))}
+        </>
+      )}
 
       {testResult && (
         <div
@@ -219,10 +262,12 @@ function CredentialForm({
 function SetupPanel({
   entry,
   integrationId,
+  integration,
   onClose,
 }: {
   entry: RegistryEntry
   integrationId: string | null
+  integration?: IntegrationConfigItem | null
   onClose: () => void
 }) {
   const createIntegration = useCreateIntegration()
@@ -270,7 +315,7 @@ function SetupPanel({
         <div>
           <h4 className="text-sm font-semibold text-on-surface mb-3">Credentials</h4>
           {createdId ? (
-            <CredentialForm entry={entry} integrationId={createdId} onDone={onClose} />
+            <CredentialForm entry={entry} integrationId={createdId} integration={integration} onDone={onClose} />
           ) : (
             <button
               onClick={handleCreate}
@@ -342,6 +387,11 @@ function ConfiguredCard({
               </span>
             )}
           </div>
+          {typeof integration.config?.repo_url === 'string' && integration.config.repo_url && (
+            <div className="text-xs text-on-surface-variant mt-0.5 truncate">
+              {integration.config.repo_url}
+            </div>
+          )}
         </div>
 
         {/* Health indicator */}
@@ -417,10 +467,10 @@ export default function IntegrationSettings() {
   const isConfigured = (entry: RegistryEntry) =>
     configuredIds.has(entry.name.toLowerCase())
 
-  const getIntegrationId = (entry: RegistryEntry) =>
+  const getIntegrationForEntry = (entry: RegistryEntry) =>
     integrations?.find(
       (i) => i.provider_name.toLowerCase() === entry.name.toLowerCase(),
-    )?.id || null
+    ) || null
 
   return (
     <section id="integrations">
@@ -438,7 +488,8 @@ export default function IntegrationSettings() {
       {setupEntry && (
         <SetupPanel
           entry={setupEntry}
-          integrationId={getIntegrationId(setupEntry)}
+          integrationId={getIntegrationForEntry(setupEntry)?.id || null}
+          integration={getIntegrationForEntry(setupEntry)}
           onClose={() => setSetupEntry(null)}
         />
       )}

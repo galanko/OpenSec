@@ -101,16 +101,16 @@ async def get_ingest_job(
 
 async def get_ingest_job_raw_data(
     db: aiosqlite.Connection, job_id: str
-) -> tuple[str, list[dict[str, Any]], int] | None:
-    """Return (source, raw_data, chunk_size) for the worker to process."""
+) -> tuple[str, list[dict[str, Any]], int, str | None] | None:
+    """Return (source, raw_data, chunk_size, model) for the worker to process."""
     cursor = await db.execute(
-        "SELECT source, raw_data, chunk_size FROM ingest_job WHERE id = ?",
+        "SELECT source, raw_data, chunk_size, model FROM ingest_job WHERE id = ?",
         (job_id,),
     )
     row = await cursor.fetchone()
     if not row or not row["raw_data"]:
         return None
-    return row["source"], json.loads(row["raw_data"]), row["chunk_size"]
+    return row["source"], json.loads(row["raw_data"]), row["chunk_size"], row["model"]
 
 
 async def get_next_pending_job_id(db: aiosqlite.Connection) -> str | None:

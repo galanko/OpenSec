@@ -63,7 +63,28 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting OpenSec...")
     # Initialize persistence layer.
     db_path = settings.resolve_data_dir() / "opensec.db"
+    first_run = not db_path.exists()
+    if first_run:
+        logger.info("First run detected — no existing database at %s", db_path)
+    else:
+        logger.info("Existing database found at %s", db_path)
     await init_db(db_path)
+
+    # Demo mode: seed sample findings on startup
+    if settings.demo and db_connection._db is not None:
+        from opensec.api.routes.seed import DEMO_FINDINGS
+        from opensec.db.repo_finding import create_finding, list_findings
+        from opensec.models import FindingCreate
+
+        existing = await list_findings(db_connection._db, limit=1)
+        if not existing:
+            logger.info("Demo mode: seeding %d sample findings", len(DEMO_FINDINGS))
+            for data in DEMO_FINDINGS:
+                await create_finding(db_connection._db, FindingCreate(**data))
+            logger.info("Demo mode: seeding complete")
+        else:
+            logger.info("Demo mode: findings already exist, skipping seed")
+
     # Start AI engine (non-fatal if unavailable).
     try:
         await opencode_process.start()
