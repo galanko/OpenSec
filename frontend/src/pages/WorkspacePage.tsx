@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, type Finding } from '@/api/client'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAgentRuns, useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
+import { useAgentRuns, useFinding, useSidebar, useSuggestedNext, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
 import EmptyState from '@/components/EmptyState'
@@ -137,9 +137,13 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const { data: sidebar } = useSidebar(workspaceId)
 
   const { data: agentRuns } = useAgentRuns(workspaceId)
+  const { data: suggestedNext } = useSuggestedNext(workspaceId)
   const queryClient = useQueryClient()
   const processedRunIds = useRef<Set<string>>(new Set())
   const activeRun = agentRuns?.find(r => r.status === 'running')
+  const completedAgentTypes = agentRuns
+    ?.filter(r => r.status === 'completed')
+    .map(r => r.agent_type) ?? []
 
   // Chat state
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -344,8 +348,11 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       setPendingPermission(null)
       setPermissionLoading(false)
       setPermissionError(null)
+      // Refresh suggestion after agent state changes.
+      queryClient.invalidateQueries({ queryKey: ['suggested-next', workspaceId] })
+      queryClient.invalidateQueries({ queryKey: ['sidebar', workspaceId] })
     }
-  }, [agentRuns])
+  }, [agentRuns, queryClient, workspaceId])
 
   // Permission SSE — lightweight connection only for permission_request events.
   // Completion is detected via polling above, so done/error events are ignored.
@@ -499,6 +506,9 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
             <ActionChips
               onAction={handleAgentAction}
               disabled={!sessionId || sending}
+              suggestedAgentType={suggestedNext?.agent_type}
+              runningAgentType={activeRun?.agent_type}
+              completedAgentTypes={completedAgentTypes}
             />
           )}
 

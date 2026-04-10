@@ -71,6 +71,7 @@ class AgentTemplateEngine:
         ownership: dict[str, Any] | None = None,
         exposure: dict[str, Any] | None = None,
         plan: dict[str, Any] | None = None,
+        remediation: dict[str, Any] | None = None,
         validation: dict[str, Any] | None = None,
     ) -> RenderedAgent:
         """Render a single agent template by name.
@@ -99,11 +100,13 @@ class AgentTemplateEngine:
             "ownership": ownership or {},
             "exposure": exposure or {},
             "plan": plan or {},
+            "remediation": remediation or {},
             "validation": validation or {},
             "has_enrichment": enrichment is not None,
             "has_ownership": ownership is not None,
             "has_exposure": exposure is not None,
             "has_plan": plan is not None,
+            "has_remediation": remediation is not None,
             "has_validation": validation is not None,
         }
 
@@ -118,15 +121,17 @@ class AgentTemplateEngine:
         ownership: dict[str, Any] | None = None,
         exposure: dict[str, Any] | None = None,
         plan: dict[str, Any] | None = None,
+        remediation: dict[str, Any] | None = None,
         validation: dict[str, Any] | None = None,
     ) -> list[RenderedAgent]:
-        """Render all 6 agent templates. Returns list in pipeline order."""
+        """Render all agent templates. Returns list in pipeline order."""
         kwargs = {
             "finding": finding,
             "enrichment": enrichment,
             "ownership": ownership,
             "exposure": exposure,
             "plan": plan,
+            "remediation": remediation,
             "validation": validation,
         }
         return [self.render_agent(name, **kwargs) for name in AGENT_NAMES]
@@ -140,6 +145,7 @@ class AgentTemplateEngine:
         ownership: dict[str, Any] | None = None,
         exposure: dict[str, Any] | None = None,
         plan: dict[str, Any] | None = None,
+        remediation: dict[str, Any] | None = None,
         validation: dict[str, Any] | None = None,
     ) -> list[Path]:
         """Render all agents and write them to agents_dir.
@@ -154,6 +160,7 @@ class AgentTemplateEngine:
             ownership=ownership,
             exposure=exposure,
             plan=plan,
+            remediation=remediation,
             validation=validation,
         )
 

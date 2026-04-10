@@ -127,6 +127,15 @@ _STRUCTURED_OUTPUT_CONTRACTS: dict[str, str] = {
     "evidence": "what evidence supports the verdict" or null,
     "remaining_concerns": ["concern 1", ...]
 }""",
+    "remediation_executor": """\
+"structured_output": {
+    "status": "pr_created/changes_made/failed/needs_approval",
+    "pr_url": "https://github.com/.../pull/N" or null,
+    "branch_name": "opensec/fix/..." or null,
+    "changes_summary": "what files were changed and why",
+    "test_results": "pass/fail/skipped" or null,
+    "error_details": "description of failure" or null
+}""",
 }
 
 _AGENT_TYPE_LABELS: dict[str, str] = {
@@ -134,6 +143,7 @@ _AGENT_TYPE_LABELS: dict[str, str] = {
     "owner_resolver": "ownership resolution",
     "exposure_analyzer": "exposure and context analysis",
     "remediation_planner": "remediation planning",
+    "remediation_executor": "remediation execution",
     "validation_checker": "validation checking",
 }
 

@@ -143,10 +143,16 @@ def _map_validation(out: dict[str, Any]) -> SidebarStateUpdate:
     )
 
 
+def _map_executor(out: dict[str, Any]) -> SidebarStateUpdate:
+    # Stub — full PR mapping is WP5 (T5.2 / T6.2).
+    return SidebarStateUpdate()
+
+
 _AGENT_SIDEBAR_MAP: dict[str, Any] = {
     "finding_enricher": _map_enricher,
     "owner_resolver": _map_owner,
     "exposure_analyzer": _map_exposure,
     "remediation_planner": _map_planner,
+    "remediation_executor": _map_executor,
     "validation_checker": _map_validation,
 }

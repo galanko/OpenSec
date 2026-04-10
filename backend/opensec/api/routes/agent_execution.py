@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from opensec.agents.errors import AgentBusyError, AgentProcessError
-from opensec.agents.pipeline import PIPELINE_ORDER, suggest_next
+from opensec.agents.pipeline import VALID_AGENT_TYPES, suggest_next
 from opensec.db.connection import get_db
 from opensec.db.repo_agent_run import get_agent_run, update_agent_run
 from opensec.db.repo_workspace import get_workspace
@@ -37,6 +37,7 @@ class SuggestNextResponse(BaseModel):
     agent_type: str | None
     reason: str | None
     priority: str | None
+    action_type: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -89,10 +90,10 @@ async def execute_agent(
     if not workspace.workspace_dir:
         raise HTTPException(status_code=400, detail="Workspace has no directory")
 
-    if agent_type not in PIPELINE_ORDER:
+    if agent_type not in VALID_AGENT_TYPES:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid agent_type. Must be one of: {PIPELINE_ORDER}",
+            detail=f"Invalid agent_type. Must be one of: {sorted(VALID_AGENT_TYPES)}",
         )
 
     executor = request.app.state.agent_executor
@@ -184,6 +185,7 @@ async def suggest_next_endpoint(
         agent_type=suggestion.agent_type,
         reason=suggestion.reason,
         priority=suggestion.priority,
+        action_type=suggestion.action_type,
     )
 
 
