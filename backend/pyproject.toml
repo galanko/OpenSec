@@ -39,4 +39,5 @@ select = ["E", "F", "I", "N", "UP", "B", "SIM", "TCH"]
 asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests requiring OpenCode binary and LLM API key",
+    "agent: agent integration tests requiring real LLM calls (slow, costs money)",
 ]

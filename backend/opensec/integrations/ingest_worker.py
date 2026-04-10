@@ -32,6 +32,9 @@ _MAX_CONSECUTIVE_FAILURES = 3
 _BACKOFF_SECONDS = 30
 _POLL_INTERVAL = 1
 
+# Small imports get per-finding chunks for better progress granularity
+_SMALL_IMPORT_THRESHOLD = 5
+
 
 def estimate_tokens(raw_data: list[dict[str, Any]], chunk_size: int) -> int:
     """Rough token estimate for an ingest job.
@@ -54,8 +57,12 @@ async def _process_job(db: aiosqlite.Connection, job_id: str) -> None:
         await set_job_status(db, job_id, "failed")
         return
 
-    source, raw_data, chunk_size = data
+    source, raw_data, chunk_size, model = data
     await set_job_status(db, job_id, "processing")
+
+    # For small imports, use per-finding chunks for better progress visibility
+    if len(raw_data) <= _SMALL_IMPORT_THRESHOLD:
+        chunk_size = 1
 
     consecutive_failures = 0
     total_chunks = (len(raw_data) + chunk_size - 1) // chunk_size
@@ -72,7 +79,7 @@ async def _process_job(db: aiosqlite.Connection, job_id: str) -> None:
         chunk = raw_data[start:end]
 
         try:
-            valid, errors = await normalize_findings(source, chunk)
+            valid, errors = await normalize_findings(source, chunk, model=model)
             consecutive_failures = 0  # reset on success
         except Exception as exc:
             consecutive_failures += 1
@@ -92,6 +99,24 @@ async def _process_job(db: aiosqlite.Connection, job_id: str) -> None:
                 await set_job_status(db, job_id, "pending")
                 return
             continue
+
+        # Chunk-level fallback: if the whole chunk failed, try items one-by-one
+        if not valid and len(chunk) > 1:
+            logger.info(
+                "Job %s chunk %d: batch failed, retrying %d items individually",
+                job_id, chunk_idx + 1, len(chunk),
+            )
+            valid = []
+            errors = []
+            for item in chunk:
+                try:
+                    sub_valid, sub_errors = await normalize_findings(
+                        source, [item], model=model
+                    )
+                    valid.extend(sub_valid)
+                    errors.extend(sub_errors)
+                except Exception as exc:
+                    errors.append(f"Individual item fallback: {exc}")
 
         # Persist valid findings
         findings_count = 0

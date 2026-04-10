@@ -1,0 +1,32 @@
+[
+  {
+    "id": "WIZ-VULN-2024-001",
+    "name": "Critical OpenSSL vulnerability in production container",
+    "severity": "CRITICAL",
+    "status": "OPEN",
+    "resource": {"type": "Container", "name": "api-server:v2.3.1", "cloudPlatform": "AWS", "region": "us-east-1"},
+    "vulnerability": {"cve": "CVE-2024-0727", "package": "openssl", "version": "3.0.12", "fixedVersion": "3.0.13"},
+    "firstDetected": "2026-03-15T10:30:00Z",
+    "description": "OpenSSL is vulnerable to a denial of service via malformed PKCS12 files. Processing crafted PKCS12 data can crash the application."
+  },
+  {
+    "id": "WIZ-VULN-2024-002",
+    "name": "SQL injection in pg driver",
+    "severity": "HIGH",
+    "status": "OPEN",
+    "resource": {"type": "Container", "name": "worker-service:v1.8.0", "cloudPlatform": "AWS", "region": "us-east-1"},
+    "vulnerability": {"cve": "CVE-2024-1597", "package": "org.postgresql:postgresql", "version": "42.6.0", "fixedVersion": "42.6.1"},
+    "firstDetected": "2026-03-20T14:00:00Z",
+    "description": "PostgreSQL JDBC driver is vulnerable to SQL injection via the preferQueryMode=simple connection parameter."
+  },
+  {
+    "id": "WIZ-VULN-2024-003",
+    "name": "Path traversal in Spring Framework",
+    "severity": "MEDIUM",
+    "status": "OPEN",
+    "resource": {"type": "Container", "name": "api-server:v2.3.1", "cloudPlatform": "AWS", "region": "us-east-1"},
+    "vulnerability": {"cve": "CVE-2024-22243", "package": "org.springframework:spring-web", "version": "6.1.3", "fixedVersion": "6.1.4"},
+    "firstDetected": "2026-03-22T09:15:00Z",
+    "description": "Spring Framework is vulnerable to path traversal via UriComponentsBuilder when the URI contains path segments with encoded dots."
+  }
+]

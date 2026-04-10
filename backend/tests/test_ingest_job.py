@@ -172,10 +172,11 @@ async def test_get_ingest_job_raw_data():
     job = await create_ingest_job(db, source="wiz", raw_data=raw, chunk_size=5)
     result = await get_ingest_job_raw_data(db, job.job_id)
     assert result is not None
-    source, data, chunk_size = result
+    source, data, chunk_size, model = result
     assert source == "wiz"
     assert data == raw
     assert chunk_size == 5
+    assert model is None
     await close_db()
 
 
@@ -186,29 +187,30 @@ async def test_get_ingest_job_raw_data():
 
 @pytest.mark.asyncio
 async def test_process_job_success():
-    """Worker processes a job with 2 chunks successfully."""
+    """Worker processes a job with multiple chunks successfully."""
     from opensec.db.connection import close_db, init_db
     from opensec.db.repo_ingest_job import create_ingest_job, get_ingest_job
 
     await init_db(":memory:")
     from opensec.db.connection import _db as db
 
-    raw = [{"id": str(i), "title": f"Finding {i}"} for i in range(5)]
+    # Use 8 items to exceed _SMALL_IMPORT_THRESHOLD (5), so chunk_size=3 is kept
+    raw = [{"id": str(i), "title": f"Finding {i}"} for i in range(8)]
     job = await create_ingest_job(db, source="wiz", raw_data=raw, chunk_size=3)
 
     # Mock normalize_findings to return valid FindingCreate objects
     from opensec.models import FindingCreate
 
-    mock_findings = [
-        FindingCreate(source_type="wiz", source_id=f"wiz-{i}", title=f"Finding {i}")
-        for i in range(3)
-    ]
+    async def _mock_normalize(source, data, *, model=None):
+        return [
+            FindingCreate(source_type="wiz", source_id=f"wiz-{i}", title=f"Finding {i}")
+            for i in range(len(data))
+        ], []
 
     with (
         patch(
             "opensec.integrations.ingest_worker.normalize_findings",
-            new_callable=AsyncMock,
-            return_value=(mock_findings, []),
+            side_effect=_mock_normalize,
         ),
         patch(
             "opensec.integrations.ingest_worker.create_finding",
@@ -221,8 +223,8 @@ async def test_process_job_success():
 
     progress = await get_ingest_job(db, job.job_id)
     assert progress.status == "completed"
-    assert progress.completed_chunks == 2  # 5 items / 3 chunk_size = 2 chunks
-    assert mock_create.call_count == 6  # 3 findings * 2 chunks
+    assert progress.completed_chunks == 3  # 8 items / 3 chunk_size = 3 chunks
+    assert mock_create.call_count == 8  # 8 findings total
     await close_db()
 
 
@@ -235,12 +237,13 @@ async def test_process_job_partial_failure():
     await init_db(":memory:")
     from opensec.db.connection import _db as db
 
+    # Use 6 items > _SMALL_IMPORT_THRESHOLD so chunk_size=3 is preserved
     raw = [{"id": str(i)} for i in range(6)]
     job = await create_ingest_job(db, source="snyk", raw_data=raw, chunk_size=3)
 
     call_count = 0
 
-    async def _mock_normalize(source, data):
+    async def _mock_normalize(source, data, *, model=None):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
@@ -292,7 +295,7 @@ async def test_process_job_cancellation():
 
     chunk_calls = 0
 
-    async def _mock_normalize(source, data):
+    async def _mock_normalize(source, data, *, model=None):
         nonlocal chunk_calls
         chunk_calls += 1
         # Cancel after first chunk

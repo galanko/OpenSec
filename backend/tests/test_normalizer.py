@@ -109,6 +109,8 @@ def mock_opencode():
         mock.create_session = AsyncMock()
         mock.create_session.return_value.id = "test-session-id"
         mock.send_and_get_response = AsyncMock(return_value=None)
+        mock.get_config = AsyncMock(return_value={"model": "openai/gpt-4.1-nano"})
+        mock.update_config = AsyncMock(return_value={})
         yield mock
 
 
@@ -167,7 +169,9 @@ async def test_normalize_llm_error(mock_opencode):
     findings, errors = await normalize_findings("wiz", [{"id": "1"}])
     assert findings == []
     assert len(errors) == 1
-    assert "LLM error" in errors[0]
+    assert "Failed to parse JSON array" in errors[0]
+    # With retry, it should have been called 3 times (1 original + 2 retries)
+    assert mock_opencode.create_session.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -175,7 +179,9 @@ async def test_normalize_empty_response(mock_opencode):
     # send_and_get_response returns None by default (fixture)
     findings, errors = await normalize_findings("wiz", [{"id": "1"}])
     assert findings == []
-    assert "empty response" in errors[0]
+    assert "Failed to parse JSON array" in errors[0]
+    # Retried 3 times
+    assert mock_opencode.create_session.call_count == 3
 
 
 @pytest.mark.asyncio
@@ -185,6 +191,8 @@ async def test_normalize_malformed_response(mock_opencode):
     findings, errors = await normalize_findings("wiz", [{"id": "1"}])
     assert findings == []
     assert "Failed to parse" in errors[0]
+    # Retried 3 times
+    assert mock_opencode.create_session.call_count == 3
 
 
 @pytest.mark.asyncio
