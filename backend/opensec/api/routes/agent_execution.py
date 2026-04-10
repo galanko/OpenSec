@@ -40,6 +40,28 @@ class SuggestNextResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Agent chips (UI metadata)
+# ---------------------------------------------------------------------------
+
+
+class AgentChipResponse(BaseModel):
+    agent_type: str
+    label: str
+    icon: str
+
+
+@router.get("/agents/chips", response_model=list[AgentChipResponse])
+async def list_agent_chips():
+    """Return the ordered list of action chips for the UI."""
+    from opensec.agents.registry import AGENT_CHIPS
+
+    return [
+        AgentChipResponse(agent_type=c.agent_type, label=c.label, icon=c.icon)
+        for c in AGENT_CHIPS
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Execute agent
 # ---------------------------------------------------------------------------
 

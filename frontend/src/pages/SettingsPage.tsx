@@ -1,9 +1,11 @@
 import ProviderSettings from '@/components/settings/ProviderSettings'
 import IntegrationSettings from '@/components/settings/IntegrationSettings'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import PageShell from '@/components/PageShell'
 
 export default function SettingsPage() {
   return (
+    <ErrorBoundary fallbackTitle="Settings error" fallbackSubtitle="Something went wrong loading settings.">
     <PageShell title="Settings" subtitle="Configure providers, integrations, and preferences.">
       <div className="pb-24">
         <ProviderSettings />
@@ -31,5 +33,6 @@ export default function SettingsPage() {
         </section>
       </div>
     </PageShell>
+    </ErrorBoundary>
   )
 }

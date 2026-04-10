@@ -1,16 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, type Finding } from '@/api/client'
-import { useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAgentRuns, useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
 import EmptyState from '@/components/EmptyState'
+import EnricherResultCard from '@/components/EnricherResultCard'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import ExposureResultCard from '@/components/ExposureResultCard'
 import ListCard from '@/components/ListCard'
 import Markdown from '@/components/Markdown'
 import PageShell from '@/components/PageShell'
 import PermissionApprovalCard from '@/components/PermissionApprovalCard'
+import PlannerResultCard from '@/components/PlannerResultCard'
 import SeverityBadge from '@/components/SeverityBadge'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar'
+
+// ---------------------------------------------------------------------------
+// Agent type → result card component map
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const RESULT_CARDS: Record<string, React.ComponentType<{ data: any; confidence?: number | null; markdown?: string }>> = {
+  finding_enricher: EnricherResultCard,
+  exposure_analyzer: ExposureResultCard,
+  remediation_planner: PlannerResultCard,
+}
 
 // ---------------------------------------------------------------------------
 // Chat message type (local state for streaming)
@@ -19,6 +35,9 @@ import WorkspaceSidebar from '@/components/WorkspaceSidebar'
 interface ChatMessage {
   role: 'user' | 'assistant' | 'error'
   content: string
+  agentType?: string
+  structuredOutput?: Record<string, unknown>
+  confidence?: number | null
 }
 
 // ---------------------------------------------------------------------------
@@ -105,9 +124,11 @@ function WorkspaceLanding() {
 export default function WorkspacePage() {
   const { id: workspaceId } = useParams<{ id: string }>()
 
-  if (!workspaceId) return <WorkspaceLanding />
-
-  return <ActiveWorkspace workspaceId={workspaceId} />
+  return (
+    <ErrorBoundary fallbackTitle="Workspace error" fallbackSubtitle="Something went wrong loading this workspace.">
+      {workspaceId ? <ActiveWorkspace workspaceId={workspaceId} /> : <WorkspaceLanding />}
+    </ErrorBoundary>
+  )
 }
 
 function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
@@ -115,16 +136,21 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const { data: finding } = useFinding(workspace?.finding_id)
   const { data: sidebar } = useSidebar(workspaceId)
 
+  const { data: agentRuns } = useAgentRuns(workspaceId)
+  const queryClient = useQueryClient()
+  const processedRunIds = useRef<Set<string>>(new Set())
+  const activeRun = agentRuns?.find(r => r.status === 'running')
+
   // Chat state
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionModel, setSessionModel] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
+  const [chatSending, setChatSending] = useState(false)
+  const sending = chatSending || !!activeRun
   const [streaming, setStreaming] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
-  const agentEventSourceRef = useRef<EventSource | null>(null)
   const lastUserMessageRef = useRef('')
   const streamingRef = useRef('')
 
@@ -136,7 +162,6 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   } | null>(null)
   const [permissionLoading, setPermissionLoading] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
-  const [activeAgentRun, setActiveAgentRun] = useState<string | null>(null)
 
   // Auto-scroll (includes pendingPermission to scroll to approval card)
   useEffect(() => {
@@ -195,7 +220,36 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       }
     }
 
-    initSession().catch(console.error)
+    initSession().then(async () => {
+      // Restore completed agent runs as structured cards in the timeline.
+      // Running agents are detected automatically via useAgentRuns polling.
+      if (cancelled) return
+      try {
+        const runs = await api.listAgentRuns(workspaceId)
+        if (cancelled) return
+
+        // Seed processedRunIds so the completion useEffect doesn't re-add them
+        for (const r of runs) {
+          if (r.status !== 'running' && r.status !== 'queued') {
+            processedRunIds.current.add(r.id)
+          }
+        }
+
+        // Restore completed agent runs as structured cards in the timeline
+        const completedRuns: ChatMessage[] = runs
+          .filter((r) => r.status === 'completed' && r.structured_output)
+          .map((r) => ({
+            role: 'assistant' as const,
+            content: r.summary_markdown ?? '',
+            agentType: r.agent_type,
+            structuredOutput: r.structured_output ?? undefined,
+            confidence: r.confidence,
+          }))
+        if (completedRuns.length > 0 && !cancelled) {
+          setMessages((prev) => [...prev, ...completedRuns])
+        }
+      } catch { /* non-critical */ }
+    }).catch(console.error)
     return () => { cancelled = true }
   }, [workspace, workspaceId])
 
@@ -213,7 +267,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       if (text.trim() === lastUserMessageRef.current.trim()) return
       streamingRef.current = text
       setStreaming(text)
-      setSending(true)
+      setChatSending(true)
     })
 
     es.addEventListener('error', (event: Event) => {
@@ -224,7 +278,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         setStreaming('')
         setMessages((msgs) => [...msgs, { role: 'error', content: data.message || 'Unknown error' }])
       } catch { /* SSE connection error */ }
-      setSending(false)
+      setChatSending(false)
     })
 
     es.addEventListener('done', () => {
@@ -235,7 +289,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       }
       streamingRef.current = ''
       setStreaming('')
-      setSending(false)
+      setChatSending(false)
       setPendingPermission(null)
     })
 
@@ -262,50 +316,64 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       es.close()
       eventSourceRef.current = null
     }
-  }, [sessionId])
+  }, [sessionId, workspaceId])
 
-  // Agent execution SSE listener — connects while an agent is running
+  // Agent completion detection — polls instead of SSE to avoid useEffect closure races.
   useEffect(() => {
-    if (!activeAgentRun) return
-    let active = true
+    if (!agentRuns) return
+    for (const run of agentRuns) {
+      if (processedRunIds.current.has(run.id)) continue
+      if (run.status === 'completed') {
+        processedRunIds.current.add(run.id)
+        setMessages((prev) => [...prev, {
+          role: 'assistant' as const,
+          content: run.summary_markdown ?? 'Agent completed.',
+          agentType: run.agent_type,
+          structuredOutput: run.structured_output ?? undefined,
+          confidence: run.confidence,
+        }])
+      } else if (run.status === 'failed' || run.status === 'cancelled') {
+        processedRunIds.current.add(run.id)
+        setMessages((prev) => [...prev, {
+          role: 'error' as const,
+          content: run.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
+        }])
+      } else {
+        continue
+      }
+      setPendingPermission(null)
+      setPermissionLoading(false)
+      setPermissionError(null)
+    }
+  }, [agentRuns])
 
+  // Permission SSE — lightweight connection only for permission_request events.
+  // Completion is detected via polling above, so done/error events are ignored.
+  useEffect(() => {
+    if (!activeRun) return
     const es = api.streamAgentExecution(workspaceId)
-    agentEventSourceRef.current = es
 
     es.addEventListener('permission_request', (event) => {
-      if (!active) return
       try {
         const data = JSON.parse((event as MessageEvent).data)
         setPendingPermission({
           id: data.id,
           tool: data.tool,
           patterns: data.patterns || [],
-          runId: data.run_id || activeAgentRun,
+          runId: data.run_id || activeRun.id,
           sessionId: data.session_id || '',
         })
         setPermissionError(null)
       } catch { /* parse error */ }
     })
 
-    es.addEventListener('done', () => {
-      if (!active) return
-      setPendingPermission(null)
-      setPermissionLoading(false)
-      setPermissionError(null)
-      setActiveAgentRun(null)
-    })
+    // Ignore done — completion detected via polling
+    es.addEventListener('done', () => { /* no-op */ })
+    es.addEventListener('error', () => { es.close() })
 
-    es.addEventListener('error', () => {
-      if (!active) return
-      setActiveAgentRun(null)
-    })
-
-    return () => {
-      active = false
-      es.close()
-      agentEventSourceRef.current = null
-    }
-  }, [activeAgentRun, workspaceId])
+    return () => { es.close() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeRun?.id is intentional; using the full object would reconnect on every poll cycle
+  }, [activeRun?.id, workspaceId])
 
   // Permission approve/deny handler.
   // Uses the chat-path endpoint when runId is empty (action chips),
@@ -325,7 +393,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       }
       setPendingPermission(null)
       if (!approved) {
-        setSending(false)
+        setChatSending(false)
       }
     } catch (err) {
       setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)
@@ -334,12 +402,12 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }, [workspaceId, pendingPermission])
 
-  // Send a chat message (used by both text input and action chips).
+  // Send a chat message (used by text input).
   const sendChatMessage = useCallback(async (content: string) => {
     if (!sessionId || sending) return
     lastUserMessageRef.current = content
     setMessages((prev) => [...prev, { role: 'user', content }])
-    setSending(true)
+    setChatSending(true)
     setStreaming('')
     streamingRef.current = ''
 
@@ -347,7 +415,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       await api.sendWorkspaceMessage(workspaceId, sessionId, content)
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'error', content: `Failed to send: ${err}` }])
-      setSending(false)
+      setChatSending(false)
     }
   }, [workspaceId, sessionId, sending])
 
@@ -366,10 +434,18 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }
 
-  // Action chips send their prompt as a chat message to OpenCode.
-  const handleAgentAction = useCallback((prompt: string) => {
-    sendChatMessage(prompt)
-  }, [sendChatMessage])
+  // Action chips trigger programmatic agent execution (not chat).
+  // No manual state management — useAgentRuns polling detects the running agent.
+  const handleAgentAction = useCallback(async (agentType: string) => {
+    if (sending) return
+    try {
+      await api.executeAgent(workspaceId, agentType)
+      // Immediate re-fetch so useAgentRuns picks up the running agent fast
+      queryClient.invalidateQueries({ queryKey: ['agent-runs', workspaceId] })
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'error', content: `Failed to start agent: ${err}` }])
+    }
+  }, [workspaceId, sending, queryClient])
 
   const isResolved = workspace?.state === 'closed'
 
@@ -437,15 +513,24 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
                 <div className="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
                   <p className="text-sm text-error leading-relaxed">{msg.content}</p>
                 </div>
-              ) : (
-                <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+              ) : (() => {
+                const CardComponent = msg.agentType && msg.structuredOutput ? RESULT_CARDS[msg.agentType] : undefined
+                return CardComponent ? (
+                  <CardComponent
+                    data={msg.structuredOutput}
+                    confidence={msg.confidence}
+                    markdown={msg.content}
+                  />
+                ) : (
+                  <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+                    </div>
+                    <Markdown content={msg.content} />
                   </div>
-                  <Markdown content={msg.content} />
-                </div>
-              )}
+                )
+              })()}
             </div>
           ))}
 
@@ -463,7 +548,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
             </div>
           )}
 
-          {/* Thinking indicator */}
+          {/* Thinking / running indicator */}
           {sending && !streaming && !pendingPermission && (
             <div className="max-w-3xl self-start">
               <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-sm">
@@ -472,7 +557,9 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: '150ms' }} />
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
-                <p className="text-sm text-on-primary-fixed-variant font-medium">Thinking...</p>
+                <p className="text-sm text-on-primary-fixed-variant font-medium">
+                  {activeRun ? 'Running agent...' : 'Thinking...'}
+                </p>
               </div>
             </div>
           )}

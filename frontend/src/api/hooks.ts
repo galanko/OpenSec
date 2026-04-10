@@ -112,6 +112,18 @@ export function useCreateMessage(workspaceId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Agent chips (UI metadata)
+// ---------------------------------------------------------------------------
+
+export function useAgentChips() {
+  return useQuery({
+    queryKey: ['agent-chips'],
+    queryFn: () => api.listAgentChips(),
+    staleTime: Infinity,
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Agent runs (Phase 5)
 // ---------------------------------------------------------------------------
 
@@ -120,7 +132,11 @@ export function useAgentRuns(workspaceId: string | undefined) {
     queryKey: ['agent-runs', workspaceId],
     queryFn: () => api.listAgentRuns(workspaceId!),
     enabled: !!workspaceId,
-    refetchInterval: 3_000,
+    refetchInterval: (query) => {
+      const runs = query.state.data
+      const hasActive = runs?.some((r) => r.status === 'running' || r.status === 'queued')
+      return hasActive ? 3_000 : false
+    },
   })
 }
 

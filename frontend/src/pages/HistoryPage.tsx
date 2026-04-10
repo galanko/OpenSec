@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { api, type Workspace } from '@/api/client'
 import { useFinding, useWorkspaces } from '@/api/hooks'
 import EmptyState from '@/components/EmptyState'
+import ErrorBoundary from '@/components/ErrorBoundary'
 import HistoryCard from '@/components/HistoryCard'
 import { generateExportMarkdown } from '@/lib/export-markdown'
 import PageShell from '@/components/PageShell'
@@ -17,6 +18,14 @@ const SORT_OPTIONS = [
 ]
 
 export default function HistoryPage() {
+  return (
+    <ErrorBoundary fallbackTitle="History error" fallbackSubtitle="Something went wrong loading history.">
+      <HistoryPageContent />
+    </ErrorBoundary>
+  )
+}
+
+function HistoryPageContent() {
   const [stateFilter, setStateFilter] = useState('closed')
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('newest')
