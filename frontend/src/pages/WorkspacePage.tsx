@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { api, type Finding, type EnrichmentOutput, type ExposureOutput, type PlanOutput } from '@/api/client'
+import { api, type Finding } from '@/api/client'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAgentRuns, useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
@@ -16,6 +16,17 @@ import PermissionApprovalCard from '@/components/PermissionApprovalCard'
 import PlannerResultCard from '@/components/PlannerResultCard'
 import SeverityBadge from '@/components/SeverityBadge'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar'
+
+// ---------------------------------------------------------------------------
+// Agent type → result card component map
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const RESULT_CARDS: Record<string, React.ComponentType<{ data: any; confidence?: number | null; markdown?: string }>> = {
+  finding_enricher: EnricherResultCard,
+  exposure_analyzer: ExposureResultCard,
+  remediation_planner: PlannerResultCard,
+}
 
 // ---------------------------------------------------------------------------
 // Chat message type (local state for streaming)
@@ -125,7 +136,6 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const { data: finding } = useFinding(workspace?.finding_id)
   const { data: sidebar } = useSidebar(workspaceId)
 
-  // Agent runs — polled via TanStack Query every 3s
   const { data: agentRuns } = useAgentRuns(workspaceId)
   const queryClient = useQueryClient()
   const processedRunIds = useRef<Set<string>>(new Set())
@@ -308,8 +318,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }, [sessionId, workspaceId])
 
-  // Agent completion detection — reacts to useAgentRuns polling data.
-  // No async work, no closure races. Completion detected on next poll (≤3s).
+  // Agent completion detection — polls instead of SSE to avoid useEffect closure races.
   useEffect(() => {
     if (!agentRuns) return
     for (const run of agentRuns) {
@@ -323,19 +332,18 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           structuredOutput: run.structured_output ?? undefined,
           confidence: run.confidence,
         }])
-        setPendingPermission(null)
-        setPermissionLoading(false)
-        setPermissionError(null)
       } else if (run.status === 'failed' || run.status === 'cancelled') {
         processedRunIds.current.add(run.id)
         setMessages((prev) => [...prev, {
           role: 'error' as const,
           content: run.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
         }])
-        setPendingPermission(null)
-        setPermissionLoading(false)
-        setPermissionError(null)
+      } else {
+        continue
       }
+      setPendingPermission(null)
+      setPermissionLoading(false)
+      setPermissionError(null)
     }
   }, [agentRuns])
 
@@ -505,33 +513,24 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
                 <div className="bg-error-container/20 border border-error/20 rounded-2xl rounded-bl-md px-5 py-3">
                   <p className="text-sm text-error leading-relaxed">{msg.content}</p>
                 </div>
-              ) : msg.agentType === 'finding_enricher' && msg.structuredOutput ? (
-                <EnricherResultCard
-                  data={msg.structuredOutput as unknown as EnrichmentOutput}
-                  confidence={msg.confidence}
-                  markdown={msg.content}
-                />
-              ) : msg.agentType === 'exposure_analyzer' && msg.structuredOutput ? (
-                <ExposureResultCard
-                  data={msg.structuredOutput as unknown as ExposureOutput}
-                  confidence={msg.confidence}
-                  markdown={msg.content}
-                />
-              ) : msg.agentType === 'remediation_planner' && msg.structuredOutput ? (
-                <PlannerResultCard
-                  data={msg.structuredOutput as unknown as PlanOutput}
-                  confidence={msg.confidence}
-                  markdown={msg.content}
-                />
-              ) : (
-                <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
-                    <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+              ) : (() => {
+                const CardComponent = msg.agentType && msg.structuredOutput ? RESULT_CARDS[msg.agentType] : undefined
+                return CardComponent ? (
+                  <CardComponent
+                    data={msg.structuredOutput}
+                    confidence={msg.confidence}
+                    markdown={msg.content}
+                  />
+                ) : (
+                  <div className="bg-white rounded-2xl rounded-bl-md px-5 py-4 shadow-sm border border-surface-container/80">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-primary text-sm">auto_awesome</span>
+                      <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">OpenSec</span>
+                    </div>
+                    <Markdown content={msg.content} />
                   </div>
-                  <Markdown content={msg.content} />
-                </div>
-              )}
+                )
+              })()}
             </div>
           ))}
 
