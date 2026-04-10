@@ -262,19 +262,20 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         setStreaming('')
         setMessages((msgs) => [...msgs, { role: 'error', content: data.message || 'Unknown error' }])
       } catch { /* SSE connection error */ }
-      setSending(false)
+      // Only clear sending if no agent run is active (agent runs manage their own sending state)
+      setActiveAgentRun((current) => { if (!current) setSending(false); return current })
     })
 
     es.addEventListener('done', () => {
       if (!active) return
       const text = streamingRef.current
       if (text) {
-        // Try to extract structured output from agent runs (will be attached on next render via agentRuns query)
         setMessages((msgs) => [...msgs, { role: 'assistant', content: text }])
       }
       streamingRef.current = ''
       setStreaming('')
-      setSending(false)
+      // Only clear sending if no agent run is active
+      setActiveAgentRun((current) => { if (!current) setSending(false); return current })
       setPendingPermission(null)
     })
 
