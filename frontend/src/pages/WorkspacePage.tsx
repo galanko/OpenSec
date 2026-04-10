@@ -134,6 +134,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
   const agentEventSourceRef = useRef<EventSource | null>(null)
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastUserMessageRef = useRef('')
   const streamingRef = useRef('')
 
@@ -363,34 +364,66 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
 
     es.addEventListener('error', () => {
       if (!active) return
-      // SSE errors can be transient (keepalive timeout, network hiccup).
-      // Check the backend before treating it as a fatal failure.
-      api.listAgentRuns(workspaceId).then((runs) => {
-        if (!active) return
-        const run = runs.find((r) => r.id === activeAgentRun)
-        if (!run || run.status === 'failed' || run.status === 'cancelled') {
+      // SSE stream dropped. Start polling the backend for agent completion
+      // since the EventSource may not reconnect reliably.
+      es.close()
+      agentEventSourceRef.current = null
+
+      const pollInterval = setInterval(async () => {
+        if (!active) { clearInterval(pollInterval); return }
+        try {
+          const runs = await api.listAgentRuns(workspaceId)
+          const run = runs.find((r) => r.id === activeAgentRun)
+          if (!run) {
+            clearInterval(pollInterval)
+            setActiveAgentRun(null)
+            setSending(false)
+            return
+          }
+          if (run.status === 'completed') {
+            clearInterval(pollInterval)
+            setActiveAgentRun(null)
+            setSending(false)
+            setMessages((prev) => [...prev, {
+              role: 'assistant' as const,
+              content: run.summary_markdown ?? 'Agent completed.',
+              agentType: run.agent_type,
+              structuredOutput: run.structured_output ?? undefined,
+              confidence: run.confidence,
+            }])
+          } else if (run.status === 'failed' || run.status === 'cancelled') {
+            clearInterval(pollInterval)
+            setActiveAgentRun(null)
+            setSending(false)
+            setMessages((prev) => [...prev, {
+              role: 'error' as const,
+              content: run.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
+            }])
+          }
+          // If still running, keep polling
+        } catch {
+          clearInterval(pollInterval)
           setMessages((prev) => [...prev, {
             role: 'error' as const,
-            content: run?.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
+            content: 'Lost connection to server. Refresh the page to check agent status.',
           }])
           setActiveAgentRun(null)
           setSending(false)
         }
-        // If still running, do nothing — EventSource auto-reconnects
-      }).catch(() => {
-        setMessages((prev) => [...prev, {
-          role: 'error' as const,
-          content: 'Lost connection to server. Refresh the page to check agent status.',
-        }])
-        setActiveAgentRun(null)
-        setSending(false)
-      })
+      }, 3000)
+
+      // Store interval so cleanup can clear it
+      pollIntervalRef.current = pollInterval
     })
 
     return () => {
       active = false
       es.close()
       agentEventSourceRef.current = null
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
     }
   }, [activeAgentRun, workspaceId])
 
