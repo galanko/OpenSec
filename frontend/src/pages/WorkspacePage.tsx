@@ -363,12 +363,28 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
 
     es.addEventListener('error', () => {
       if (!active) return
-      setMessages((prev) => [...prev, {
-        role: 'error' as const,
-        content: 'Agent execution failed. Try again or ask a question in the chat.',
-      }])
-      setActiveAgentRun(null)
-      setSending(false)
+      // SSE errors can be transient (keepalive timeout, network hiccup).
+      // Check the backend before treating it as a fatal failure.
+      api.listAgentRuns(workspaceId).then((runs) => {
+        if (!active) return
+        const run = runs.find((r) => r.id === activeAgentRun)
+        if (!run || run.status === 'failed' || run.status === 'cancelled') {
+          setMessages((prev) => [...prev, {
+            role: 'error' as const,
+            content: run?.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
+          }])
+          setActiveAgentRun(null)
+          setSending(false)
+        }
+        // If still running, do nothing — EventSource auto-reconnects
+      }).catch(() => {
+        setMessages((prev) => [...prev, {
+          role: 'error' as const,
+          content: 'Lost connection to server. Refresh the page to check agent status.',
+        }])
+        setActiveAgentRun(null)
+        setSending(false)
+      })
     })
 
     return () => {
