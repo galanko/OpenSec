@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, type Finding, type EnrichmentOutput, type ExposureOutput, type PlanOutput } from '@/api/client'
-import { useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAgentRuns, useFinding, useSidebar, useWorkspace, useWorkspaces } from '@/api/hooks'
 import ActionButton from '@/components/ActionButton'
 import ActionChips from '@/components/ActionChips'
 import EmptyState from '@/components/EmptyState'
@@ -124,17 +125,22 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const { data: finding } = useFinding(workspace?.finding_id)
   const { data: sidebar } = useSidebar(workspaceId)
 
+  // Agent runs — polled via TanStack Query every 3s
+  const { data: agentRuns } = useAgentRuns(workspaceId)
+  const queryClient = useQueryClient()
+  const processedRunIds = useRef<Set<string>>(new Set())
+  const activeRun = agentRuns?.find(r => r.status === 'running')
+
   // Chat state
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessionModel, setSessionModel] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
-  const [sending, setSending] = useState(false)
+  const [chatSending, setChatSending] = useState(false)
+  const sending = chatSending || !!activeRun
   const [streaming, setStreaming] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
-  const agentEventSourceRef = useRef<EventSource | null>(null)
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastUserMessageRef = useRef('')
   const streamingRef = useRef('')
 
@@ -146,7 +152,6 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   } | null>(null)
   const [permissionLoading, setPermissionLoading] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
-  const [activeAgentRun, setActiveAgentRun] = useState<string | null>(null)
 
   // Auto-scroll (includes pendingPermission to scroll to approval card)
   useEffect(() => {
@@ -206,17 +211,18 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
 
     initSession().then(async () => {
-      // Restore agent runs: show completed results and reconnect to running agents.
+      // Restore completed agent runs as structured cards in the timeline.
+      // Running agents are detected automatically via useAgentRuns polling.
       if (cancelled) return
       try {
         const runs = await api.listAgentRuns(workspaceId)
         if (cancelled) return
 
-        // Reconnect to a running agent (e.g. after page refresh mid-execution)
-        const running = runs.find((r) => r.status === 'running')
-        if (running) {
-          setSending(true)
-          setActiveAgentRun(running.id)
+        // Seed processedRunIds so the completion useEffect doesn't re-add them
+        for (const r of runs) {
+          if (r.status !== 'running' && r.status !== 'queued') {
+            processedRunIds.current.add(r.id)
+          }
         }
 
         // Restore completed agent runs as structured cards in the timeline
@@ -251,7 +257,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       if (text.trim() === lastUserMessageRef.current.trim()) return
       streamingRef.current = text
       setStreaming(text)
-      setSending(true)
+      setChatSending(true)
     })
 
     es.addEventListener('error', (event: Event) => {
@@ -262,8 +268,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
         setStreaming('')
         setMessages((msgs) => [...msgs, { role: 'error', content: data.message || 'Unknown error' }])
       } catch { /* SSE connection error */ }
-      // Only clear sending if no agent run is active (agent runs manage their own sending state)
-      setActiveAgentRun((current) => { if (!current) setSending(false); return current })
+      setChatSending(false)
     })
 
     es.addEventListener('done', () => {
@@ -274,8 +279,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       }
       streamingRef.current = ''
       setStreaming('')
-      // Only clear sending if no agent run is active
-      setActiveAgentRun((current) => { if (!current) setSending(false); return current })
+      setChatSending(false)
       setPendingPermission(null)
     })
 
@@ -302,131 +306,66 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       es.close()
       eventSourceRef.current = null
     }
-  }, [sessionId])
+  }, [sessionId, workspaceId])
 
-  // Agent execution SSE listener — connects while an agent is running
+  // Agent completion detection — reacts to useAgentRuns polling data.
+  // No async work, no closure races. Completion detected on next poll (≤3s).
   useEffect(() => {
-    if (!activeAgentRun) return
-    let active = true
+    if (!agentRuns) return
+    for (const run of agentRuns) {
+      if (processedRunIds.current.has(run.id)) continue
+      if (run.status === 'completed') {
+        processedRunIds.current.add(run.id)
+        setMessages((prev) => [...prev, {
+          role: 'assistant' as const,
+          content: run.summary_markdown ?? 'Agent completed.',
+          agentType: run.agent_type,
+          structuredOutput: run.structured_output ?? undefined,
+          confidence: run.confidence,
+        }])
+        setPendingPermission(null)
+        setPermissionLoading(false)
+        setPermissionError(null)
+      } else if (run.status === 'failed' || run.status === 'cancelled') {
+        processedRunIds.current.add(run.id)
+        setMessages((prev) => [...prev, {
+          role: 'error' as const,
+          content: run.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
+        }])
+        setPendingPermission(null)
+        setPermissionLoading(false)
+        setPermissionError(null)
+      }
+    }
+  }, [agentRuns])
 
+  // Permission SSE — lightweight connection only for permission_request events.
+  // Completion is detected via polling above, so done/error events are ignored.
+  useEffect(() => {
+    if (!activeRun) return
     const es = api.streamAgentExecution(workspaceId)
-    agentEventSourceRef.current = es
 
     es.addEventListener('permission_request', (event) => {
-      if (!active) return
       try {
         const data = JSON.parse((event as MessageEvent).data)
         setPendingPermission({
           id: data.id,
           tool: data.tool,
           patterns: data.patterns || [],
-          runId: data.run_id || activeAgentRun,
+          runId: data.run_id || activeRun.id,
           sessionId: data.session_id || '',
         })
         setPermissionError(null)
       } catch { /* parse error */ }
     })
 
-    es.addEventListener('done', () => {
-      if (!active) return
-      setPendingPermission(null)
-      setPermissionLoading(false)
-      setPermissionError(null)
-      const runId = activeAgentRun
-      setActiveAgentRun(null)
-      setSending(false)
+    // Ignore done — completion detected via polling
+    es.addEventListener('done', () => { /* no-op */ })
+    es.addEventListener('error', () => { es.close() })
 
-      // Fetch the completed run and add its result to the chat timeline
-      if (runId) {
-        api.listAgentRuns(workspaceId).then((runs) => {
-          if (!active) return
-          const completed = runs.find((r) => r.id === runId && r.status === 'completed')
-          if (completed) {
-            setMessages((prev) => [...prev, {
-              role: 'assistant' as const,
-              content: completed.summary_markdown ?? 'Agent completed.',
-              agentType: completed.agent_type,
-              structuredOutput: completed.structured_output ?? undefined,
-              confidence: completed.confidence,
-            }])
-          } else {
-            // Agent may have failed
-            const failed = runs.find((r) => r.id === runId && r.status === 'failed')
-            if (failed) {
-              setMessages((prev) => [...prev, {
-                role: 'error' as const,
-                content: failed.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
-              }])
-            }
-          }
-        }).catch(() => { /* non-critical */ })
-      }
-    })
-
-    es.addEventListener('error', () => {
-      if (!active) return
-      // SSE stream dropped. Start polling the backend for agent completion
-      // since the EventSource may not reconnect reliably.
-      es.close()
-      agentEventSourceRef.current = null
-
-      const pollInterval = setInterval(async () => {
-        if (!active) { clearInterval(pollInterval); return }
-        try {
-          const runs = await api.listAgentRuns(workspaceId)
-          const run = runs.find((r) => r.id === activeAgentRun)
-          if (!run) {
-            clearInterval(pollInterval)
-            setActiveAgentRun(null)
-            setSending(false)
-            return
-          }
-          if (run.status === 'completed') {
-            clearInterval(pollInterval)
-            setActiveAgentRun(null)
-            setSending(false)
-            setMessages((prev) => [...prev, {
-              role: 'assistant' as const,
-              content: run.summary_markdown ?? 'Agent completed.',
-              agentType: run.agent_type,
-              structuredOutput: run.structured_output ?? undefined,
-              confidence: run.confidence,
-            }])
-          } else if (run.status === 'failed' || run.status === 'cancelled') {
-            clearInterval(pollInterval)
-            setActiveAgentRun(null)
-            setSending(false)
-            setMessages((prev) => [...prev, {
-              role: 'error' as const,
-              content: run.summary_markdown ?? 'Agent execution failed. Try again or ask a question in the chat.',
-            }])
-          }
-          // If still running, keep polling
-        } catch {
-          clearInterval(pollInterval)
-          setMessages((prev) => [...prev, {
-            role: 'error' as const,
-            content: 'Lost connection to server. Refresh the page to check agent status.',
-          }])
-          setActiveAgentRun(null)
-          setSending(false)
-        }
-      }, 3000)
-
-      // Store interval so cleanup can clear it
-      pollIntervalRef.current = pollInterval
-    })
-
-    return () => {
-      active = false
-      es.close()
-      agentEventSourceRef.current = null
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
-      }
-    }
-  }, [activeAgentRun, workspaceId])
+    return () => { es.close() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- activeRun?.id is intentional; using the full object would reconnect on every poll cycle
+  }, [activeRun?.id, workspaceId])
 
   // Permission approve/deny handler.
   // Uses the chat-path endpoint when runId is empty (action chips),
@@ -446,7 +385,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       }
       setPendingPermission(null)
       if (!approved) {
-        setSending(false)
+        setChatSending(false)
       }
     } catch (err) {
       setPermissionError(`Failed to ${approved ? 'approve' : 'deny'}: ${err}`)
@@ -455,12 +394,12 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }, [workspaceId, pendingPermission])
 
-  // Send a chat message (used by both text input and action chips).
+  // Send a chat message (used by text input).
   const sendChatMessage = useCallback(async (content: string) => {
     if (!sessionId || sending) return
     lastUserMessageRef.current = content
     setMessages((prev) => [...prev, { role: 'user', content }])
-    setSending(true)
+    setChatSending(true)
     setStreaming('')
     streamingRef.current = ''
 
@@ -468,7 +407,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
       await api.sendWorkspaceMessage(workspaceId, sessionId, content)
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'error', content: `Failed to send: ${err}` }])
-      setSending(false)
+      setChatSending(false)
     }
   }, [workspaceId, sessionId, sending])
 
@@ -488,17 +427,17 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   }
 
   // Action chips trigger programmatic agent execution (not chat).
+  // No manual state management — useAgentRuns polling detects the running agent.
   const handleAgentAction = useCallback(async (agentType: string) => {
     if (sending) return
-    setSending(true)
     try {
-      const result = await api.executeAgent(workspaceId, agentType)
-      setActiveAgentRun(result.agent_run_id)
+      await api.executeAgent(workspaceId, agentType)
+      // Immediate re-fetch so useAgentRuns picks up the running agent fast
+      queryClient.invalidateQueries({ queryKey: ['agent-runs', workspaceId] })
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'error', content: `Failed to start agent: ${err}` }])
-      setSending(false)
     }
-  }, [workspaceId, sending])
+  }, [workspaceId, sending, queryClient])
 
   const isResolved = workspace?.state === 'closed'
 
@@ -620,7 +559,7 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
                   <div className="w-1.5 h-1.5 rounded-full bg-primary/80 animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
                 <p className="text-sm text-on-primary-fixed-variant font-medium">
-                  {activeAgentRun ? 'Running agent...' : 'Thinking...'}
+                  {activeRun ? 'Running agent...' : 'Thinking...'}
                 </p>
               </div>
             </div>
