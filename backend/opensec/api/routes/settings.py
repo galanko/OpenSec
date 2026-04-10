@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -36,6 +37,8 @@ from opensec.models import (
     ModelUpdateRequest,
     TestConnectionResult,
 )
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import aiosqlite

@@ -288,6 +288,103 @@ async def test_start_failure_releases_port(pool: WorkspaceProcessPool):
     assert pool._ports.available == 10
 
 
+# ---------------------------------------------------------------------------
+# Environment variable injection
+# ---------------------------------------------------------------------------
+
+
+async def test_start_injects_env_vars(pool: WorkspaceProcessPool):
+    """When env_vars are provided, they must be merged with os.environ."""
+    mock_proc = _make_mock_subprocess()
+    mock_httpx = _make_mock_httpx_healthy()
+
+    env_vars = {"GH_TOKEN": "ghp_test123", "OPENSEC_REPO_URL": "https://github.com/org/repo"}
+
+    with (
+        patch(
+            "opensec.engine.pool.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=mock_proc),
+        ) as mock_exec,
+        patch("opensec.engine.pool.httpx.AsyncClient", return_value=mock_httpx),
+        patch("opensec.engine.pool.os") as mock_os,
+    ):
+        mock_os.environ = {"PATH": "/usr/bin", "HOME": "/root"}
+        await pool.start("ws-env", Path("/tmp/ws-env"), env_vars=env_vars)
+
+    call_kwargs = mock_exec.call_args
+    passed_env = call_kwargs.kwargs.get("env")
+    assert passed_env is not None
+    assert passed_env["GH_TOKEN"] == "ghp_test123"
+    assert passed_env["OPENSEC_REPO_URL"] == "https://github.com/org/repo"
+    # System env should also be present
+    assert passed_env["PATH"] == "/usr/bin"
+
+
+async def test_start_without_env_vars_inherits(pool: WorkspaceProcessPool):
+    """When no env_vars, env should be None (inherit parent environment)."""
+    mock_proc = _make_mock_subprocess()
+    mock_httpx = _make_mock_httpx_healthy()
+
+    with (
+        patch(
+            "opensec.engine.pool.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=mock_proc),
+        ) as mock_exec,
+        patch("opensec.engine.pool.httpx.AsyncClient", return_value=mock_httpx),
+    ):
+        await pool.start("ws-noenv", Path("/tmp/ws-noenv"))
+
+    call_kwargs = mock_exec.call_args
+    assert call_kwargs.kwargs.get("env") is None
+
+
+async def test_get_or_start_threads_env_vars(pool: WorkspaceProcessPool):
+    """get_or_start must forward env_vars to start when creating a new process."""
+    mock_proc = _make_mock_subprocess()
+    mock_httpx = _make_mock_httpx_healthy()
+
+    env_vars = {"GH_TOKEN": "ghp_thread_test"}
+
+    with (
+        patch(
+            "opensec.engine.pool.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=mock_proc),
+        ) as mock_exec,
+        patch("opensec.engine.pool.httpx.AsyncClient", return_value=mock_httpx),
+        patch("opensec.engine.pool.os") as mock_os,
+    ):
+        mock_os.environ = {"PATH": "/usr/bin"}
+        await pool.get_or_start("ws-thread", Path("/tmp/ws-thread"), env_vars=env_vars)
+
+    call_kwargs = mock_exec.call_args
+    passed_env = call_kwargs.kwargs.get("env")
+    assert passed_env is not None
+    assert passed_env["GH_TOKEN"] == "ghp_thread_test"
+
+
+async def test_env_var_keys_not_values_are_safe(pool: WorkspaceProcessPool):
+    """Verify that empty env_vars dict is treated like None (inherits)."""
+    mock_proc = _make_mock_subprocess()
+    mock_httpx = _make_mock_httpx_healthy()
+
+    with (
+        patch(
+            "opensec.engine.pool.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=mock_proc),
+        ) as mock_exec,
+        patch("opensec.engine.pool.httpx.AsyncClient", return_value=mock_httpx),
+    ):
+        await pool.start("ws-empty-env", Path("/tmp/ws-empty-env"), env_vars={})
+
+    call_kwargs = mock_exec.call_args
+    assert call_kwargs.kwargs.get("env") is None
+
+
+# ---------------------------------------------------------------------------
+# Status
+# ---------------------------------------------------------------------------
+
+
 async def test_status(pool: WorkspaceProcessPool):
     mock_proc = _make_mock_subprocess()
     mock_httpx = _make_mock_httpx_healthy()

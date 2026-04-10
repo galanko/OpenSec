@@ -44,6 +44,7 @@ class RegistryEntry(BaseModel):
     status: str = "coming_soon"  # "available", "coming_soon", "community"
     setup_guide_md: str = ""
     credentials_schema: list[CredentialField] = []
+    config_fields: list[CredentialField] = []  # non-secret fields stored in integration config
     capabilities: list[str] = []  # "collect", "enrich", "investigate", "update"
     docs_url: str | None = None
     mcp_config: dict | None = None  # MCP server config template (Phase I-1)

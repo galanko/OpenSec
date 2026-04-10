@@ -216,6 +216,7 @@ export interface RegistryEntry {
   status: 'available' | 'coming_soon' | 'community';
   setup_guide_md: string;
   credentials_schema: CredentialField[];
+  config_fields?: CredentialField[];
   capabilities: string[];
   docs_url: string | null;
   mcp_config: Record<string, unknown> | null;
@@ -280,6 +281,7 @@ export interface IngestJobProgress {
   updated_at: string;
 }
 
+// ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // HTTP helpers
 // ---------------------------------------------------------------------------
