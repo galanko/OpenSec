@@ -35,7 +35,6 @@ export default function RemediationResultCard({ data, confidence, markdown }: Re
       markdown={markdown}
       expandContent={expandContent}
     >
-      {/* Status */}
       <div className="flex items-center gap-2">
         <span className={`material-symbols-outlined text-base ${statusConfig.color}`}>
           {statusConfig.icon}
@@ -45,7 +44,6 @@ export default function RemediationResultCard({ data, confidence, markdown }: Re
         </span>
       </div>
 
-      {/* Branch name */}
       {data.branch_name && (
         <div>
           <p className="text-xs font-semibold text-on-surface mb-1">Branch</p>
@@ -55,7 +53,6 @@ export default function RemediationResultCard({ data, confidence, markdown }: Re
         </div>
       )}
 
-      {/* Changes summary */}
       {data.changes_summary && (
         <div>
           <p className="text-xs font-semibold text-on-surface mb-1">Changes</p>
@@ -63,7 +60,6 @@ export default function RemediationResultCard({ data, confidence, markdown }: Re
         </div>
       )}
 
-      {/* Test results */}
       {data.test_results && (
         <div>
           <p className="text-xs font-semibold text-on-surface mb-1">Test results</p>
@@ -71,7 +67,6 @@ export default function RemediationResultCard({ data, confidence, markdown }: Re
         </div>
       )}
 
-      {/* PR link */}
       {data.pr_url && (
         <div>
           <a

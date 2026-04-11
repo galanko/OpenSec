@@ -31,7 +31,6 @@ export default function PlanApprovalCard({
       </div>
 
       <div className="px-6 pb-5 space-y-4">
-        {/* Plan steps */}
         {plan.plan_steps.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-on-surface mb-2">Fix steps</p>
@@ -46,7 +45,6 @@ export default function PlanApprovalCard({
           </div>
         )}
 
-        {/* Branch name */}
         {branchName && (
           <div>
             <p className="text-xs font-semibold text-on-surface mb-1">Branch</p>
@@ -56,7 +54,6 @@ export default function PlanApprovalCard({
           </div>
         )}
 
-        {/* Definition of done */}
         {plan.definition_of_done.length > 0 && (
           <div>
             <p className="text-xs font-semibold text-on-surface mb-2">Definition of done</p>
@@ -73,7 +70,6 @@ export default function PlanApprovalCard({
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex items-center gap-3 pt-2">
           <button
             onClick={handleApprove}

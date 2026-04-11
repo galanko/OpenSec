@@ -35,12 +35,12 @@ function JsonPanel({ data }: { data: Record<string, unknown> | null }) {
   )
 }
 
-const PR_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pr_created: { label: 'Draft', color: 'text-tertiary' },
-  draft: { label: 'Draft', color: 'text-tertiary' },
-  open: { label: 'Open', color: 'text-primary' },
-  merged: { label: 'Merged', color: 'text-secondary' },
-  failed: { label: 'Failed', color: 'text-error' },
+const PR_STATUS_LABELS: Record<string, { label: string; color: string; dotColor: string }> = {
+  pr_created: { label: 'Draft', color: 'text-tertiary', dotColor: 'bg-tertiary' },
+  draft: { label: 'Draft', color: 'text-tertiary', dotColor: 'bg-tertiary' },
+  open: { label: 'Open', color: 'text-primary', dotColor: 'bg-primary' },
+  merged: { label: 'Merged', color: 'text-secondary', dotColor: 'bg-secondary' },
+  failed: { label: 'Failed', color: 'text-error', dotColor: 'bg-error' },
 }
 
 function PullRequestPanel({ data }: { data: Record<string, unknown> | null }) {
@@ -57,7 +57,7 @@ function PullRequestPanel({ data }: { data: Record<string, unknown> | null }) {
     <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
       {statusConfig && (
         <div className="flex items-center gap-1.5">
-          <span className={`inline-block w-2 h-2 rounded-full ${statusConfig.color.replace('text-', 'bg-')}`} />
+          <span className={`inline-block w-2 h-2 rounded-full ${statusConfig.dotColor}`} />
           <span className={`text-xs font-semibold ${statusConfig.color}`}>{statusConfig.label}</span>
         </div>
       )}
