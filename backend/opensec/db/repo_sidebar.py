@@ -20,6 +20,7 @@ _JSON_FIELDS = (
     "linked_ticket",
     "validation",
     "similar_cases",
+    "pull_request",
 )
 
 
@@ -36,6 +37,7 @@ def _row_to_sidebar(row: aiosqlite.Row) -> SidebarState:
         linked_ticket=json.loads(row["linked_ticket"]) if row["linked_ticket"] else None,
         validation=json.loads(row["validation"]) if row["validation"] else None,
         similar_cases=json.loads(row["similar_cases"]) if row["similar_cases"] else None,
+        pull_request=json.loads(row["pull_request"]) if row["pull_request"] else None,
         updated_at=row["updated_at"],
     )
 
@@ -49,8 +51,9 @@ async def upsert_sidebar(
         """
         INSERT INTO sidebar_state
             (workspace_id, summary, evidence, owner, plan,
-             definition_of_done, linked_ticket, validation, similar_cases, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             definition_of_done, linked_ticket, validation, similar_cases,
+             pull_request, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(workspace_id) DO UPDATE SET
             summary = excluded.summary,
             evidence = excluded.evidence,
@@ -60,6 +63,7 @@ async def upsert_sidebar(
             linked_ticket = excluded.linked_ticket,
             validation = excluded.validation,
             similar_cases = excluded.similar_cases,
+            pull_request = excluded.pull_request,
             updated_at = excluded.updated_at
         """,
         (
@@ -72,6 +76,7 @@ async def upsert_sidebar(
             values["linked_ticket"],
             values["validation"],
             values["similar_cases"],
+            values["pull_request"],
             now,
         ),
     )

@@ -461,3 +461,19 @@ def test_context_document_generate_all_sections():
     assert "Current plan" in doc
     assert "Parameterize queries" in doc
     assert "All agents have run" in doc
+
+
+# ---------------------------------------------------------------------------
+# opencode.json permissions (T5.6)
+# ---------------------------------------------------------------------------
+
+
+def test_opencode_json_permissions_ask_for_bash_edit(
+    manager: WorkspaceDirManager, sample_finding: Finding
+):
+    """Workspace opencode.json sets bash and edit to 'ask' for permission approval flow."""
+    ws = manager.create("ws-permissions", sample_finding)
+    config = json.loads(ws.opencode_json.read_text())
+    assert config["permission"]["bash"] == "ask"
+    assert config["permission"]["edit"] == "ask"
+    assert config["permission"]["webfetch"] == "allow"

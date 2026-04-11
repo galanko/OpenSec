@@ -88,6 +88,40 @@ class TestMapToSidebarUpdate:
         assert update.validation is not None
         assert update.validation["verdict"] == "fixed"
 
+    def test_executor_maps_pull_request(self):
+        out = {
+            "status": "pr_created",
+            "pr_url": "https://github.com/acme/repo/pull/42",
+            "branch_name": "opensec/fix/cve-2026-1234",
+            "changes_summary": "Updated log4j-core to 2.17.1 in pom.xml",
+            "test_results": "pass",
+            "error_details": None,
+        }
+        update = map_to_sidebar_update("remediation_executor", out)
+        assert update.pull_request is not None
+        assert update.pull_request["status"] == "pr_created"
+        assert update.pull_request["pr_url"] == "https://github.com/acme/repo/pull/42"
+        assert update.pull_request["branch_name"] == "opensec/fix/cve-2026-1234"
+        assert update.pull_request["changes_summary"] == "Updated log4j-core to 2.17.1 in pom.xml"
+        assert update.pull_request["test_results"] == "pass"
+        # Other sections should be None
+        assert update.summary is None
+        assert update.evidence is None
+        assert update.plan is None
+        assert update.validation is None
+
+    def test_executor_maps_failed_status(self):
+        out = {
+            "status": "failed",
+            "error_details": "Tests failed: 3 of 50",
+            "branch_name": "opensec/fix/cve-2026-1234",
+        }
+        update = map_to_sidebar_update("remediation_executor", out)
+        assert update.pull_request is not None
+        assert update.pull_request["status"] == "failed"
+        assert update.pull_request["error_details"] == "Tests failed: 3 of 50"
+        assert update.pull_request["pr_url"] is None
+
     def test_unknown_agent_returns_empty(self):
         update = map_to_sidebar_update("unknown_agent", {"foo": "bar"})
         assert update.summary is None
@@ -174,3 +208,52 @@ class TestMapAndUpsert:
             assert update.summary is not None
             assert update.summary["title"] == "CVE-2026-1234"
             assert update.evidence is not None
+
+    @pytest.mark.asyncio
+    async def test_executor_preserves_existing_sections(self):
+        """When executor runs, existing summary/plan should be preserved."""
+        existing = SidebarState(
+            workspace_id="ws-1",
+            summary={"title": "CVE-2026-1234", "cvss_score": 9.1},
+            evidence={"known_exploits": True},
+            owner=None,
+            plan={"plan_steps": ["Upgrade package"]},
+            definition_of_done={"items": ["Tests pass"]},
+            linked_ticket=None,
+            validation=None,
+            similar_cases=None,
+            pull_request=None,
+            updated_at=datetime.now(UTC),
+        )
+
+        mock_db = AsyncMock()
+        executor_out = {
+            "status": "pr_created",
+            "pr_url": "https://github.com/acme/repo/pull/42",
+            "branch_name": "opensec/fix/cve-2026-1234",
+            "changes_summary": "Updated pom.xml",
+            "test_results": "pass",
+            "error_details": None,
+        }
+
+        with (
+            patch(
+                "opensec.db.repo_sidebar.get_sidebar",
+                return_value=existing,
+            ),
+            patch(
+                "opensec.db.repo_sidebar.upsert_sidebar",
+            ) as mock_upsert,
+        ):
+            await map_and_upsert(mock_db, "ws-1", "remediation_executor", executor_out)
+
+            call_args = mock_upsert.call_args
+            update: SidebarStateUpdate = call_args[0][2]
+
+            # Existing sections preserved
+            assert update.summary == {"title": "CVE-2026-1234", "cvss_score": 9.1}
+            assert update.plan == {"plan_steps": ["Upgrade package"]}
+            # New pull_request section populated
+            assert update.pull_request is not None
+            assert update.pull_request["status"] == "pr_created"
+            assert update.pull_request["pr_url"] == "https://github.com/acme/repo/pull/42"

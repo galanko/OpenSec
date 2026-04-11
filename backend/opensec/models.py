@@ -179,6 +179,7 @@ class SidebarStateUpdate(BaseModel):
     linked_ticket: dict[str, Any] | None = None
     validation: dict[str, Any] | None = None
     similar_cases: dict[str, Any] | None = None
+    pull_request: dict[str, Any] | None = None
 
 
 class SidebarState(BaseModel):
@@ -191,6 +192,7 @@ class SidebarState(BaseModel):
     linked_ticket: dict[str, Any] | None = None
     validation: dict[str, Any] | None = None
     similar_cases: dict[str, Any] | None = None
+    pull_request: dict[str, Any] | None = None
     updated_at: datetime
 
 

@@ -35,6 +35,65 @@ function JsonPanel({ data }: { data: Record<string, unknown> | null }) {
   )
 }
 
+const PR_STATUS_LABELS: Record<string, { label: string; color: string; dotColor: string }> = {
+  pr_created: { label: 'Draft', color: 'text-tertiary', dotColor: 'bg-tertiary' },
+  draft: { label: 'Draft', color: 'text-tertiary', dotColor: 'bg-tertiary' },
+  open: { label: 'Open', color: 'text-primary', dotColor: 'bg-primary' },
+  merged: { label: 'Merged', color: 'text-secondary', dotColor: 'bg-secondary' },
+  failed: { label: 'Failed', color: 'text-error', dotColor: 'bg-error' },
+}
+
+function PullRequestPanel({ data }: { data: Record<string, unknown> | null }) {
+  if (!data || Object.keys(data).length === 0) return <EmptySection />
+
+  const status = data.status as string | undefined
+  const prUrl = data.pr_url as string | undefined
+  const branchName = data.branch_name as string | undefined
+  const changesSummary = data.changes_summary as string | undefined
+  const testResults = data.test_results as string | undefined
+  const statusConfig = status ? PR_STATUS_LABELS[status] : undefined
+
+  return (
+    <div className="bg-surface-container-lowest p-4 rounded-xl shadow-sm border border-surface-container/50 space-y-2">
+      {statusConfig && (
+        <div className="flex items-center gap-1.5">
+          <span className={`inline-block w-2 h-2 rounded-full ${statusConfig.dotColor}`} />
+          <span className={`text-xs font-semibold ${statusConfig.color}`}>{statusConfig.label}</span>
+        </div>
+      )}
+      {branchName && (
+        <div>
+          <p className="text-xs font-semibold mb-0.5">branch</p>
+          <p className="text-xs text-on-surface-variant font-mono leading-relaxed">{branchName}</p>
+        </div>
+      )}
+      {changesSummary && (
+        <div>
+          <p className="text-xs font-semibold mb-0.5">changes</p>
+          <p className="text-xs text-on-surface-variant leading-relaxed">{changesSummary}</p>
+        </div>
+      )}
+      {testResults && (
+        <div>
+          <p className="text-xs font-semibold mb-0.5">tests</p>
+          <p className="text-xs text-on-surface-variant leading-relaxed">{testResults}</p>
+        </div>
+      )}
+      {prUrl && (
+        <a
+          href={prUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary-dim transition-colors mt-1"
+        >
+          <span className="material-symbols-outlined text-sm">open_in_new</span>
+          View on GitHub
+        </a>
+      )}
+    </div>
+  )
+}
+
 interface WorkspaceSidebarProps {
   sidebar: SidebarState | null | undefined
 }
@@ -51,10 +110,6 @@ export default function WorkspaceSidebar({ sidebar }: WorkspaceSidebarProps) {
           <JsonPanel data={sidebar?.evidence ?? null} />
         </Section>
 
-        <Section title="Owner">
-          <JsonPanel data={sidebar?.owner ?? null} />
-        </Section>
-
         <Section title="Plan">
           <JsonPanel data={sidebar?.plan ?? null} />
         </Section>
@@ -63,8 +118,8 @@ export default function WorkspaceSidebar({ sidebar }: WorkspaceSidebarProps) {
           <JsonPanel data={sidebar?.definition_of_done ?? null} />
         </Section>
 
-        <Section title="Ticket">
-          <JsonPanel data={sidebar?.linked_ticket ?? null} />
+        <Section title="Pull request">
+          <PullRequestPanel data={sidebar?.pull_request ?? null} />
         </Section>
 
         <Section title="Validation">

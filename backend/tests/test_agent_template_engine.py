@@ -161,9 +161,9 @@ def engine() -> AgentTemplateEngine:
 # ---------------------------------------------------------------------------
 
 
-def test_render_all_returns_six_agents(engine: AgentTemplateEngine, sample_finding_dict: dict):
+def test_render_all_returns_seven_agents(engine: AgentTemplateEngine, sample_finding_dict: dict):
     agents = engine.render_all(finding=sample_finding_dict)
-    assert len(agents) == 6
+    assert len(agents) == 7
     names = [a.name for a in agents]
     assert names == AGENT_NAMES
 
@@ -262,7 +262,7 @@ def test_orchestrator_pipeline_state_all_complete(
 
 
 def test_subagent_yaml_frontmatter(engine: AgentTemplateEngine, sample_finding_dict: dict):
-    """All 5 sub-agents have mode: subagent in frontmatter."""
+    """All 6 sub-agents have mode: subagent in frontmatter."""
     agents = engine.render_all(finding=sample_finding_dict)
     for agent in agents:
         if agent.name == "orchestrator":
@@ -336,7 +336,7 @@ def test_write_agents_creates_files(
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
     paths = engine.write_agents(agents_dir, finding=sample_finding_dict)
-    assert len(paths) == 6
+    assert len(paths) == 7
     for path in paths:
         assert path.exists()
         assert path.suffix == ".md"
@@ -388,3 +388,77 @@ def test_custom_templates_dir(tmp_path: Path):
     engine = AgentTemplateEngine(templates_dir=custom_dir)
     agent = engine.render_agent("orchestrator", finding={"title": "Test"})
     assert "Custom: Test" in agent.content
+
+
+# ---------------------------------------------------------------------------
+# Remediation executor template
+# ---------------------------------------------------------------------------
+
+
+def test_executor_contains_finding_context(
+    engine: AgentTemplateEngine, sample_finding_dict: dict
+):
+    agent = engine.render_agent("remediation_executor", finding=sample_finding_dict)
+    assert "Remote Code Execution in log4j" in agent.content
+    assert "snyk" in agent.content
+
+
+def test_executor_yaml_frontmatter(engine: AgentTemplateEngine, sample_finding_dict: dict):
+    agent = engine.render_agent("remediation_executor", finding=sample_finding_dict)
+    assert agent.content.startswith("---\n")
+    assert "mode: subagent" in agent.content
+    assert "Remediate:" in agent.content
+
+
+def test_executor_includes_plan_steps(
+    engine: AgentTemplateEngine,
+    sample_finding_dict: dict,
+    sample_plan: dict,
+):
+    """Executor template shows plan steps from the planner."""
+    agent = engine.render_agent(
+        "remediation_executor",
+        finding=sample_finding_dict,
+        plan=sample_plan,
+    )
+    assert "Upgrade log4j-core" in agent.content
+    assert "definition of done" in agent.content.lower()
+    assert "log4j-core >= 2.17.1" in agent.content
+
+
+def test_executor_includes_enrichment_context(
+    engine: AgentTemplateEngine,
+    sample_finding_dict: dict,
+    sample_enrichment: dict,
+    sample_plan: dict,
+):
+    """Executor template includes enrichment CVE data."""
+    agent = engine.render_agent(
+        "remediation_executor",
+        finding=sample_finding_dict,
+        enrichment=sample_enrichment,
+        plan=sample_plan,
+    )
+    assert "CVE-2021-44228" in agent.content
+    assert "2.17.1" in agent.content
+
+
+def test_executor_includes_repo_instructions(
+    engine: AgentTemplateEngine, sample_finding_dict: dict
+):
+    """Executor template includes git/gh workflow instructions."""
+    agent = engine.render_agent("remediation_executor", finding=sample_finding_dict)
+    assert "git clone" in agent.content
+    assert "git checkout -b opensec/fix/" in agent.content
+    assert "gh pr create --draft" in agent.content
+    assert "git push" in agent.content
+
+
+def test_executor_output_contract(engine: AgentTemplateEngine, sample_finding_dict: dict):
+    """Executor template includes the structured output contract."""
+    agent = engine.render_agent("remediation_executor", finding=sample_finding_dict)
+    assert "pr_url" in agent.content
+    assert "branch_name" in agent.content
+    assert "changes_summary" in agent.content
+    assert "test_results" in agent.content
+    assert "status" in agent.content
