@@ -14,6 +14,7 @@ import Markdown from '@/components/Markdown'
 import PageShell from '@/components/PageShell'
 import PermissionApprovalCard from '@/components/PermissionApprovalCard'
 import PlannerResultCard from '@/components/PlannerResultCard'
+import RemediationResultCard from '@/components/RemediationResultCard'
 import SeverityBadge from '@/components/SeverityBadge'
 import WorkspaceSidebar from '@/components/WorkspaceSidebar'
 
@@ -26,6 +27,7 @@ const RESULT_CARDS: Record<string, React.ComponentType<{ data: any; confidence?:
   finding_enricher: EnricherResultCard,
   exposure_analyzer: ExposureResultCard,
   remediation_planner: PlannerResultCard,
+  remediation_executor: RemediationResultCard,
 }
 
 // ---------------------------------------------------------------------------

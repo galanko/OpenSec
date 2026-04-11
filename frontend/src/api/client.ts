@@ -164,6 +164,15 @@ export interface PlanOutput {
   validation_method: string | null;
 }
 
+export interface RemediationExecutorOutput {
+  status: string;
+  pr_url: string | null;
+  branch_name: string | null;
+  changes_summary: string | null;
+  test_results: string | null;
+  error_details: string | null;
+}
+
 export interface AgentChipConfig {
   agent_type: string;
   label: string;
@@ -187,6 +196,7 @@ export interface SidebarState {
   linked_ticket: Record<string, unknown> | null;
   validation: Record<string, unknown> | null;
   similar_cases: Record<string, unknown> | null;
+  pull_request: Record<string, unknown> | null;
   updated_at: string;
 }
 

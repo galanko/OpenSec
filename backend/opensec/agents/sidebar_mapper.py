@@ -144,8 +144,16 @@ def _map_validation(out: dict[str, Any]) -> SidebarStateUpdate:
 
 
 def _map_executor(out: dict[str, Any]) -> SidebarStateUpdate:
-    # Stub — full PR mapping is WP5 (T5.2 / T6.2).
-    return SidebarStateUpdate()
+    return SidebarStateUpdate(
+        pull_request={
+            "status": out.get("status"),
+            "pr_url": out.get("pr_url"),
+            "branch_name": out.get("branch_name"),
+            "changes_summary": out.get("changes_summary"),
+            "test_results": out.get("test_results"),
+            "error_details": out.get("error_details"),
+        },
+    )
 
 
 _AGENT_SIDEBAR_MAP: dict[str, Any] = {

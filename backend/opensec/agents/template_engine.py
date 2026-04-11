@@ -17,6 +17,7 @@ AGENT_NAMES: list[str] = [
     "owner_resolver",
     "exposure_analyzer",
     "remediation_planner",
+    "remediation_executor",
     "validation_checker",
 ]
 
