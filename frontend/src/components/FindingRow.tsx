@@ -3,12 +3,12 @@ import ActionButton from './ActionButton'
 import ListCard from './ListCard'
 import SeverityBadge, { SeverityIcon } from './SeverityBadge'
 
-const statusDisplay: Record<string, { label: string; dot: string }> = {
-  new: { label: 'Needs attention', dot: 'bg-primary' },
+const statusDisplay: Record<string, { label: string; dot: string; icon?: string }> = {
+  new: { label: 'Needs attention', dot: 'bg-error' },
   triaged: { label: 'Investigating', dot: 'bg-secondary' },
   in_progress: { label: 'In progress', dot: 'bg-primary' },
-  remediated: { label: 'Remediated', dot: 'bg-tertiary' },
-  validated: { label: 'Validated', dot: 'bg-tertiary' },
+  remediated: { label: 'Remediated', dot: 'bg-tertiary', icon: 'code' },
+  validated: { label: 'Validated', dot: 'bg-tertiary', icon: 'verified' },
   closed: { label: 'Closed', dot: 'bg-outline-variant' },
   exception: { label: 'Exception', dot: 'bg-outline-variant' },
 }
@@ -81,6 +81,11 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
           <span className="inline-flex items-center gap-x-1.5 text-sm font-semibold text-on-surface-variant">
             <span className={`w-2 h-2 rounded-full ${status.dot}`} />
             {status.label}
+            {status.icon && (
+              <span className="material-symbols-outlined text-xs text-outline-variant" title={status.label}>
+                {status.icon}
+              </span>
+            )}
           </span>
         </div>
         <ActionButton

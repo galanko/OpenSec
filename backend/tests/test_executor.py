@@ -147,6 +147,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.update_agent_run"),
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
             patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
@@ -180,6 +181,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.update_agent_run"),
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
             patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
@@ -321,6 +323,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.update_agent_run"),
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
             patch("opensec.agents.executor.map_and_upsert"),
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             await executor.execute(
                 "ws-1", "finding_enricher", mock_db,
@@ -351,6 +354,7 @@ class TestAgentExecutor:
                 return_value=[completed_run],
             ),
             patch("opensec.agents.executor.map_and_upsert"),
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
@@ -411,6 +415,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.update_agent_run"),
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
             patch("opensec.agents.executor.map_and_upsert"),
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "owner_resolver", mock_db, workspace_dir=workspace_dir
@@ -452,6 +457,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.update_agent_run"),
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
             patch("opensec.agents.executor.map_and_upsert"),
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
@@ -480,6 +486,7 @@ class TestAgentExecutor:
             patch("opensec.agents.executor.update_agent_run"),
             patch("opensec.agents.executor.list_agent_runs", return_value=[]),
             patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db, workspace_dir=workspace_dir
@@ -701,6 +708,7 @@ class TestPermissionApproval:
                 return_value=[],
             ),
             patch("opensec.agents.executor.map_and_upsert"),
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db,
@@ -770,6 +778,7 @@ class TestPermissionApproval:
                 return_value=[],
             ),
             patch("opensec.agents.executor.map_and_upsert"),
+            patch("opensec.agents.executor._advance_finding_status", return_value=None),
         ):
             result = await executor.execute(
                 "ws-1", "finding_enricher", mock_db,

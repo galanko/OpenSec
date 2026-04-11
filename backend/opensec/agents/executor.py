@@ -30,7 +30,9 @@ from opensec.db.repo_agent_run import (
     list_agent_runs,
     update_agent_run,
 )
-from opensec.models import AgentRunCreate, AgentRunUpdate
+from opensec.db.repo_finding import get_finding, update_finding
+from opensec.db.repo_workspace import get_workspace
+from opensec.models import AgentRunCreate, AgentRunUpdate, FindingUpdate
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import AGENT_TYPE_TO_SECTION, CONTEXT_SECTIONS
 
@@ -242,6 +244,73 @@ nothing else. Do not use tools, do not read files, do not add explanation \
 text. Respond now with ONLY the JSON block in the exact schema requested."""
 
 
+# ---------------------------------------------------------------------------
+# Finding status auto-advance after agent completions (WP6 / T6.1).
+# Status only moves forward — never regresses.
+# ---------------------------------------------------------------------------
+
+_STATUS_ORDINAL: dict[str, int] = {
+    "new": 0,
+    "triaged": 1,
+    "in_progress": 2,
+    "remediated": 3,
+    "validated": 4,
+    "closed": 5,
+    "exception": 5,
+}
+
+# Agents that unconditionally advance status (forward-only check still applies).
+_AGENT_STATUS_ADVANCE: dict[str, str] = {
+    "finding_enricher": "triaged",
+    "remediation_planner": "in_progress",
+}
+
+
+async def _advance_finding_status(
+    db: aiosqlite.Connection,
+    workspace_id: str,
+    agent_type: str,
+    structured_output: dict[str, Any],
+) -> str | None:
+    """Advance the finding status if appropriate after an agent completion.
+
+    Returns the new status string if advanced, or None if no change.
+    Status only moves forward (higher ordinal) — never regresses.
+    """
+    # 1. Determine target status
+    target = _AGENT_STATUS_ADVANCE.get(agent_type)
+
+    if agent_type == "remediation_executor" and structured_output.get("status") == "pr_created":
+        target = "remediated"
+    elif agent_type == "validation_checker" and structured_output.get("verdict") == "fixed":
+        target = "validated"
+
+    if not target:
+        return None
+
+    # 2. Resolve workspace -> finding
+    workspace = await get_workspace(db, workspace_id)
+    if not workspace:
+        return None
+    finding = await get_finding(db, workspace.finding_id)
+    if not finding:
+        return None
+
+    # 3. Forward-only check
+    current_ord = _STATUS_ORDINAL.get(finding.status, 0)
+    target_ord = _STATUS_ORDINAL.get(target, 0)
+    if target_ord <= current_ord:
+        return None
+
+    # 4. Update
+    await update_finding(db, finding.id, FindingUpdate(status=target))
+    logger.info(
+        "Finding %s status advanced: %s -> %s (agent: %s)",
+        finding.id, finding.status, target, agent_type,
+    )
+    return target
+
+
 @dataclass
 class AgentExecutionResult:
     """Result returned by the executor after running an agent."""
@@ -450,6 +519,14 @@ class AgentExecutor:
                     parse_result.structured_output,
                 )
                 sidebar_updated = True
+
+                # 8c. Auto-advance finding status (forward-only)
+                await _advance_finding_status(
+                    db,
+                    workspace_id,
+                    agent_type,
+                    parse_result.structured_output,
+                )
 
             # 9. Update AgentRun in DB
             duration = time.monotonic() - start_time

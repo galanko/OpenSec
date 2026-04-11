@@ -1,0 +1,157 @@
+"""Tests for auto-advancing finding status after agent completions."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from opensec.agents.executor import _advance_finding_status
+from opensec.models import Finding, Workspace
+
+
+def _make_finding(status: str = "new") -> Finding:
+    now = datetime.now(UTC)
+    return Finding(
+        id="f-1",
+        source_type="tenable",
+        source_id="CVE-2026-0001",
+        title="Test vuln",
+        status=status,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _make_workspace(finding_id: str = "f-1") -> Workspace:
+    now = datetime.now(UTC)
+    return Workspace(
+        id="ws-1",
+        finding_id=finding_id,
+        state="open",
+        created_at=now,
+        updated_at=now,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+
+
+class TestAdvanceFindingStatus:
+    @pytest.mark.asyncio
+    async def test_enricher_advances_new_to_triaged(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("new")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "finding_enricher", {}
+            )
+            assert result == "triaged"
+            mock_upd.assert_called_once()
+            call_args = mock_upd.call_args
+            assert call_args[0][1] == "f-1"  # finding_id
+            assert call_args[0][2].status == "triaged"
+
+    @pytest.mark.asyncio
+    async def test_enricher_does_not_regress_in_progress(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("in_progress")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "finding_enricher", {}
+            )
+            assert result is None
+            mock_upd.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_planner_advances_triaged_to_in_progress(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("triaged")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "remediation_planner", {}
+            )
+            assert result == "in_progress"
+            mock_upd.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_executor_pr_created_advances_to_remediated(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("in_progress")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "remediation_executor", {"status": "pr_created"}
+            )
+            assert result == "remediated"
+            mock_upd.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_executor_without_pr_does_not_advance(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("in_progress")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "remediation_executor", {"status": "changes_made"}
+            )
+            assert result is None
+            mock_upd.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validation_fixed_advances_to_validated(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("remediated")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "validation_checker", {"verdict": "fixed"}
+            )
+            assert result == "validated"
+            mock_upd.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validation_not_fixed_does_not_advance(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("remediated")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "validation_checker", {"verdict": "not_fixed"}
+            )
+            assert result is None
+            mock_upd.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_exposure_analyzer_does_not_advance(self):
+        db = AsyncMock()
+        with (
+            patch("opensec.agents.executor.get_workspace", return_value=_make_workspace()),
+            patch("opensec.agents.executor.get_finding", return_value=_make_finding("triaged")),
+            patch("opensec.agents.executor.update_finding") as mock_upd,
+        ):
+            result = await _advance_finding_status(
+                db, "ws-1", "exposure_analyzer", {}
+            )
+            assert result is None
+            mock_upd.assert_not_called()
