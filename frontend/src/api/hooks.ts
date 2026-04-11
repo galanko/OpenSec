@@ -124,6 +124,19 @@ export function useAgentChips() {
 }
 
 // ---------------------------------------------------------------------------
+// Pipeline suggestion (which agent to run next)
+// ---------------------------------------------------------------------------
+
+export function useSuggestedNext(workspaceId: string | undefined) {
+  return useQuery({
+    queryKey: ['suggested-next', workspaceId],
+    queryFn: () => api.getSuggestedNext(workspaceId!),
+    enabled: !!workspaceId,
+    staleTime: 5_000,
+  })
+}
+
+// ---------------------------------------------------------------------------
 // Agent runs (Phase 5)
 // ---------------------------------------------------------------------------
 

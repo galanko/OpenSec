@@ -14,15 +14,18 @@ AGENT_TYPE_TO_SECTION: dict[str, str] = {
     "owner_resolver": "ownership",
     "exposure_analyzer": "exposure",
     "remediation_planner": "plan",
+    "remediation_executor": "remediation",
     "validation_checker": "validation",
 }
 
 # All known context sections (order matters — this is the agent pipeline order).
+# owner_resolver and validation_checker are on-demand only (not in default pipeline).
 CONTEXT_SECTIONS: list[str] = [
     "enrichment",
     "ownership",
     "exposure",
     "plan",
+    "remediation",
     "validation",
 ]
 

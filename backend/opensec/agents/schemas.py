@@ -93,11 +93,25 @@ class ValidationOutput(BaseModel):
     model_config = {"extra": "allow"}
 
 
+class RemediationExecutorOutput(BaseModel):
+    """Structured output from the Remediation Executor agent."""
+
+    status: str
+    pr_url: str | None = None
+    branch_name: str | None = None
+    changes_summary: str | None = None
+    test_results: str | None = None
+    error_details: str | None = None
+
+    model_config = {"extra": "allow"}
+
+
 # Maps agent_type -> the Pydantic model for its structured_output.
 AGENT_OUTPUT_SCHEMAS: dict[str, type[BaseModel]] = {
     "finding_enricher": EnrichmentOutput,
     "owner_resolver": OwnershipOutput,
     "exposure_analyzer": ExposureOutput,
     "remediation_planner": PlanOutput,
+    "remediation_executor": RemediationExecutorOutput,
     "validation_checker": ValidationOutput,
 }

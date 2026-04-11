@@ -170,6 +170,13 @@ export interface AgentChipConfig {
   icon: string;
 }
 
+export interface SuggestedNext {
+  agent_type: string | null;
+  reason: string | null;
+  priority: string | null;
+  action_type: string | null;
+}
+
 export interface SidebarState {
   workspace_id: string;
   summary: Record<string, unknown> | null;
@@ -572,6 +579,10 @@ export const api = {
   // Agent chips (UI metadata from backend registry)
   listAgentChips: () =>
     request<AgentChipConfig[]>('/api/agents/chips'),
+
+  // Pipeline suggestion
+  getSuggestedNext: (workspaceId: string) =>
+    request<SuggestedNext>(`/api/workspaces/${workspaceId}/pipeline/suggest-next`),
 
   // Agent execution
   executeAgent: (workspaceId: string, agentType: string) =>

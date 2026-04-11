@@ -5,85 +5,150 @@ from __future__ import annotations
 from opensec.agents.pipeline import (
     MAX_RETRY_ITERATIONS,
     PIPELINE_ORDER,
+    VALID_AGENT_TYPES,
     suggest_next,
 )
 
 
+def _base_snapshot(**overrides):
+    """Build a context snapshot with all sections defaulting to None."""
+    base = {
+        "finding": {"id": "f-1"},
+        "enrichment": None,
+        "ownership": None,
+        "exposure": None,
+        "plan": None,
+        "remediation": None,
+        "validation": None,
+    }
+    base.update(overrides)
+    return base
+
+
+class TestPipelineOrder:
+    def test_pipeline_order_is_4_agent_mvp(self):
+        assert PIPELINE_ORDER == [
+            "finding_enricher",
+            "exposure_analyzer",
+            "remediation_planner",
+            "remediation_executor",
+        ]
+
+    def test_owner_resolver_not_in_pipeline_order(self):
+        assert "owner_resolver" not in PIPELINE_ORDER
+
+    def test_validation_checker_not_in_pipeline_order(self):
+        assert "validation_checker" not in PIPELINE_ORDER
+
+    def test_valid_agent_types_includes_all_agents(self):
+        assert "finding_enricher" in VALID_AGENT_TYPES
+        assert "owner_resolver" in VALID_AGENT_TYPES
+        assert "exposure_analyzer" in VALID_AGENT_TYPES
+        assert "remediation_planner" in VALID_AGENT_TYPES
+        assert "remediation_executor" in VALID_AGENT_TYPES
+        assert "validation_checker" in VALID_AGENT_TYPES
+
+
 class TestSuggestNext:
     def test_empty_context_suggests_enricher(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": None,
-            "ownership": None,
-            "exposure": None,
-            "plan": None,
-            "validation": None,
-        }
+        snapshot = _base_snapshot()
         result = suggest_next(snapshot)
         assert result is not None
         assert result.agent_type == "finding_enricher"
         assert result.priority == "recommended"
+        assert result.action_type == "run_agent"
 
-    def test_enrichment_done_suggests_owner(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": None,
-            "exposure": None,
-            "plan": None,
-            "validation": None,
-        }
+    def test_enrichment_done_suggests_exposure(self):
+        """After enrichment, skip ownership and suggest exposure."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+        )
         result = suggest_next(snapshot)
         assert result is not None
-        assert result.agent_type == "owner_resolver"
+        assert result.agent_type == "exposure_analyzer"
 
-    def test_through_exposure_suggests_planner(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": {"recommended_owner": "Team A"},
-            "exposure": {"recommended_urgency": "high"},
-            "plan": None,
-            "validation": None,
-        }
+    def test_enrichment_and_exposure_done_suggests_planner(self):
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+        )
         result = suggest_next(snapshot)
         assert result is not None
         assert result.agent_type == "remediation_planner"
 
-    def test_plan_done_suggests_validation(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": {"recommended_owner": "Team A"},
-            "exposure": {"recommended_urgency": "high"},
-            "plan": {"plan_steps": ["Step 1"]},
-            "validation": None,
-        }
+    def test_plan_done_suggests_executor(self):
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+        )
         result = suggest_next(snapshot)
         assert result is not None
-        assert result.agent_type == "validation_checker"
+        assert result.agent_type == "remediation_executor"
+        assert result.action_type == "run_agent"
 
-    def test_all_complete_returns_none(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": {"recommended_owner": "Team A"},
-            "exposure": {"recommended_urgency": "high"},
-            "plan": {"plan_steps": ["Step 1"]},
-            "validation": {"verdict": "fixed", "recommendation": "close"},
-        }
+    def test_executor_pr_created_suggests_review_pr(self):
+        """After executor creates PR, suggest review (not another agent)."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "pr_created", "pr_url": "https://github.com/..."},
+        )
         result = suggest_next(snapshot)
+        assert result is not None
+        assert result.action_type == "review_pr"
+        assert result.agent_type is None
+
+    def test_executor_incomplete_stays_on_executor(self):
+        """If remediation exists but status is not pr_created, don't suggest review."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "changes_made"},
+        )
+        result = suggest_next(snapshot)
+        # Pipeline considers remediation present → should move to review_pr
+        # only when status is pr_created. Otherwise pipeline is complete (None).
         assert result is None
 
+    def test_validation_checker_not_suggested_by_default(self):
+        """Even with validation missing, suggest_next does NOT suggest it."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "pr_created"},
+        )
+        result = suggest_next(snapshot)
+        # Should suggest review_pr, never validation_checker
+        assert result is not None
+        assert result.agent_type != "validation_checker"
+
+    def test_all_complete_pipeline_done(self):
+        """Pipeline complete when remediation has pr_created + review_pr returned."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "pr_created"},
+            validation={"verdict": "fixed", "recommendation": "close"},
+        )
+        result = suggest_next(snapshot)
+        # review_pr is still suggested (it's the terminal action)
+        assert result is not None
+        assert result.action_type == "review_pr"
+
     def test_validation_not_fixed_retries_planner(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": {"recommended_owner": "Team A"},
-            "exposure": {"recommended_urgency": "high"},
-            "plan": {"plan_steps": ["Step 1"]},
-            "validation": {"verdict": "not_fixed", "recommendation": "replan"},
-        }
+        """On-demand validation with not_fixed verdict re-suggests planner."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "pr_created"},
+            validation={"verdict": "not_fixed", "recommendation": "replan"},
+        )
         history = [
             {"agent_type": "remediation_planner", "status": "completed"},
         ]
@@ -93,40 +158,31 @@ class TestSuggestNext:
         assert result.priority == "required"
 
     def test_validation_partially_fixed_retries(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": {"recommended_owner": "Team A"},
-            "exposure": {"recommended_urgency": "high"},
-            "plan": {"plan_steps": ["Step 1"]},
-            "validation": {"verdict": "partially_fixed", "recommendation": "replan"},
-        }
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "pr_created"},
+            validation={"verdict": "partially_fixed", "recommendation": "replan"},
+        )
         result = suggest_next(snapshot, [])
         assert result is not None
         assert result.agent_type == "remediation_planner"
 
-    def test_retry_limit_reached_returns_none(self):
-        snapshot = {
-            "finding": {"id": "f-1"},
-            "enrichment": {"normalized_title": "Test"},
-            "ownership": {"recommended_owner": "Team A"},
-            "exposure": {"recommended_urgency": "high"},
-            "plan": {"plan_steps": ["Step 1"]},
-            "validation": {"verdict": "not_fixed", "recommendation": "replan"},
-        }
-        # MAX_RETRY_ITERATIONS completed planner runs
+    def test_retry_limit_reached_returns_review_pr(self):
+        """After max retries, fall back to review_pr (not None)."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            plan={"plan_steps": ["Step 1"]},
+            remediation={"status": "pr_created"},
+            validation={"verdict": "not_fixed", "recommendation": "replan"},
+        )
         history = [
             {"agent_type": "remediation_planner", "status": "completed"}
             for _ in range(MAX_RETRY_ITERATIONS)
         ]
         result = suggest_next(snapshot, history)
-        assert result is None
-
-    def test_pipeline_order_is_correct(self):
-        assert PIPELINE_ORDER == [
-            "finding_enricher",
-            "owner_resolver",
-            "exposure_analyzer",
-            "remediation_planner",
-            "validation_checker",
-        ]
+        # Retry limit reached — fall back to review_pr
+        assert result is not None
+        assert result.action_type == "review_pr"

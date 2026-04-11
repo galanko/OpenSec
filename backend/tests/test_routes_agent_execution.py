@@ -169,13 +169,14 @@ class TestSuggestNextEndpoint:
         assert data["priority"] == "recommended"
 
     @pytest.mark.asyncio
-    async def test_suggest_none_when_complete(self, app, client):
+    async def test_suggest_review_pr_when_complete(self, app, client):
         app.state.context_builder.get_context_snapshot.return_value = {
             "finding": {"id": "f-1"},
             "enrichment": {"normalized_title": "T"},
             "ownership": {"recommended_owner": "A"},
             "exposure": {"recommended_urgency": "high"},
             "plan": {"plan_steps": ["1"]},
+            "remediation": {"status": "pr_created", "pr_url": "https://github.com/..."},
             "validation": {"verdict": "fixed", "recommendation": "close"},
             "agent_run_history": [],
         }
@@ -191,6 +192,7 @@ class TestSuggestNextEndpoint:
         assert resp.status_code == 200
         data = resp.json()
         assert data["agent_type"] is None
+        assert data["action_type"] == "review_pr"
 
 
 # ---------------------------------------------------------------------------

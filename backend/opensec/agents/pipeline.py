@@ -3,6 +3,9 @@
 Advisory, not enforcing. Users can run agents in any order, skip agents,
 or re-run agents. ``suggest_next()`` is a recommendation based on current
 workspace context state.
+
+MVP pipeline (4-agent): enricher → exposure → planner → executor.
+Owner resolver and validation checker are available on-demand.
 """
 
 from __future__ import annotations
@@ -20,21 +23,39 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Standard pipeline order — derived from the canonical agent→section mapping.
-PIPELINE_ORDER: list[str] = list(AGENT_TYPE_TO_SECTION.keys())
+# MVP pipeline order — the 4-agent suggested sequence.
+PIPELINE_ORDER: list[str] = [
+    "finding_enricher",
+    "exposure_analyzer",
+    "remediation_planner",
+    "remediation_executor",
+]
+
+# All valid agent types (including on-demand agents).
+# Used by the execute endpoint to validate agent_type.
+VALID_AGENT_TYPES: set[str] = set(AGENT_TYPE_TO_SECTION.keys())
 
 # Maximum retry iterations for the plan-validate loop.
 MAX_RETRY_ITERATIONS = 3
+
+# Maps pipeline agents to the context section they check.
+_PIPELINE_CHECKS: list[tuple[str, str]] = [
+    ("enrichment", "finding_enricher"),
+    ("exposure", "exposure_analyzer"),
+    ("plan", "remediation_planner"),
+    ("remediation", "remediation_executor"),
+]
 
 
 @dataclass
 class SuggestedAction:
     """A recommended next agent to run."""
 
-    agent_type: str
+    agent_type: str | None
     reason: str
     priority: Literal["recommended", "optional", "required"]
     prerequisites_met: bool = True
+    action_type: Literal["run_agent", "review_pr"] = "run_agent"
 
 
 def suggest_next(
@@ -45,7 +66,7 @@ def suggest_next(
 
     Args:
         context_snapshot: Dict with keys: finding, enrichment, ownership,
-            exposure, plan, validation (values are dicts or None).
+            exposure, plan, remediation, validation (values are dicts or None).
         agent_run_history: Optional list of past agent run dicts (from
             agent-runs.jsonl) to detect retry loops.
 
@@ -53,69 +74,55 @@ def suggest_next(
         SuggestedAction with the recommended agent, or None if pipeline
         is complete.
     """
-    # Check which context sections exist
-    has = {
-        section: context_snapshot.get(section) is not None
-        for section in ["enrichment", "ownership", "exposure", "plan", "validation"]
-    }
+    # If on-demand validation ran and found issues, re-plan first.
+    validation = context_snapshot.get("validation")
+    if validation:
+        verdict = (validation.get("verdict") or "").lower()
+        if verdict in ("not_fixed", "partially_fixed"):
+            retry_count = _count_plan_retries(agent_run_history or [])
+            if retry_count < MAX_RETRY_ITERATIONS:
+                return SuggestedAction(
+                    agent_type="remediation_planner",
+                    reason=(
+                        f"Validation found issues "
+                        f"(attempt {retry_count + 1}/{MAX_RETRY_ITERATIONS}). "
+                        f"Re-planning."
+                    ),
+                    priority="required",
+                )
+            # Retry limit reached — fall through to normal flow.
 
-    # Standard pipeline order — suggest first missing section
-    if not has["enrichment"]:
-        return SuggestedAction(
-            agent_type="finding_enricher",
-            reason="CVE details and exploit info not yet collected",
-            priority="recommended",
-        )
-    if not has["ownership"]:
-        return SuggestedAction(
-            agent_type="owner_resolver",
-            reason="Responsible team not yet identified",
-            priority="recommended",
-        )
-    if not has["exposure"]:
-        return SuggestedAction(
-            agent_type="exposure_analyzer",
-            reason="Reachability and blast radius not yet assessed",
-            priority="recommended",
-        )
-    if not has["plan"]:
-        return SuggestedAction(
-            agent_type="remediation_planner",
-            reason="No remediation plan created yet",
-            priority="recommended",
-        )
-    if not has["validation"]:
-        return SuggestedAction(
-            agent_type="validation_checker",
-            reason="Fix not yet validated",
-            priority="recommended",
-        )
-
-    # All sections exist — check if validation failed (retry loop)
-    validation = context_snapshot.get("validation", {})
-    verdict = validation.get("verdict", "").lower() if validation else ""
-
-    if verdict in ("not_fixed", "partially_fixed"):
-        # Count how many plan-validate cycles we've done
-        retry_count = _count_plan_retries(agent_run_history or [])
-        if retry_count < MAX_RETRY_ITERATIONS:
+    # Standard pipeline order — suggest first missing section.
+    for section, agent_type in _PIPELINE_CHECKS:
+        if context_snapshot.get(section) is None:
             return SuggestedAction(
-                agent_type="remediation_planner",
-                reason=(
-                    f"Validation found issues "
-                    f"(attempt {retry_count + 1}/{MAX_RETRY_ITERATIONS}). "
-                    f"Re-planning."
-                ),
-                priority="required",
-            )
-        else:
-            logger.warning(
-                "Validation retry limit reached (%d). Manual intervention needed.",
-                MAX_RETRY_ITERATIONS,
+                agent_type=agent_type,
+                reason=_REASONS[section],
+                priority="recommended",
             )
 
-    # Pipeline complete
+    # All 4 pipeline sections present — check remediation status.
+    remediation = context_snapshot.get("remediation", {})
+    status = (remediation.get("status") or "").lower() if remediation else ""
+
+    if status == "pr_created":
+        return SuggestedAction(
+            agent_type=None,
+            reason="Pull request created — ready for review",
+            priority="recommended",
+            action_type="review_pr",
+        )
+
+    # Pipeline complete (or remediation in a non-terminal state).
     return None
+
+
+_REASONS: dict[str, str] = {
+    "enrichment": "CVE details and exploit info not yet collected",
+    "exposure": "Reachability and blast radius not yet assessed",
+    "plan": "No remediation plan created yet",
+    "remediation": "Remediation not yet executed",
+}
 
 
 def _count_plan_retries(agent_run_history: list[dict[str, Any]]) -> int:
@@ -150,8 +157,8 @@ async def run_pipeline(
         run_history = snapshot.get("agent_run_history", [])
 
         suggestion = suggest_next(snapshot, run_history)
-        if suggestion is None:
-            break  # Pipeline complete
+        if suggestion is None or suggestion.action_type != "run_agent":
+            break  # Pipeline complete or terminal action
 
         result = await executor.execute(
             workspace_id,
