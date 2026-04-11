@@ -23,7 +23,7 @@ MVP — Agentic remediation (PRD-0001, IMPL-0001):
 - [ ] **WP4: Pipeline update** — 4-agent MVP sequence (enricher → exposure → planner → executor), remove owner_resolver from defaults, update suggest_next()
 - [x] **WP5: Remediation executor agent** — new `remediation_executor.md.j2` template, tool-using conversational agent, output parser + sidebar mapper for PR data
 - [x] **WP5: PR creation** — agent pushes branch + creates draft PR via `gh pr create`, PR metadata in sidebar
-- [ ] **WP6: Status flow** — auto-advance finding status after agent completions (new → triaged → in_progress → remediated → closed)
+- [x] **WP6: Status flow** — auto-advance finding status after agent completions (new → triaged → in_progress → remediated → closed)
 
 Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 
@@ -138,7 +138,7 @@ Closes gaps between Stitch mockups (`frontend/mockups/html/`) and current implem
 - [ ] **WP7: Error handling** — ErrorState component, ErrorBoundary on all pages, API error states with retry
 - [x] **WP5: Plan approval card** — PlanApprovalCard component (approve/modify plan before executor runs)
 - [x] **WP5: PR display** — PRStatusBadge, sidebar "Pull request" section, PR link in FindingRow
-- [ ] **WP6: Status badges** — status color progression per UX-0001, PR link icon in findings table
+- [x] **WP6: Status badges** — status color progression per UX-0001, PR link icon in findings table
 - [ ] **WP4: Suggest-next wiring** — highlight recommended action chip, SuggestedActionHighlight styling, chip states (default/suggested/running/completed/disabled)
 
 ### Priority 7: Findings page and UI gaps

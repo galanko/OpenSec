@@ -15,6 +15,9 @@ const STATUS_OPTIONS = [
   { value: 'new', label: 'New' },
   { value: 'triaged', label: 'Triaged' },
   { value: 'in_progress', label: 'In progress' },
+  { value: 'remediated', label: 'Remediated' },
+  { value: 'validated', label: 'Validated' },
+  { value: 'closed', label: 'Closed' },
 ]
 
 const SORT_OPTIONS = [
