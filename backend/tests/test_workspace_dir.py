@@ -224,6 +224,11 @@ def test_context_md_full_context(
         {"plan_steps": ["Upgrade log4j", "Deploy", "Verify"], "estimated_effort": "small"},
     )
     manager.write_context_section(
+        "ws-full",
+        "remediation",
+        {"status": "pr_created", "pr_url": "https://github.com/org/repo/pull/1"},
+    )
+    manager.write_context_section(
         "ws-full", "validation", {"verdict": "fixed", "recommendation": "close"}
     )
 
@@ -232,6 +237,7 @@ def test_context_md_full_context(
     content = ws.context_md.read_text()
     assert "What we know so far" in content
     assert "Current plan" in content
+    assert "Remediation" in content
     assert "Validation" in content
     assert "All agents have run" in content
 
@@ -453,6 +459,7 @@ def test_context_document_generate_all_sections():
         ownership={"recommended_owner": "backend-team", "confidence": 90},
         exposure={"reachable": "confirmed", "blast_radius": "user data"},
         plan={"plan_steps": ["Parameterize queries", "Add WAF rule"]},
+        remediation={"status": "pr_created", "pr_url": "https://github.com/org/repo/pull/42"},
         validation={"verdict": "fixed", "recommendation": "close"},
     )
     assert "SQL injection" in doc
@@ -460,6 +467,8 @@ def test_context_document_generate_all_sections():
     assert "backend-team" in doc
     assert "Current plan" in doc
     assert "Parameterize queries" in doc
+    assert "Remediation" in doc
+    assert "pr_created" in doc
     assert "All agents have run" in doc
 
 
