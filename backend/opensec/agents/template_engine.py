@@ -74,6 +74,7 @@ class AgentTemplateEngine:
         plan: dict[str, Any] | None = None,
         remediation: dict[str, Any] | None = None,
         validation: dict[str, Any] | None = None,
+        **extra: Any,
     ) -> RenderedAgent:
         """Render a single agent template by name.
 
@@ -81,6 +82,7 @@ class AgentTemplateEngine:
             name: Agent name (one of AGENT_NAMES).
             finding: Finding dict (from Finding.model_dump(mode="json")).
             enrichment..validation: Optional context section dicts.
+            **extra: Additional template variables (e.g. repo_url).
 
         Returns:
             RenderedAgent with the fully rendered markdown content.
@@ -109,6 +111,7 @@ class AgentTemplateEngine:
             "has_plan": plan is not None,
             "has_remediation": remediation is not None,
             "has_validation": validation is not None,
+            **extra,
         }
 
         content = template.render(**context)

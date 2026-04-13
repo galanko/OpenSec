@@ -12,6 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from opensec.agents.errors import AgentBusyError, AgentProcessError
 from opensec.agents.pipeline import VALID_AGENT_TYPES, suggest_next
+from opensec.api.routes.workspaces import _resolve_repo_env_vars
 from opensec.db.connection import get_db
 from opensec.db.repo_agent_run import get_agent_run, update_agent_run
 from opensec.db.repo_workspace import get_workspace
@@ -104,6 +105,9 @@ async def execute_agent(
     except AgentBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    # Resolve GitHub env vars (GH_TOKEN, OPENSEC_REPO_URL) for the workspace process.
+    env_vars = await _resolve_repo_env_vars(request, db)
+
     # Launch execution as a background task so we can return immediately.
     async def _run_in_background() -> None:
         try:
@@ -115,6 +119,7 @@ async def execute_agent(
                 on_permission=lambda evt: executor.push_permission_event(
                     workspace_id, evt
                 ),
+                env_vars=env_vars,
             )
         except (AgentBusyError, AgentProcessError):
             logger.exception(

@@ -66,11 +66,19 @@ Follow this plan step by step:
 
 Execute the remediation plan above by making code changes in the repository.
 
+{% if repo_url %}
+**Repository:** `{{ repo_url }}`
+{% endif %}
+
 ### Workflow
 
-1. **Navigate to the repository** at `./repo/`. If the directory does not exist, clone the repository:
+1. **Set up authentication and clone the repository:**
    ```bash
-   git clone "$OPENSEC_REPO_URL" repo/
+{% if gh_token %}
+   export GH_TOKEN="{{ gh_token }}"
+   git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+{% endif %}
+   git clone "{{ repo_url or '$OPENSEC_REPO_URL' }}" repo/
    ```
 2. **Create a fix branch:**
    ```bash
