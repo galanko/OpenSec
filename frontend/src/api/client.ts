@@ -601,6 +601,13 @@ export const api = {
       { method: 'POST' },
     ),
 
+  // Run all remaining pipeline agents sequentially
+  runAllPipeline: (workspaceId: string) =>
+    request<{ status: string; message: string }>(
+      `/api/workspaces/${workspaceId}/pipeline/run-all`,
+      { method: 'POST' },
+    ),
+
   // Agent execution SSE stream (connect when agent starts, disconnect on completion)
   streamAgentExecution: (workspaceId: string): EventSource =>
     new EventSource(`/api/workspaces/${workspaceId}/agent-execution/stream`),

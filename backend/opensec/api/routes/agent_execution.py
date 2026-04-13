@@ -195,6 +195,102 @@ async def suggest_next_endpoint(
 
 
 # ---------------------------------------------------------------------------
+# Run full pipeline
+# ---------------------------------------------------------------------------
+
+
+class RunAllResponse(BaseModel):
+    status: str
+    message: str
+
+
+@router.post(
+    "/workspaces/{workspace_id}/pipeline/run-all",
+    response_model=RunAllResponse,
+    status_code=202,
+)
+async def run_all_pipeline(
+    workspace_id: str,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Run all remaining agents in pipeline order as a background task.
+
+    Each agent runs sequentially. Progress events stream via the
+    agent-execution SSE endpoint. Stops on first failure.
+    """
+    workspace = await get_workspace(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if not workspace.workspace_dir:
+        raise HTTPException(status_code=400, detail="Workspace has no directory")
+
+    executor = request.app.state.agent_executor
+    context_builder = request.app.state.context_builder
+
+    try:
+        await executor.check_not_busy(db, workspace_id)
+    except AgentBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    env_vars = await _resolve_repo_env_vars(request, db)
+
+    async def _run_pipeline() -> None:
+        try:
+            while True:
+                snapshot = await context_builder.get_context_snapshot(
+                    workspace_id
+                )
+                run_history = snapshot.pop("agent_run_history", [])
+                suggestion = suggest_next(snapshot, run_history)
+
+                if (
+                    suggestion is None
+                    or suggestion.action_type != "run_agent"
+                    or suggestion.agent_type is None
+                ):
+                    break
+
+                agent_type = suggestion.agent_type
+                logger.info(
+                    "Pipeline auto-run: %s for workspace %s",
+                    agent_type,
+                    workspace_id,
+                )
+
+                try:
+                    await executor.execute(
+                        workspace_id,
+                        agent_type,
+                        db,
+                        workspace_dir=workspace.workspace_dir,
+                        on_permission=lambda evt: (
+                            executor.push_permission_event(workspace_id, evt)
+                        ),
+                        env_vars=env_vars,
+                    )
+                except (AgentBusyError, AgentProcessError):
+                    logger.exception(
+                        "Pipeline agent %s failed for workspace %s",
+                        agent_type,
+                        workspace_id,
+                    )
+                    break
+        except Exception:
+            logger.exception(
+                "Unexpected error in pipeline run-all for workspace %s",
+                workspace_id,
+            )
+
+    asyncio.create_task(_run_pipeline())
+
+    return RunAllResponse(
+        status="running",
+        message="Pipeline started — agents will run sequentially",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Cancel running agent
 # ---------------------------------------------------------------------------
 

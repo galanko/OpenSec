@@ -220,6 +220,14 @@ def test_context_md_full_context(
     )
     manager.write_context_section(
         "ws-full",
+        "evidence",
+        {
+            "affected_files": [{"path": "pom.xml", "line": 10, "context": "log4j 2.14"}],
+            "fix_safety": "safe_bump",
+        },
+    )
+    manager.write_context_section(
+        "ws-full",
         "plan",
         {"plan_steps": ["Upgrade log4j", "Deploy", "Verify"], "estimated_effort": "small"},
     )
@@ -236,6 +244,7 @@ def test_context_md_full_context(
     assert ws is not None
     content = ws.context_md.read_text()
     assert "What we know so far" in content
+    assert "Evidence" in content
     assert "Current plan" in content
     assert "Remediation" in content
     assert "Validation" in content
@@ -458,6 +467,10 @@ def test_context_document_generate_all_sections():
         enrichment={"summary": "SQLi via user input", "cvss_score": 8.5},
         ownership={"recommended_owner": "backend-team", "confidence": 90},
         exposure={"reachable": "confirmed", "blast_radius": "user data"},
+        evidence={
+            "affected_files": [{"path": "app/login.py", "line": 42, "context": "raw SQL"}],
+            "fix_safety": "code_fix",
+        },
         plan={"plan_steps": ["Parameterize queries", "Add WAF rule"]},
         remediation={"status": "pr_created", "pr_url": "https://github.com/org/repo/pull/42"},
         validation={"verdict": "fixed", "recommendation": "close"},
@@ -465,6 +478,8 @@ def test_context_document_generate_all_sections():
     assert "SQL injection" in doc
     assert "What we know so far" in doc
     assert "backend-team" in doc
+    assert "Evidence" in doc
+    assert "app/login.py" in doc
     assert "Current plan" in doc
     assert "Parameterize queries" in doc
     assert "Remediation" in doc

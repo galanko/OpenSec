@@ -456,6 +456,27 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
     }
   }, [workspaceId, sending, queryClient])
 
+  const [pipelineRunning, setPipelineRunning] = useState(false)
+
+  const handleRunAll = useCallback(async () => {
+    if (sending || pipelineRunning) return
+    try {
+      setPipelineRunning(true)
+      await api.runAllPipeline(workspaceId)
+      queryClient.invalidateQueries({ queryKey: ['agent-runs', workspaceId] })
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: 'error', content: `Pipeline failed: ${err}` }])
+      setPipelineRunning(false)
+    }
+  }, [workspaceId, sending, pipelineRunning, queryClient])
+
+  // Reset pipelineRunning when no agent is active and pipeline is "done"
+  useEffect(() => {
+    if (pipelineRunning && !activeRun && suggestedNext?.action_type !== 'run_agent') {
+      setPipelineRunning(false)
+    }
+  }, [pipelineRunning, activeRun, suggestedNext])
+
   const isResolved = workspace?.state === 'closed'
 
   return (
@@ -507,10 +528,12 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           {!isResolved && (
             <ActionChips
               onAction={handleAgentAction}
+              onRunAll={handleRunAll}
               disabled={!sessionId || sending}
               suggestedAgentType={suggestedNext?.agent_type}
               runningAgentType={activeRun?.agent_type}
               completedAgentTypes={completedAgentTypes}
+              pipelineRunning={pipelineRunning}
             />
           )}
 

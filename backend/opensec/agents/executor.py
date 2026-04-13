@@ -70,7 +70,7 @@ TOOL_TIERS: dict[str, str] = {
 
 # Agents that need tool access to do their job (e.g. git, gh CLI).
 # Their bash/edit tool requests are auto-approved.
-_TOOL_AGENT_TYPES: set[str] = {"remediation_executor"}
+_TOOL_AGENT_TYPES: set[str] = {"evidence_collector", "remediation_executor"}
 
 
 @dataclass
@@ -149,6 +149,7 @@ _AGENT_TYPE_LABELS: dict[str, str] = {
     "finding_enricher": "vulnerability enrichment",
     "owner_resolver": "ownership resolution",
     "exposure_analyzer": "exposure and context analysis",
+    "evidence_collector": "evidence collection",
     "remediation_planner": "remediation planning",
     "remediation_executor": "remediation execution",
     "validation_checker": "validation checking",
@@ -467,10 +468,10 @@ class AgentExecutor:
                 workspace_dir, agent_type
             )
 
-            # Remediation executor uses the Jinja2 template (which instructs
-            # tool use for git/gh operations). Other agents use the no-tools
+            # Tool agents (evidence_collector, remediation_executor) use Jinja2
+            # templates with tool access. Other agents use the no-tools
             # JSON-only prompt for fast, reliable structured output.
-            if agent_type == "remediation_executor":
+            if agent_type in _TOOL_AGENT_TYPES:
                 engine = AgentTemplateEngine()
                 # Pass repo_url and gh_token directly into the template
                 # so the agent doesn't rely on shell env var expansion.
@@ -486,6 +487,7 @@ class AgentExecutor:
                     enrichment=prior_ctx.get("enrichment"),
                     ownership=prior_ctx.get("ownership"),
                     exposure=prior_ctx.get("exposure"),
+                    evidence=prior_ctx.get("evidence"),
                     plan=prior_ctx.get("plan"),
                     remediation=prior_ctx.get("remediation"),
                     validation=prior_ctx.get("validation"),
@@ -500,7 +502,7 @@ class AgentExecutor:
             # Tool agents (e.g. remediation_executor) need more time for
             # git clone, push, and PR creation.
             effective_timeout = (
-                max(timeout, 300.0)
+                max(timeout, 600.0)
                 if agent_type in _TOOL_AGENT_TYPES
                 else timeout
             )
@@ -748,7 +750,7 @@ class AgentExecutor:
 
         # Tool agents need longer stall timeout for git/build operations
         if agent_type in _TOOL_AGENT_TYPES:
-            stall_timeout = max(stall_timeout, 120.0)
+            stall_timeout = max(stall_timeout, 180.0)
 
         async def _handle_permission(event: dict) -> None:
             """Handle a permission request based on tool tier."""

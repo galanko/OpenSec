@@ -18,6 +18,7 @@ class ContextDocument:
         enrichment: dict[str, Any] | None = None,
         ownership: dict[str, Any] | None = None,
         exposure: dict[str, Any] | None = None,
+        evidence: dict[str, Any] | None = None,
         plan: dict[str, Any] | None = None,
         remediation: dict[str, Any] | None = None,
         validation: dict[str, Any] | None = None,
@@ -40,14 +41,17 @@ class ContextDocument:
             "# Workspace context\n",
             ContextDocument.finding_section(finding),
             ContextDocument.knowledge_section(enrichment, ownership, exposure),
+            ContextDocument._evidence_section(evidence),
             ContextDocument._plan_section(plan),
             ContextDocument._remediation_section(remediation),
             ContextDocument._validation_section(validation),
             ContextDocument._next_steps_section(
-                enrichment, ownership, exposure, plan, remediation, validation
+                enrichment, ownership, exposure, evidence, plan,
+                remediation, validation,
             ),
             ContextDocument._files_section(
-                enrichment, ownership, exposure, plan, remediation, validation
+                enrichment, ownership, exposure, evidence, plan,
+                remediation, validation,
             ),
         ]
         return "\n".join(s for s in sections if s)
@@ -156,6 +160,48 @@ class ContextDocument:
         return "\n".join(lines)
 
     @staticmethod
+    def _evidence_section(evidence: dict[str, Any] | None) -> str:
+        if not evidence:
+            return ""
+
+        lines = ["## Evidence", ""]
+        affected = evidence.get("affected_files")
+        if affected:
+            lines.append("### Affected files")
+            for f in affected:
+                path = f.get("path", "unknown")
+                ctx = f.get("context", "")
+                line_num = f.get("line")
+                loc = f":{line_num}" if line_num else ""
+                lines.append(f"- `{path}{loc}` — {ctx}")
+            lines.append("")
+
+        chain = evidence.get("dependency_chain")
+        if chain:
+            lines.append("### Dependency chain")
+            for item in chain:
+                lines.append(f"- {item}")
+            lines.append("")
+
+        safety = evidence.get("fix_safety")
+        if safety:
+            lines.append(f"- **Fix safety:** {safety}")
+        reasoning = evidence.get("fix_safety_reasoning")
+        if reasoning:
+            lines.append(f"- **Reasoning:** {reasoning}")
+
+        approach = evidence.get("recommended_approach")
+        if approach:
+            lines.append(f"- **Recommended approach:** {approach}")
+
+        impact = evidence.get("impact_assessment")
+        if impact:
+            lines.append(f"- **Impact:** {impact}")
+
+        lines.append("")
+        return "\n".join(lines)
+
+    @staticmethod
     def _plan_section(plan: dict[str, Any] | None) -> str:
         if not plan:
             return ""
@@ -240,6 +286,7 @@ class ContextDocument:
         enrichment: dict[str, Any] | None,
         ownership: dict[str, Any] | None,
         exposure: dict[str, Any] | None,
+        evidence: dict[str, Any] | None,
         plan: dict[str, Any] | None,
         remediation: dict[str, Any] | None,
         validation: dict[str, Any] | None,
@@ -257,6 +304,10 @@ class ContextDocument:
         if not exposure:
             missing.append(
                 "Run **exposure analyzer** to assess reachability and blast radius"
+            )
+        if not evidence:
+            missing.append(
+                "Run **evidence collector** to locate affected files and assess fix impact"
             )
         if not plan:
             missing.append(
@@ -285,6 +336,7 @@ class ContextDocument:
         enrichment: dict[str, Any] | None,
         ownership: dict[str, Any] | None,
         exposure: dict[str, Any] | None,
+        evidence: dict[str, Any] | None,
         plan: dict[str, Any] | None,
         remediation: dict[str, Any] | None,
         validation: dict[str, Any] | None,
@@ -303,6 +355,10 @@ class ContextDocument:
         if exposure:
             lines.append(
                 "- `context/exposure.json` — reachability, environment, blast radius"
+            )
+        if evidence:
+            lines.append(
+                "- `context/evidence.json` — affected files, dependency chain, fix impact"
             )
         if plan:
             lines.append(

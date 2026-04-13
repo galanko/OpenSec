@@ -4,10 +4,12 @@ type ChipState = 'default' | 'suggested' | 'running' | 'completed' | 'disabled'
 
 interface ActionChipsProps {
   onAction: (agentType: string) => void
+  onRunAll?: () => void
   disabled?: boolean
   suggestedAgentType?: string | null
   runningAgentType?: string | null
   completedAgentTypes?: string[]
+  pipelineRunning?: boolean
 }
 
 const chipStyles: Record<ChipState, string> = {
@@ -36,10 +38,12 @@ function getChipState(
 
 export default function ActionChips({
   onAction,
+  onRunAll,
   disabled,
   suggestedAgentType,
   runningAgentType,
   completedAgentTypes,
+  pipelineRunning,
 }: ActionChipsProps) {
   const { data: chips, isLoading } = useAgentChips()
 
@@ -53,8 +57,37 @@ export default function ActionChips({
     )
   }
 
+  const hasCompletedAll = chips.every((c) =>
+    completedAgentTypes?.includes(c.agent_type),
+  )
+  const showFixIt = onRunAll && !hasCompletedAll
+
   return (
     <div className="flex flex-wrap gap-2 max-w-3xl">
+      {showFixIt && (
+        <button
+          onClick={onRunAll}
+          disabled={disabled || !!runningAgentType || pipelineRunning}
+          className={`px-5 py-2 rounded-full text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 ${
+            pipelineRunning || runningAgentType
+              ? 'bg-primary/70 text-on-primary cursor-wait'
+              : disabled
+                ? 'bg-primary/40 text-on-primary cursor-not-allowed'
+                : 'bg-primary text-on-primary hover:bg-primary/90'
+          }`}
+        >
+          {pipelineRunning || runningAgentType ? (
+            <span className="material-symbols-outlined text-sm animate-spin">
+              progress_activity
+            </span>
+          ) : (
+            <span className="material-symbols-outlined text-sm">
+              auto_fix_high
+            </span>
+          )}
+          {pipelineRunning ? 'Fixing...' : 'Fix it'}
+        </button>
+      )}
       {chips.map((chip) => {
         const state = getChipState(chip.agent_type, {
           disabled,
