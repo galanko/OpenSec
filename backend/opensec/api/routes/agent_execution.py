@@ -236,8 +236,12 @@ async def run_all_pipeline(
     env_vars = await _resolve_repo_env_vars(request, db)
 
     async def _run_pipeline() -> None:
+        max_iterations = len(VALID_AGENT_TYPES) + 3  # generous upper bound
+        consecutive_failures = 0
+        max_consecutive_failures = 2
+
         try:
-            while True:
+            for _i in range(max_iterations):
                 snapshot = await context_builder.get_context_snapshot(
                     workspace_id
                 )
@@ -269,13 +273,25 @@ async def run_all_pipeline(
                         ),
                         env_vars=env_vars,
                     )
+                    consecutive_failures = 0
                 except (AgentBusyError, AgentProcessError):
+                    consecutive_failures += 1
                     logger.exception(
-                        "Pipeline agent %s failed for workspace %s",
+                        "Pipeline agent %s failed for workspace %s "
+                        "(consecutive failures: %d/%d)",
                         agent_type,
                         workspace_id,
+                        consecutive_failures,
+                        max_consecutive_failures,
                     )
-                    break
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.error(
+                            "Pipeline stopped after %d consecutive failures "
+                            "for workspace %s",
+                            consecutive_failures,
+                            workspace_id,
+                        )
+                        break
         except Exception:
             logger.exception(
                 "Unexpected error in pipeline run-all for workspace %s",

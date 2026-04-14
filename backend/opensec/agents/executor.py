@@ -70,7 +70,7 @@ TOOL_TIERS: dict[str, str] = {
 
 # Agents that need tool access to do their job (e.g. git, gh CLI).
 # Their bash/edit tool requests are auto-approved.
-_TOOL_AGENT_TYPES: set[str] = {"evidence_collector", "remediation_executor"}
+_TOOL_AGENT_TYPES: set[str] = {"remediation_executor"}
 
 
 @dataclass
@@ -133,6 +133,18 @@ _STRUCTURED_OUTPUT_CONTRACTS: dict[str, str] = {
     "recommendation": "close/reopen/needs_more_info",
     "evidence": "what evidence supports the verdict" or null,
     "remaining_concerns": ["concern 1", ...]
+}""",
+    "evidence_collector": """\
+"structured_output": {
+    "affected_files": [{"path": "relative/path", "line": null, "context": "what was found", "file_type": "lock_file|manifest|source|config|test"}],
+    "dependency_chain": ["pkg_a depends on pkg_b depends on vulnerable_pkg"],
+    "dependency_type": "direct|transitive",
+    "current_version": "version string likely in repo" or null,
+    "fix_safety": "safe_bump|breaking_change|needs_migration|code_fix",
+    "fix_safety_reasoning": "why this classification was chosen",
+    "test_coverage": {"relevant_tests": [], "has_coverage": true/false, "notes": "observations"},
+    "recommended_approach": "concise description of safest fix approach",
+    "impact_assessment": "what will change and what risks exist"
 }""",
     "remediation_executor": """\
 "structured_output": {
@@ -468,9 +480,9 @@ class AgentExecutor:
                 workspace_dir, agent_type
             )
 
-            # Tool agents (evidence_collector, remediation_executor) use Jinja2
-            # templates with tool access. Other agents use the no-tools
-            # JSON-only prompt for fast, reliable structured output.
+            # Tool agents (remediation_executor) use Jinja2 templates with
+            # tool access. Other agents use the no-tools JSON-only prompt
+            # for fast, reliable structured output.
             if agent_type in _TOOL_AGENT_TYPES:
                 engine = AgentTemplateEngine()
                 # Pass repo_url and gh_token directly into the template
@@ -759,7 +771,10 @@ class AgentExecutor:
             tier = TOOL_TIERS.get(tool, "user")
 
             # Tool agents (e.g. remediation_executor) auto-approve bash/edit
-            if agent_type in _TOOL_AGENT_TYPES and tool in ("bash", "edit"):
+            # and external_directory (needed for git clone outside CWD).
+            if agent_type in _TOOL_AGENT_TYPES and tool in (
+                "bash", "edit", "external_directory",
+            ):
                 tier = "auto"
 
             if tier == "auto":
