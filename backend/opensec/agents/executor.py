@@ -136,13 +136,21 @@ _STRUCTURED_OUTPUT_CONTRACTS: dict[str, str] = {
 }""",
     "evidence_collector": """\
 "structured_output": {
-    "affected_files": [{"path": "relative/path", "line": null, "context": "what was found", "file_type": "lock_file|manifest|source|config|test"}],
+    "affected_files": [
+        {"path": "relative/path", "line": null,
+         "context": "what was found",
+         "file_type": "lock_file|manifest|source|config|test"}
+    ],
     "dependency_chain": ["pkg_a depends on pkg_b depends on vulnerable_pkg"],
     "dependency_type": "direct|transitive",
     "current_version": "version string likely in repo" or null,
     "fix_safety": "safe_bump|breaking_change|needs_migration|code_fix",
     "fix_safety_reasoning": "why this classification was chosen",
-    "test_coverage": {"relevant_tests": [], "has_coverage": true/false, "notes": "observations"},
+    "test_coverage": {
+        "relevant_tests": [],
+        "has_coverage": true/false,
+        "notes": "observations"
+    },
     "recommended_approach": "concise description of safest fix approach",
     "impact_assessment": "what will change and what risks exist"
 }""",
