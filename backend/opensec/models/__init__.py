@@ -1,4 +1,10 @@
-"""Pydantic domain models for OpenSec entities."""
+"""Pydantic domain models for OpenSec entities.
+
+Per-entity modules (Finding, Assessment, PostureCheck, Completion) live as
+separate submodules; all other entities continue to live in this ``__init__``
+so that ``from opensec.models import Foo`` keeps working for every call site
+in the codebase (EXEC-0002 contract-freeze step).
+"""
 
 from __future__ import annotations
 
@@ -7,60 +13,33 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-# ---------------------------------------------------------------------------
-# Finding
-# ---------------------------------------------------------------------------
-
-FindingStatus = Literal[
-    "new", "triaged", "in_progress", "remediated", "validated", "closed", "exception"
-]
-
-
-class FindingCreate(BaseModel):
-    source_type: str
-    source_id: str
-    title: str
-    description: str | None = None
-    raw_severity: str | None = None
-    normalized_priority: str | None = None
-    asset_id: str | None = None
-    asset_label: str | None = None
-    status: FindingStatus = "new"
-    likely_owner: str | None = None
-    why_this_matters: str | None = None
-    raw_payload: dict[str, Any] | None = None
-
-
-class FindingUpdate(BaseModel):
-    title: str | None = None
-    description: str | None = None
-    raw_severity: str | None = None
-    normalized_priority: str | None = None
-    asset_id: str | None = None
-    asset_label: str | None = None
-    status: FindingStatus | None = None
-    likely_owner: str | None = None
-    why_this_matters: str | None = None
-    raw_payload: dict[str, Any] | None = None
-
-
-class Finding(BaseModel):
-    id: str
-    source_type: str
-    source_id: str
-    title: str
-    description: str | None = None
-    raw_severity: str | None = None
-    normalized_priority: str | None = None
-    asset_id: str | None = None
-    asset_label: str | None = None
-    status: FindingStatus = "new"
-    likely_owner: str | None = None
-    why_this_matters: str | None = None
-    raw_payload: dict[str, Any] | None = None
-    created_at: datetime
-    updated_at: datetime
-
+# Per-entity re-exports ------------------------------------------------------
+from opensec.models.assessment import (
+    Assessment,
+    AssessmentCreate,
+    AssessmentResult,
+    AssessmentStatus,
+    AssessmentUpdate,
+    CriteriaSnapshot,
+    Grade,
+)
+from opensec.models.completion import (
+    Completion,
+    CompletionCreate,
+    ShareAction,
+)
+from opensec.models.finding import (
+    Finding,
+    FindingCreate,
+    FindingStatus,
+    FindingUpdate,
+)
+from opensec.models.posture_check import (
+    PostureCheck,
+    PostureCheckCreate,
+    PostureCheckName,
+    PostureCheckStatus,
+)
 
 # ---------------------------------------------------------------------------
 # Workspace
@@ -344,11 +323,6 @@ class IntegrationHealthStatus(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# Finding ingest models (ADR-0022 + ADR-0023)
-# ---------------------------------------------------------------------------
-
-
 class IngestRequest(BaseModel):
     source: str
     raw_data: list[dict[str, Any]]
@@ -385,3 +359,71 @@ class IngestResult(BaseModel):
 
     created: list[Finding]
     errors: list[str]
+
+
+__all__ = [
+    # Finding
+    "Finding",
+    "FindingCreate",
+    "FindingStatus",
+    "FindingUpdate",
+    # Assessment
+    "Assessment",
+    "AssessmentCreate",
+    "AssessmentResult",
+    "AssessmentStatus",
+    "AssessmentUpdate",
+    "CriteriaSnapshot",
+    "Grade",
+    # PostureCheck
+    "PostureCheck",
+    "PostureCheckCreate",
+    "PostureCheckName",
+    "PostureCheckStatus",
+    # Completion
+    "Completion",
+    "CompletionCreate",
+    "ShareAction",
+    # Workspace
+    "Workspace",
+    "WorkspaceCreate",
+    "WorkspaceState",
+    "WorkspaceUpdate",
+    # Message
+    "Message",
+    "MessageCreate",
+    "MessageRole",
+    # AgentRun
+    "AgentRun",
+    "AgentRunCreate",
+    "AgentRunStatus",
+    "AgentRunUpdate",
+    "AgentType",
+    # SidebarState
+    "SidebarState",
+    "SidebarStateUpdate",
+    # Read-only
+    "TicketLink",
+    "ValidationResult",
+    "AppSetting",
+    "IntegrationConfig",
+    "IntegrationConfigCreate",
+    "IntegrationConfigUpdate",
+    # Settings
+    "ModelUpdateRequest",
+    "ApiKeyCreate",
+    "ApiKeyResponse",
+    "ProviderInfo",
+    "ModelConfig",
+    # Integrations
+    "CredentialCreate",
+    "CredentialInfo",
+    "TestConnectionResult",
+    "WorkspaceIntegration",
+    "IntegrationHealthStatus",
+    # Ingest
+    "IngestRequest",
+    "IngestJobResponse",
+    "IngestJobProgress",
+    "IngestResult",
+]
