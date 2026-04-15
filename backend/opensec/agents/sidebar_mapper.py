@@ -156,10 +156,27 @@ def _map_executor(out: dict[str, Any]) -> SidebarStateUpdate:
     )
 
 
+def _map_evidence_collector(out: dict[str, Any]) -> SidebarStateUpdate:
+    return SidebarStateUpdate(
+        evidence={
+            "affected_files": out.get("affected_files"),
+            "dependency_chain": out.get("dependency_chain"),
+            "dependency_type": out.get("dependency_type"),
+            "current_version": out.get("current_version"),
+            "fix_safety": out.get("fix_safety"),
+            "fix_safety_reasoning": out.get("fix_safety_reasoning"),
+            "test_coverage": out.get("test_coverage"),
+            "recommended_approach": out.get("recommended_approach"),
+            "impact_assessment": out.get("impact_assessment"),
+        },
+    )
+
+
 _AGENT_SIDEBAR_MAP: dict[str, Any] = {
     "finding_enricher": _map_enricher,
     "owner_resolver": _map_owner,
     "exposure_analyzer": _map_exposure,
+    "evidence_collector": _map_evidence_collector,
     "remediation_planner": _map_planner,
     "remediation_executor": _map_executor,
     "validation_checker": _map_validation,

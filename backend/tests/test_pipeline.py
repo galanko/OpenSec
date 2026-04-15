@@ -17,6 +17,7 @@ def _base_snapshot(**overrides):
         "enrichment": None,
         "ownership": None,
         "exposure": None,
+        "evidence": None,
         "plan": None,
         "remediation": None,
         "validation": None,
@@ -26,10 +27,11 @@ def _base_snapshot(**overrides):
 
 
 class TestPipelineOrder:
-    def test_pipeline_order_is_4_agent_mvp(self):
+    def test_pipeline_order_is_5_agent(self):
         assert PIPELINE_ORDER == [
             "finding_enricher",
             "exposure_analyzer",
+            "evidence_collector",
             "remediation_planner",
             "remediation_executor",
         ]
@@ -67,10 +69,20 @@ class TestSuggestNext:
         assert result is not None
         assert result.agent_type == "exposure_analyzer"
 
-    def test_enrichment_and_exposure_done_suggests_planner(self):
+    def test_enrichment_and_exposure_done_suggests_evidence(self):
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+        )
+        result = suggest_next(snapshot)
+        assert result is not None
+        assert result.agent_type == "evidence_collector"
+
+    def test_evidence_done_suggests_planner(self):
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
         )
         result = suggest_next(snapshot)
         assert result is not None
@@ -80,6 +92,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
         )
         result = suggest_next(snapshot)
@@ -92,6 +105,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "pr_created", "pr_url": "https://github.com/..."},
         )
@@ -105,6 +119,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "changes_made"},
         )
@@ -118,6 +133,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "pr_created"},
         )
@@ -131,6 +147,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "pr_created"},
             validation={"verdict": "fixed", "recommendation": "close"},
@@ -145,6 +162,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "pr_created"},
             validation={"verdict": "not_fixed", "recommendation": "replan"},
@@ -161,6 +179,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "pr_created"},
             validation={"verdict": "partially_fixed", "recommendation": "replan"},
@@ -174,6 +193,7 @@ class TestSuggestNext:
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
             plan={"plan_steps": ["Step 1"]},
             remediation={"status": "pr_created"},
             validation={"verdict": "not_fixed", "recommendation": "replan"},

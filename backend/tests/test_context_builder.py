@@ -108,9 +108,9 @@ async def test_create_workspace_creates_dir_and_db(
     assert ws_dir.finding_json.is_file()
     assert ws_dir.context_md.is_file()
 
-    # 7 agent files rendered (6 original + remediation_executor)
+    # 8 agent files rendered (includes evidence_collector)
     agent_files = list(ws_dir.agents_dir.glob("*.md"))
-    assert len(agent_files) == 7
+    assert len(agent_files) == 8
 
 
 async def test_create_workspace_agents_contain_finding(

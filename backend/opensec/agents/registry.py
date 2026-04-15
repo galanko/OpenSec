@@ -24,6 +24,7 @@ class AgentChip:
 AGENT_CHIPS: list[AgentChip] = [
     AgentChip("finding_enricher", "Enrich finding", "search", "enrichment"),
     AgentChip("exposure_analyzer", "Check exposure", "shield", "exposure"),
+    AgentChip("evidence_collector", "Collect evidence", "biotech", "evidence"),
     AgentChip("remediation_planner", "Build remediation plan", "checklist", "plan"),
     AgentChip("remediation_executor", "Remediate", "build", "remediation"),
     AgentChip("validation_checker", "Validate closure", "verified", "validation"),
