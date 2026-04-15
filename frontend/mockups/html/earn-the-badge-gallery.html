@@ -1,0 +1,1303 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>PRD-0002 · From zero to secure — Mockup gallery</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: { extend: {
+    colors: {
+      "tertiary-fixed": "#d2d9f8", "on-error-container": "#782232", "outline-variant": "#abb3b7",
+      "error-dim": "#4f0116", "primary-fixed": "#e2dfff", "tertiary-fixed-dim": "#c4cbe9",
+      "surface-variant": "#dbe4e7", "secondary-container": "#dde1ff", "inverse-on-surface": "#9b9d9e",
+      "on-tertiary": "#faf8ff", "on-error": "#fff7f7", "primary-container": "#e2dfff",
+      "inverse-surface": "#0c0f10", "primary": "#4d44e3", "on-surface-variant": "#586064",
+      "on-secondary-fixed-variant": "#555a74", "surface-container-low": "#f1f4f6", "surface-dim": "#d1dce0",
+      "on-secondary": "#faf8ff", "on-tertiary-container": "#444c65", "tertiary-container": "#d2d9f8",
+      "on-secondary-container": "#4c506a", "on-primary-fixed-variant": "#4a40e0", "surface-bright": "#f8f9fa",
+      "primary-fixed-dim": "#d2d0ff", "outline": "#737c7f", "surface-container-highest": "#dbe4e7",
+      "on-primary": "#faf6ff", "on-tertiary-fixed": "#323951", "secondary-fixed-dim": "#cfd3f2",
+      "surface": "#f8f9fa", "background": "#f8f9fa", "surface-container-lowest": "#ffffff",
+      "tertiary": "#575e78", "secondary": "#595e78", "primary-dim": "#4034d7",
+      "error-container": "#ff8b9a", "on-surface": "#2b3437", "surface-container-high": "#e3e9ec",
+      "secondary-fixed": "#dde1ff", "inverse-primary": "#8582ff", "on-tertiary-fixed-variant": "#4e556f",
+      "on-secondary-fixed": "#393e57", "on-primary-fixed": "#2a13c5", "secondary-dim": "#4d526b",
+      "surface-tint": "#4d44e3", "surface-container": "#eaeff1", "error": "#9e3f4e",
+      "on-primary-container": "#3f33d6", "on-background": "#2b3437", "tertiary-dim": "#4b526c"
+    },
+    fontFamily: { "headline": ["Manrope"], "body": ["Inter"], "label": ["Inter"] },
+    borderRadius: {"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},
+  } },
+};
+</script>
+<style>
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; vertical-align: middle; }
+  body { font-family: 'Inter', sans-serif; }
+  h1, h2, h3, h4 { font-family: 'Manrope', sans-serif; }
+  .frame { background:#ffffff; border-radius:18px; box-shadow:0 1px 2px rgba(43,52,55,0.04), 0 12px 40px -12px rgba(43,52,55,0.12); overflow:hidden; }
+  .frame-chrome { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#eaeff1; }
+  .frame-dot { width:10px; height:10px; border-radius:9999px; }
+  .grade-ring { background: conic-gradient(#4d44e3 var(--p, 60%), #d2d0ff 0); }
+  @keyframes confetti-fall { 0% { transform: translateY(-20px) rotate(0deg); opacity: 1; } 100% { transform: translateY(120px) rotate(320deg); opacity: 0; } }
+  .confetti { position:absolute; width:8px; height:12px; animation: confetti-fall 2.6s ease-in infinite; }
+  .badge-shield { filter: drop-shadow(0 6px 18px rgba(77,68,227,0.35)); }
+</style>
+</head>
+<body class="bg-[#eef1f4] text-on-surface antialiased">
+
+<!-- Gallery hero -->
+<header class="max-w-6xl mx-auto px-8 pt-16 pb-10">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">PRD-0002 · UX gallery</span>
+    <span class="h-px w-10 bg-outline-variant/40"></span>
+    <span class="text-xs font-medium text-on-surface-variant">Serene Sentinel · Editorial Assurance</span>
+  </div>
+  <h1 class="font-headline text-5xl font-extrabold tracking-tight text-on-surface mb-4">From zero to secure</h1>
+  <p class="text-lg text-on-surface-variant max-w-2xl leading-relaxed">
+    A scroll-through of every screen a maintainer touches on the journey from "just installed" to a completion ceremony and a shareable summary card. Each frame is labeled with the user story, the moment, and the feeling we're aiming for.
+  </p>
+  <details class="mt-3 max-w-2xl group">
+    <summary class="text-xs font-medium text-on-surface-variant cursor-pointer hover:text-primary transition-colors inline-flex items-center gap-1 list-none">
+      <span class="material-symbols-outlined text-sm group-open:rotate-90 transition-transform">chevron_right</span>
+      Changelog · Revision 4 (2026-04-15)
+    </summary>
+    <div class="mt-2 pl-5 space-y-2 text-xs text-on-surface-variant leading-relaxed">
+      <p><span class="font-semibold text-primary">Revision 4 · design-critique applied:</span> rebalanced the celebration CTAs (single primary "Download image" + two subordinate text-link actions), unified the three action tiles on 5.2 with a consistent metadata preview row, bumped text opacity on the gradient summary card to meet AA contrast, demoted the 6.1 aside to one primary action + one secondary link by making the shield the affordance for re-opening the summary card, added a gradient-exception note to the design compliance section.</p>
+      <p><span class="font-semibold">Revision 3 (2026-04-15):</span> scope of v1.1 revised — the public "Secured by OpenSec" README PR is deferred to v1.2. v1.1 ships an in-app completion ceremony and a user-controlled shareable summary card. Live OpenSSF Scorecard integration also deferred; a single static info-line points to Scorecard as an independent third-party standard.</p>
+    </div>
+  </details>
+  <nav class="mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 text-sm">
+    <a href="#s1" class="px-3 py-2 rounded-lg bg-surface-container-lowest hover:bg-primary-container/40 transition-colors font-medium"><span class="text-primary font-bold">1.</span> Onboarding</a>
+    <a href="#s2" class="px-3 py-2 rounded-lg bg-surface-container-lowest hover:bg-primary-container/40 transition-colors font-medium"><span class="text-primary font-bold">2.</span> Report card</a>
+    <a href="#s3" class="px-3 py-2 rounded-lg bg-surface-container-lowest hover:bg-primary-container/40 transition-colors font-medium"><span class="text-primary font-bold">3.</span> Plain language</a>
+    <a href="#s4" class="px-3 py-2 rounded-lg bg-surface-container-lowest hover:bg-primary-container/40 transition-colors font-medium"><span class="text-primary font-bold">4.</span> Posture</a>
+    <a href="#s5" class="px-3 py-2 rounded-lg bg-surface-container-lowest hover:bg-primary-container/40 transition-colors font-medium"><span class="text-primary font-bold">5.</span> Completion</a>
+    <a href="#s6" class="px-3 py-2 rounded-lg bg-surface-container-lowest hover:bg-primary-container/40 transition-colors font-medium"><span class="text-primary font-bold">6.</span> Re-assess</a>
+  </nav>
+</header>
+
+<!-- ============================================================ -->
+<!-- STORY 1 — ONBOARDING -->
+<!-- ============================================================ -->
+<section id="s1" class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="mb-10 flex items-baseline gap-4">
+    <span class="font-headline text-7xl font-extrabold text-primary/15 leading-none">01</span>
+    <div>
+      <h2 class="font-headline text-3xl font-extrabold text-on-surface">First-run onboarding</h2>
+      <p class="text-on-surface-variant mt-1 max-w-xl">"This is friendly and professional. It's holding my hand without being condescending. I know exactly what to do."</p>
+    </div>
+  </div>
+
+  <!-- 1.0 Welcome -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.0</span>
+      <span class="font-headline text-lg font-bold">Welcome · first launch</span>
+      <span class="text-xs text-outline">→ no findings, no config detected</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span><span class="ml-3 text-xs text-on-surface-variant font-mono">localhost:8000</span></div>
+      <div class="min-h-[520px] bg-surface flex flex-col items-center justify-center px-16 py-20 relative overflow-hidden">
+        <!-- soft backdrop -->
+        <div class="absolute inset-0 bg-gradient-to-br from-primary-container/30 via-transparent to-tertiary-container/20 pointer-events-none"></div>
+        <div class="relative text-center max-w-xl">
+          <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-container-lowest mb-6 shadow-sm">
+            <span class="font-headline text-3xl font-extrabold text-primary">O</span>
+          </div>
+          <h3 class="font-headline text-4xl font-extrabold tracking-tight text-on-surface mb-3">Welcome to OpenSec</h3>
+          <p class="text-on-surface-variant text-lg leading-relaxed mb-10">In three short steps we'll connect your repository, set up your AI model, and run a security assessment. Most maintainers are done in under three minutes.</p>
+          <div class="flex items-center justify-center">
+            <button class="px-8 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm inline-flex items-center gap-2">Get started <span class="material-symbols-outlined text-sm">arrow_forward</span></button>
+          </div>
+          <p class="mt-8 text-xs text-on-surface-variant">Self-hosted · your credentials never leave this machine</p>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Oh — this is going to take care of me. I don't have to figure it out first."</p>
+  </div>
+
+  <!-- 1.1 Step 1 default -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.1</span>
+      <span class="font-headline text-lg font-bold">Step 1 · Connect your project</span>
+      <span class="text-xs text-outline">→ empty form, ready for input</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="min-h-[620px] bg-surface px-16 py-12">
+        <!-- progress bar -->
+        <div class="max-w-xl mx-auto mb-10">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="font-semibold text-primary">Step 1 of 3</span>
+            <span class="text-on-surface-variant">Connect · AI · Assess</span>
+          </div>
+        </div>
+
+        <div class="max-w-xl mx-auto">
+          <h3 class="font-headline text-3xl font-extrabold text-on-surface mb-2">Connect your project</h3>
+          <p class="text-on-surface-variant mb-8">Point OpenSec at the repository you'd like to secure. We use a personal access token so every change lands as a draft pull request you review.</p>
+
+          <label class="block mb-5">
+            <span class="block text-sm font-semibold text-on-surface mb-2">Repository URL</span>
+            <input type="text" placeholder="https://github.com/your-handle/your-project"
+              class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:ring-primary/30 text-sm font-mono"/>
+          </label>
+
+          <label class="block mb-3">
+            <span class="flex items-center justify-between text-sm font-semibold text-on-surface mb-2">
+              <span>GitHub personal access token</span>
+              <a href="#" class="text-xs font-medium text-primary hover:underline flex items-center gap-1"><span class="material-symbols-outlined text-sm">help_outline</span>How to create a token</a>
+            </span>
+            <input type="password" placeholder="ghp_••••••••••••••••••••••••••••"
+              class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:ring-primary/30 text-sm font-mono"/>
+          </label>
+
+          <div class="mt-10 flex items-center justify-between">
+            <button class="text-sm font-semibold text-on-surface-variant hover:text-on-surface">← Back</button>
+            <button class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm flex items-center gap-2">
+              Verify and continue <span class="material-symbols-outlined text-sm">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Two fields. Help text exactly where I'd ask the question. I can do this."</p>
+  </div>
+
+  <!-- 1.1a How-to-create-a-token dialog -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.1a</span>
+      <span class="font-headline text-lg font-bold">Step 1 · "How to create a token" dialog</span>
+      <span class="text-xs text-outline">→ click the help link next to the PAT label</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <!-- Dimmed background = underlying wizard, shown softly behind the modal -->
+      <div class="relative min-h-[680px] bg-surface px-16 py-12 overflow-hidden">
+        <!-- Faint underlying content for context -->
+        <div class="pointer-events-none opacity-50 blur-[1px]">
+          <div class="max-w-xl mx-auto mb-10">
+            <div class="flex items-center gap-2 mb-2">
+              <div class="flex-1 h-1 rounded-full bg-primary"></div>
+              <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+              <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+            </div>
+            <div class="flex justify-between text-xs">
+              <span class="font-semibold text-primary">Step 1 of 3</span>
+              <span class="text-on-surface-variant">Connect · AI · Assess</span>
+            </div>
+          </div>
+          <div class="max-w-xl mx-auto">
+            <h3 class="font-headline text-3xl font-extrabold text-on-surface mb-2">Connect your project</h3>
+            <p class="text-on-surface-variant mb-8">Point OpenSec at the repository you'd like to secure.</p>
+            <label class="block mb-5">
+              <span class="block text-sm font-semibold text-on-surface mb-2">Repository URL</span>
+              <div class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm text-sm font-mono text-on-surface-variant">https://github.com/alex-dev/fast-markdown</div>
+            </label>
+            <label class="block mb-3">
+              <span class="block text-sm font-semibold text-on-surface mb-2">GitHub personal access token</span>
+              <div class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm text-sm font-mono text-outline">ghp_••••••••••••••••</div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Scrim -->
+        <div class="absolute inset-0 bg-on-surface/50 backdrop-blur-sm"></div>
+
+        <!-- Modal -->
+        <div class="absolute inset-0 flex items-center justify-center p-8">
+          <div class="w-full max-w-xl bg-surface-container-lowest rounded-2xl shadow-2xl overflow-hidden" style="box-shadow: 0 40px 80px -20px rgba(43,52,55,0.35), 0 16px 32px -16px rgba(43,52,55,0.25);">
+            <!-- Modal header -->
+            <div class="flex items-start gap-4 px-7 pt-7 pb-5">
+              <div class="w-11 h-11 rounded-xl bg-primary-container/60 flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-primary">vpn_key</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <h3 class="font-headline text-xl font-extrabold text-on-surface">Create a GitHub personal access token</h3>
+                <p class="text-sm text-on-surface-variant mt-1">A 90-second walkthrough. The token lets OpenSec clone, push, and open pull requests — nothing else.</p>
+              </div>
+              <button class="p-1 rounded-lg hover:bg-surface-container-low flex-shrink-0" aria-label="Close">
+                <span class="material-symbols-outlined text-on-surface-variant">close</span>
+              </button>
+            </div>
+
+            <!-- Steps -->
+            <ol class="px-7 pb-6 space-y-4">
+              <li class="flex items-start gap-4">
+                <span class="w-7 h-7 rounded-full bg-primary text-white font-bold text-sm flex items-center justify-center flex-shrink-0">1</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-on-surface leading-relaxed">Open your GitHub token settings.</p>
+                  <a href="#" class="inline-flex items-center gap-1 mt-1.5 text-sm font-semibold text-primary hover:underline">
+                    github.com/settings/tokens <span class="material-symbols-outlined text-sm">open_in_new</span>
+                  </a>
+                </div>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="w-7 h-7 rounded-full bg-primary text-white font-bold text-sm flex items-center justify-center flex-shrink-0">2</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-on-surface leading-relaxed">Click <span class="font-semibold">Generate new token</span> → <span class="font-semibold">Classic</span>. Give it a name like <span class="font-mono bg-surface-container-low px-1.5 py-0.5 rounded text-xs">OpenSec · fast-markdown</span>.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="w-7 h-7 rounded-full bg-primary text-white font-bold text-sm flex items-center justify-center flex-shrink-0">3</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-on-surface leading-relaxed mb-2">Under <span class="font-semibold">Select scopes</span>, check just one box:</p>
+                  <div class="rounded-lg bg-surface-container-low px-4 py-3 flex items-start gap-3">
+                    <span class="material-symbols-outlined text-tertiary mt-0.5" style="font-variation-settings:'FILL' 1;">check_box</span>
+                    <div class="min-w-0">
+                      <p class="font-mono text-sm font-semibold text-on-surface">repo</p>
+                      <p class="text-xs text-on-surface-variant mt-0.5">Full control of private repositories — required to clone, push, and open pull requests.</p>
+                    </div>
+                  </div>
+                </div>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="w-7 h-7 rounded-full bg-primary text-white font-bold text-sm flex items-center justify-center flex-shrink-0">4</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-on-surface leading-relaxed">Set an expiration (90 days is a good default), click <span class="font-semibold">Generate token</span>, then copy the <span class="font-mono text-xs bg-surface-container-low px-1.5 py-0.5 rounded">ghp_…</span> value.</p>
+                </div>
+              </li>
+              <li class="flex items-start gap-4">
+                <span class="w-7 h-7 rounded-full bg-tertiary-container text-on-tertiary-container font-bold text-sm flex items-center justify-center flex-shrink-0">
+                  <span class="material-symbols-outlined text-sm" style="font-variation-settings:'FILL' 1;">check</span>
+                </span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm text-on-surface leading-relaxed">Paste it back here. Your token is encrypted locally and never leaves this machine.</p>
+                </div>
+              </li>
+            </ol>
+
+            <!-- Reassurance footer -->
+            <div class="px-7 py-4 bg-primary-container/30 flex items-center gap-3">
+              <span class="material-symbols-outlined text-primary">shield</span>
+              <p class="text-xs text-on-primary-container leading-relaxed">OpenSec stores this token in the local credential vault. You can revoke it any time from GitHub and it stops working instantly.</p>
+            </div>
+
+            <!-- Modal actions -->
+            <div class="px-7 py-5 flex items-center justify-between">
+              <a href="#" class="text-sm font-semibold text-on-surface-variant hover:text-on-surface flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">description</span> Full docs
+              </a>
+              <button class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm inline-flex items-center gap-2">
+                Open GitHub tokens <span class="material-symbols-outlined text-sm">open_in_new</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "A calm, bounded walkthrough with one link I actually need. Not a wall of documentation."</p>
+  </div>
+
+  <!-- 1.2 Error state -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.2</span>
+      <span class="font-headline text-lg font-bold">Step 1 · Error · token missing scope</span>
+      <span class="text-xs text-outline">→ click "Test connection" with an incorrect token</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="min-h-[620px] bg-surface px-16 py-12">
+        <div class="max-w-xl mx-auto mb-10">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="font-semibold text-primary">Step 1 of 3</span>
+            <span class="text-on-surface-variant">Connect · AI · Assess</span>
+          </div>
+        </div>
+        <div class="max-w-xl mx-auto">
+          <h3 class="font-headline text-3xl font-extrabold text-on-surface mb-2">Connect your project</h3>
+          <p class="text-on-surface-variant mb-8">Point OpenSec at the repository you'd like to secure.</p>
+          <label class="block mb-5">
+            <span class="block text-sm font-semibold text-on-surface mb-2">Repository URL</span>
+            <input value="https://github.com/alex-dev/fast-markdown"
+              class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:ring-primary/30 text-sm font-mono"/>
+          </label>
+          <label class="block mb-3">
+            <span class="flex items-center justify-between text-sm font-semibold text-on-surface mb-2"><span>GitHub personal access token</span></span>
+            <input value="ghp_abc123readonlytoken456" type="password"
+              class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm ring-2 ring-error/40 border-0 text-sm font-mono"/>
+          </label>
+          <!-- error callout -->
+          <div class="mt-4 rounded-xl bg-error-container/20 px-5 py-4 flex items-start gap-3">
+            <span class="material-symbols-outlined text-error mt-0.5" style="font-variation-settings:'FILL' 1;">error</span>
+            <div class="min-w-0">
+              <p class="font-semibold text-sm text-on-error-container">Token doesn't have push access</p>
+              <p class="text-sm text-on-error-container/90 mt-1 leading-relaxed">This token can read the repo but not push branches or open pull requests. Create a new token with the <span class="font-mono bg-surface-container-lowest/60 px-1.5 py-0.5 rounded">repo</span> scope checked.</p>
+              <a href="#" class="inline-flex items-center gap-1 mt-2 text-sm font-semibold text-on-error-container hover:underline">Open GitHub token settings <span class="material-symbols-outlined text-sm">open_in_new</span></a>
+            </div>
+          </div>
+          <div class="mt-10 flex items-center justify-between">
+            <button class="text-sm font-semibold text-on-surface-variant hover:text-on-surface">← Back</button>
+            <button class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm flex items-center gap-2">
+              Verify and continue <span class="material-symbols-outlined text-sm">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Okay — specific problem, specific fix, one click to the right place. Not my fault, not scary."</p>
+  </div>
+
+  <!-- 1.3 Step 1 success -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.3</span>
+      <span class="font-headline text-lg font-bold">Step 1 · Verified · auto-advance</span>
+      <span class="text-xs text-outline">→ token validates inline, verified card shows for ~700ms, then Step 2 loads</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="min-h-[620px] bg-surface px-16 py-12">
+        <div class="max-w-xl mx-auto mb-10">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="font-semibold text-primary">Step 1 of 3</span>
+            <span class="text-on-surface-variant">Connect · AI · Assess</span>
+          </div>
+        </div>
+        <div class="max-w-xl mx-auto">
+          <h3 class="font-headline text-3xl font-extrabold text-on-surface mb-2">Connect your project</h3>
+          <!-- verified card -->
+          <div class="mt-4 rounded-xl bg-tertiary-container/30 p-5 flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-tertiary-container flex items-center justify-center text-tertiary flex-shrink-0">
+              <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">check_circle</span>
+            </div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm text-on-tertiary-container">Connected to alex-dev/fast-markdown</p>
+              <div class="mt-2 grid grid-cols-3 gap-4 text-xs">
+                <div><span class="block text-on-tertiary-container/70">Visibility</span><span class="font-semibold text-on-tertiary-container">Public</span></div>
+                <div><span class="block text-on-tertiary-container/70">Default branch</span><span class="font-semibold font-mono text-on-tertiary-container">main</span></div>
+                <div><span class="block text-on-tertiary-container/70">Permissions</span><span class="font-semibold text-on-tertiary-container">Clone · push · PR</span></div>
+              </div>
+            </div>
+            <button class="px-3 py-1.5 rounded-lg text-xs font-semibold text-on-tertiary-container hover:bg-surface-container-lowest/60 whitespace-nowrap">Change</button>
+          </div>
+          <div class="mt-6 flex items-center justify-center gap-2 text-sm text-on-surface-variant">
+            <span class="w-4 h-4 rounded-full border-[2px] border-primary/30 border-t-primary animate-spin"></span>
+            Loading Step 2 · AI configuration
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "It found my repo. It tells me exactly what it can do. Confident to move on."</p>
+  </div>
+
+  <!-- 1.4 Step 2 AI -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.4</span>
+      <span class="font-headline text-lg font-bold">Step 2 · Configure your AI</span>
+      <span class="text-xs text-outline">→ provider picker + key + reassurance</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="min-h-[620px] bg-surface px-16 py-12">
+        <div class="max-w-xl mx-auto mb-10">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-surface-container-high"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="font-semibold text-primary">Step 2 of 3</span>
+            <span class="text-on-surface-variant">Connect · AI · Assess</span>
+          </div>
+        </div>
+        <div class="max-w-xl mx-auto">
+          <h3 class="font-headline text-3xl font-extrabold text-on-surface mb-2">Configure your AI</h3>
+          <p class="text-on-surface-variant mb-8">OpenSec uses AI agents to understand vulnerabilities and write fixes. Your key is stored locally and never sent to OpenSec servers.</p>
+          <span class="block text-sm font-semibold text-on-surface mb-3">Provider</span>
+          <div class="grid grid-cols-3 gap-3 mb-8">
+            <button class="px-3 py-4 rounded-lg bg-surface-container-lowest ring-2 ring-primary text-center">
+              <span class="block font-bold text-sm text-on-surface">Anthropic</span>
+              <span class="block text-xs text-on-surface-variant mt-1">Claude</span>
+            </button>
+            <button class="px-3 py-4 rounded-lg bg-surface-container-lowest hover:bg-surface-container-low text-center">
+              <span class="block font-bold text-sm text-on-surface">OpenAI</span>
+              <span class="block text-xs text-on-surface-variant mt-1">GPT-4 · 4o</span>
+            </button>
+            <button class="px-3 py-4 rounded-lg bg-surface-container-lowest hover:bg-surface-container-low text-center">
+              <span class="block font-bold text-sm text-on-surface">Local</span>
+              <span class="block text-xs text-on-surface-variant mt-1">Ollama</span>
+            </button>
+          </div>
+          <label class="block mb-5">
+            <span class="block text-sm font-semibold text-on-surface mb-2">API key</span>
+            <input type="password" placeholder="sk-ant-api03-•••••••••••••••••••••••••••"
+              class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:ring-primary/30 text-sm font-mono"/>
+          </label>
+          <label class="block mb-5">
+            <span class="block text-sm font-semibold text-on-surface mb-2">Model <span class="text-xs font-normal text-on-surface-variant">· optional</span></span>
+            <select class="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:ring-primary/30 text-sm">
+              <option>Claude Sonnet 4.6 — recommended</option>
+              <option>Claude Opus 4.6</option>
+              <option>Claude Haiku 4.5</option>
+            </select>
+          </label>
+          <div class="flex items-start gap-3 mt-6 rounded-xl bg-primary-container/30 px-5 py-4">
+            <span class="material-symbols-outlined text-primary mt-0.5">shield</span>
+            <p class="text-sm text-on-primary-container leading-relaxed">Your key is encrypted on disk in the local credential vault. It never travels to OpenSec servers — agents talk directly to your chosen provider.</p>
+          </div>
+          <div class="mt-10 flex items-center justify-between">
+            <button class="text-sm font-semibold text-on-surface-variant hover:text-on-surface">← Back</button>
+            <button class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm flex items-center gap-2">
+              Test and continue <span class="material-symbols-outlined text-sm">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "My key stays on my machine. I picked the default, I'm moving on."</p>
+  </div>
+
+  <!-- 1.5 Step 3 start assessment -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">1.5</span>
+      <span class="font-headline text-lg font-bold">Step 3 · Start security assessment</span>
+      <span class="text-xs text-outline">→ what will happen + one big button</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="min-h-[620px] bg-surface px-16 py-12">
+        <div class="max-w-xl mx-auto mb-10">
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+            <div class="flex-1 h-1 rounded-full bg-primary"></div>
+          </div>
+          <div class="flex justify-between text-xs">
+            <span class="font-semibold text-primary">Step 3 of 3</span>
+            <span class="text-on-surface-variant">Almost there</span>
+          </div>
+        </div>
+        <div class="max-w-xl mx-auto">
+          <h3 class="font-headline text-3xl font-extrabold text-on-surface mb-2">Start your security assessment</h3>
+          <p class="text-on-surface-variant mb-8">In the next 2–5 minutes we'll scan your repository and build your report card. Here's what happens.</p>
+          <ol class="space-y-4">
+            <li class="flex items-start gap-4 rounded-xl bg-surface-container-lowest px-5 py-4 shadow-sm">
+              <span class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary flex-shrink-0"><span class="material-symbols-outlined">inventory_2</span></span>
+              <div><p class="font-semibold text-sm text-on-surface">Scan dependencies</p><p class="text-sm text-on-surface-variant mt-0.5">Parse your lockfiles and cross-reference against OSV.dev and the GitHub Advisory Database.</p></div>
+            </li>
+            <li class="flex items-start gap-4 rounded-xl bg-surface-container-lowest px-5 py-4 shadow-sm">
+              <span class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary flex-shrink-0"><span class="material-symbols-outlined">verified_user</span></span>
+              <div><p class="font-semibold text-sm text-on-surface">Check repo posture</p><p class="text-sm text-on-surface-variant mt-0.5">Look at branch protection, secrets, security policy, and dependency automation — read-only, never changes settings.</p></div>
+            </li>
+            <li class="flex items-start gap-4 rounded-xl bg-surface-container-lowest px-5 py-4 shadow-sm">
+              <span class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-primary flex-shrink-0"><span class="material-symbols-outlined">description</span></span>
+              <div><p class="font-semibold text-sm text-on-surface">Build your report card</p><p class="text-sm text-on-surface-variant mt-0.5">Assign a grade, show what's remaining before completion, and let you start fixing.</p></div>
+            </li>
+          </ol>
+          <div class="mt-10 flex items-center justify-between">
+            <button class="text-sm font-semibold text-on-surface-variant hover:text-on-surface">← Back</button>
+            <button class="px-6 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm">play_arrow</span> Start assessment
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "I know what's about to happen, for how long, and that nothing is changing on my repo yet."</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- STORY 2 — ASSESSMENT + REPORT CARD -->
+<!-- ============================================================ -->
+<section id="s2" class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="mb-10 flex items-baseline gap-4">
+    <span class="font-headline text-7xl font-extrabold text-primary/15 leading-none">02</span>
+    <div>
+      <h2 class="font-headline text-3xl font-extrabold text-on-surface">Security assessment &amp; report card</h2>
+      <p class="text-on-surface-variant mt-1 max-w-xl">"Now I know where I stand. I can see exactly what needs fixing, and it doesn't feel overwhelming because it's organized and clear."</p>
+    </div>
+  </div>
+
+  <!-- 2.1 Assessment running -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">2.1</span>
+      <span class="font-headline text-lg font-bold">Assessment running</span>
+      <span class="text-xs text-outline">→ after clicking "Start assessment"</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="min-h-[560px] bg-surface flex items-center justify-center px-16 py-16">
+        <div class="max-w-md w-full text-center">
+          <div class="relative mx-auto w-28 h-28 mb-6">
+            <div class="absolute inset-0 rounded-full border-[3px] border-primary/20"></div>
+            <div class="absolute inset-0 rounded-full border-[3px] border-transparent border-t-primary animate-spin"></div>
+            <div class="absolute inset-4 rounded-full bg-primary-container/40 flex items-center justify-center">
+              <span class="material-symbols-outlined text-primary text-4xl">radar</span>
+            </div>
+          </div>
+          <h3 class="font-headline text-2xl font-extrabold text-on-surface mb-2">Assessing fast-markdown</h3>
+          <p class="text-on-surface-variant text-sm mb-8">This usually takes 2–5 minutes. You can leave this page open — we'll keep working in the background.</p>
+          <ul class="space-y-3 text-left">
+            <li class="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm">
+              <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+              <span class="text-sm font-medium text-on-surface flex-1">Cloned repository</span>
+              <span class="text-xs text-on-surface-variant">2s</span>
+            </li>
+            <li class="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm">
+              <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+              <span class="text-sm font-medium text-on-surface flex-1">Parsed lockfiles · 814 dependencies found</span>
+              <span class="text-xs text-on-surface-variant">4s</span>
+            </li>
+            <li class="flex items-center gap-3 px-4 py-3 rounded-lg bg-primary-container/30 ring-1 ring-primary/20">
+              <span class="w-5 h-5 rounded-full border-[2px] border-primary/30 border-t-primary animate-spin"></span>
+              <span class="text-sm font-semibold text-on-primary-container flex-1">Cross-referencing CVEs · OSV.dev</span>
+              <span class="text-xs font-medium text-on-primary-container">312 / 814</span>
+            </li>
+            <li class="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface-container-low">
+              <span class="w-5 h-5 rounded-full bg-surface-container-high"></span>
+              <span class="text-sm font-medium text-on-surface-variant flex-1">Check repo posture on GitHub</span>
+            </li>
+            <li class="flex items-center gap-3 px-4 py-3 rounded-lg bg-surface-container-low">
+              <span class="w-5 h-5 rounded-full bg-surface-container-high"></span>
+              <span class="text-sm font-medium text-on-surface-variant flex-1">Generate plain-language descriptions</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Something is clearly happening. I can see the parts. I'm not stuck in a spinner."</p>
+  </div>
+
+  <!-- 2.2 Report card grade C -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">2.2</span>
+      <span class="font-headline text-lg font-bold">Report card · first view</span>
+      <span class="text-xs text-outline">→ grade C, 3 of 5 completion criteria met</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface">
+        <!-- nav row -->
+        <div class="flex items-center gap-6 px-8 py-3 bg-surface-container-lowest">
+          <span class="font-headline text-base font-extrabold text-on-surface tracking-tight">OpenSec</span>
+          <nav class="flex items-center gap-5 text-sm">
+            <a class="text-primary font-semibold border-b-2 border-primary py-3">Dashboard</a>
+            <a class="text-on-surface-variant font-medium py-3">Findings</a>
+            <a class="text-on-surface-variant font-medium py-3">Workspace</a>
+            <a class="text-on-surface-variant font-medium py-3">History</a>
+            <a class="text-on-surface-variant font-medium py-3">Integrations</a>
+          </nav>
+          <div class="ml-auto flex items-center gap-3 text-xs text-on-surface-variant">
+            <span class="font-mono">alex-dev/fast-markdown</span>
+            <span class="material-symbols-outlined text-sm">expand_more</span>
+          </div>
+        </div>
+
+        <div class="px-8 lg:px-12 py-10 max-w-6xl mx-auto">
+          <!-- header -->
+          <div class="flex items-end justify-between mb-8">
+            <div>
+              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Report card</span>
+              <h3 class="font-headline text-4xl font-extrabold tracking-tight text-on-surface mt-2">Your security posture</h3>
+              <p class="text-on-surface-variant mt-1 text-sm">Last assessed just now · <span class="text-primary font-medium hover:underline cursor-pointer">Re-assess</span></p>
+            </div>
+          </div>
+
+          <!-- grade hero -->
+          <div class="rounded-2xl bg-surface-container-lowest shadow-sm p-8 mb-8">
+            <div class="grid md:grid-cols-[auto_1fr] gap-10 items-center">
+              <!-- grade ring -->
+              <div class="flex items-center gap-6">
+                <div class="relative w-36 h-36 rounded-full grade-ring flex items-center justify-center" style="--p:60%">
+                  <div class="absolute inset-2 bg-surface-container-lowest rounded-full flex flex-col items-center justify-center">
+                    <span class="font-headline text-6xl font-extrabold text-primary leading-none">C</span>
+                    <span class="text-[11px] font-semibold text-on-surface-variant tracking-wider uppercase mt-1">3 of 5</span>
+                  </div>
+                </div>
+                <div>
+                  <p class="text-sm text-on-surface-variant mb-1">Security grade</p>
+                  <p class="font-headline text-lg font-bold text-on-surface">Nearly there</p>
+                  <p class="text-sm text-on-surface-variant mt-2 max-w-xs">Fix 2 more items to reach security completion. We've ranked them from easiest to tackle.</p>
+                </div>
+              </div>
+              <!-- completion progress + criteria -->
+              <div class="bg-surface-container-low rounded-xl p-5">
+                <div class="flex items-center gap-4 mb-4">
+                  <svg class="badge-shield opacity-40" viewBox="0 0 64 76" width="54" height="64"><path d="M32 2 L60 12 V40 C60 56 48 68 32 74 C16 68 4 56 4 40 V12 Z" fill="#4d44e3"/><text x="32" y="32" text-anchor="middle" fill="#ffffff" font-family="Inter" font-weight="600" font-size="8">SECURED</text><text x="32" y="46" text-anchor="middle" fill="#ffffff" font-family="Inter" font-weight="700" font-size="9">by OpenSec</text></svg>
+                  <div>
+                    <p class="font-headline text-base font-bold text-on-surface">Completion progress</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Reach all five criteria to celebrate and unlock your shareable summary.</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-5 gap-1.5">
+                  <div class="h-2 rounded-full bg-tertiary"></div>
+                  <div class="h-2 rounded-full bg-tertiary"></div>
+                  <div class="h-2 rounded-full bg-tertiary"></div>
+                  <div class="h-2 rounded-full bg-surface-container-high"></div>
+                  <div class="h-2 rounded-full bg-surface-container-high"></div>
+                </div>
+                <p class="text-xs text-on-surface-variant mt-3">3 criteria met · 2 remaining</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- two columns: vulns + posture -->
+          <div class="grid md:grid-cols-2 gap-6">
+            <!-- Vulnerabilities -->
+            <div class="rounded-2xl bg-surface-container-lowest shadow-sm p-6">
+              <div class="flex items-center justify-between mb-5">
+                <h4 class="font-headline text-lg font-bold text-on-surface">Vulnerabilities</h4>
+                <span class="text-xs font-semibold text-on-surface-variant">7 findings</span>
+              </div>
+              <div class="grid grid-cols-4 gap-3 mb-6">
+                <div class="text-center"><p class="font-headline text-2xl font-extrabold text-error">1</p><p class="text-[11px] text-on-surface-variant uppercase tracking-wider">Critical</p></div>
+                <div class="text-center"><p class="font-headline text-2xl font-extrabold text-error">2</p><p class="text-[11px] text-on-surface-variant uppercase tracking-wider">High</p></div>
+                <div class="text-center"><p class="font-headline text-2xl font-extrabold text-tertiary">3</p><p class="text-[11px] text-on-surface-variant uppercase tracking-wider">Medium</p></div>
+                <div class="text-center"><p class="font-headline text-2xl font-extrabold text-on-surface-variant">1</p><p class="text-[11px] text-on-surface-variant uppercase tracking-wider">Low</p></div>
+              </div>
+              <button class="w-full px-4 py-3 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined text-sm">play_arrow</span> Start fixing
+              </button>
+              <p class="text-xs text-on-surface-variant mt-3 text-center">The first finding opens its own workspace where you can chat through the fix.</p>
+              <div class="mt-4 pt-4 border-t border-outline-variant/15 text-center">
+                <a href="#" class="inline-flex items-center gap-1 text-xs font-medium text-on-surface-variant hover:text-primary">
+                  Already using Snyk, Trivy, or Dependabot? Import findings <span class="material-symbols-outlined text-sm">arrow_forward</span>
+                </a>
+              </div>
+            </div>
+
+            <!-- Posture -->
+            <div class="rounded-2xl bg-surface-container-lowest shadow-sm p-6">
+              <div class="flex items-center justify-between mb-5">
+                <h4 class="font-headline text-lg font-bold text-on-surface">Repo posture</h4>
+                <span class="text-xs font-semibold text-on-surface-variant">5 of 7 checks pass</span>
+              </div>
+              <ul class="space-y-2.5">
+                <li class="flex items-center gap-3"><span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span><span class="text-sm text-on-surface">Branch protection enabled</span></li>
+                <li class="flex items-center gap-3"><span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span><span class="text-sm text-on-surface">Force pushes blocked</span></li>
+                <li class="flex items-center gap-3"><span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span><span class="text-sm text-on-surface">No secrets detected in code</span></li>
+                <li class="flex items-center gap-3"><span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span><span class="text-sm text-on-surface">Lockfile is committed</span></li>
+                <li class="flex items-center gap-3"><span class="material-symbols-outlined text-outline">info</span><span class="text-sm text-on-surface-variant">Signed commits · advisory</span></li>
+                <li class="flex items-start gap-3 bg-primary-container/25 rounded-lg px-3 py-2 -mx-3"><span class="material-symbols-outlined text-primary mt-0.5">error</span><div class="min-w-0"><p class="text-sm font-semibold text-on-surface">SECURITY.md missing</p><p class="text-xs text-on-surface-variant mt-0.5">We can generate one for you.</p></div></li>
+                <li class="flex items-start gap-3 bg-primary-container/25 rounded-lg px-3 py-2 -mx-3"><span class="material-symbols-outlined text-primary mt-0.5">error</span><div class="min-w-0"><p class="text-sm font-semibold text-on-surface">Dependabot not configured</p><p class="text-xs text-on-surface-variant mt-0.5">We can generate the config.</p></div></li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- independent-standard info line -->
+          <div class="mt-8 rounded-xl bg-surface-container-low px-5 py-4 flex items-start gap-3">
+            <span class="material-symbols-outlined text-on-surface-variant mt-0.5">info</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm text-on-surface"><span class="font-semibold">Want an independent second opinion?</span> OpenSSF Scorecard is a free, third-party security assessment you can run on your repo. OpenSec focuses on getting you there; Scorecard grades you independently.</p>
+            </div>
+            <a href="https://github.com/ossf/scorecard" target="_blank" rel="noopener noreferrer" class="text-xs font-semibold text-primary hover:underline whitespace-nowrap flex items-center gap-1">Learn more <span class="material-symbols-outlined text-sm">open_in_new</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "It's laid out. There's a grade, a completion meter I can picture, a number of things to do. Totally doable."</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- STORY 3 — PLAIN LANGUAGE DESCRIPTIONS -->
+<!-- ============================================================ -->
+<section id="s3" class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="mb-10 flex items-baseline gap-4">
+    <span class="font-headline text-7xl font-extrabold text-primary/15 leading-none">03</span>
+    <div>
+      <h2 class="font-headline text-3xl font-extrabold text-on-surface">Plain-language findings</h2>
+      <p class="text-on-surface-variant mt-1 max-w-xl">"I actually understand what this means. I know why it matters and what to do."</p>
+    </div>
+  </div>
+
+  <!-- 3.1 Queue row: plain language -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">3.1</span>
+      <span class="font-headline text-lg font-bold">Findings queue · plain-language rows</span>
+      <span class="text-xs text-outline">→ CVE jargon moves to the second line</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface px-8 py-8">
+        <div class="max-w-4xl mx-auto">
+          <div class="flex items-end justify-between mb-6">
+            <div>
+              <h3 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface">Findings</h3>
+              <p class="text-on-surface-variant text-sm mt-1">7 open · sorted by severity</p>
+            </div>
+            <div class="flex gap-2">
+              <button class="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs font-medium shadow-sm">All severities</button>
+              <button class="px-3 py-1.5 rounded-lg bg-surface-container-lowest text-xs font-medium shadow-sm">Severity ↓</button>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <!-- Critical, plain-language primary -->
+            <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex gap-4">
+              <div class="w-12 h-12 rounded-full bg-error-container/20 flex items-center justify-center text-error flex-shrink-0"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">warning</span></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-error bg-error-container/30 px-2 py-0.5 rounded-full">Critical</span>
+                  <span class="text-xs text-on-surface-variant">braces library</span>
+                </div>
+                <h4 class="font-headline text-base font-bold text-on-surface mb-1.5">A pattern-matching library your project uses has a known flaw</h4>
+                <p class="text-sm text-on-surface-variant leading-relaxed mb-2">An attacker could send crafted input that slows down or crashes your app. The fix is a one-line bump: <span class="font-mono text-on-surface">braces 3.0.2 → 3.0.3</span>.</p>
+                <p class="text-xs text-outline font-mono">CVE-2024-4068 · CVSS 9.1 · ReDoS</p>
+              </div>
+              <div class="flex-shrink-0 self-center">
+                <button class="px-4 py-2 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 flex items-center gap-2 shadow-sm">
+                  <span class="material-symbols-outlined text-sm">play_arrow</span> Solve
+                </button>
+              </div>
+            </div>
+
+            <!-- High, plain -->
+            <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex gap-4">
+              <div class="w-12 h-12 rounded-full bg-error-container/15 flex items-center justify-center text-error flex-shrink-0"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">error</span></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-error bg-error-container/20 px-2 py-0.5 rounded-full">High</span>
+                  <span class="text-xs text-on-surface-variant">lodash library</span>
+                </div>
+                <h4 class="font-headline text-base font-bold text-on-surface mb-1.5">A utility library in your dependencies can be tricked into modifying the wrong object</h4>
+                <p class="text-sm text-on-surface-variant leading-relaxed mb-2">In practice, an attacker who controls some input could change how your program behaves. Upgrading <span class="font-mono text-on-surface">lodash 4.17.20 → 4.17.21</span> closes the hole.</p>
+                <p class="text-xs text-outline font-mono">CVE-2021-23337 · CVSS 7.2 · prototype pollution</p>
+              </div>
+              <div class="flex-shrink-0 self-center">
+                <button class="px-4 py-2 rounded-lg bg-surface-container-low text-primary font-semibold text-sm hover:bg-primary-container/40 transition-colors active:scale-95 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-sm">play_arrow</span> Solve
+                </button>
+              </div>
+            </div>
+
+            <!-- Medium, plain -->
+            <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex gap-4">
+              <div class="w-12 h-12 rounded-full bg-tertiary-container/20 flex items-center justify-center text-tertiary flex-shrink-0"><span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">info</span></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="text-[11px] font-bold uppercase tracking-wider text-tertiary bg-tertiary-container/30 px-2 py-0.5 rounded-full">Medium</span>
+                  <span class="text-xs text-on-surface-variant">minimatch library</span>
+                </div>
+                <h4 class="font-headline text-base font-bold text-on-surface mb-1.5">A file-path matching library you use is vulnerable to denial of service</h4>
+                <p class="text-sm text-on-surface-variant leading-relaxed mb-2">This only matters if your app processes user-supplied paths. The fix is minor: <span class="font-mono text-on-surface">minimatch 3.0.4 → 3.1.2</span>.</p>
+                <p class="text-xs text-outline font-mono">CVE-2022-3517 · CVSS 5.3 · ReDoS</p>
+              </div>
+              <div class="flex-shrink-0 self-center">
+                <button class="px-4 py-2 rounded-lg bg-surface-container-low text-primary font-semibold text-sm hover:bg-primary-container/40 transition-colors active:scale-95 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-sm">play_arrow</span> Solve
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "I can tell from the headline whether this matters to me. Jargon is there if I want it."</p>
+  </div>
+
+  <!-- 3.2 Expanded detail with plain + technical -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">3.2</span>
+      <span class="font-headline text-lg font-bold">Finding expanded · plain + technical</span>
+      <span class="text-xs text-outline">→ click a finding row to see the whole story</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface px-8 py-10">
+        <div class="max-w-3xl mx-auto">
+          <button class="text-sm text-on-surface-variant mb-4 flex items-center gap-1 hover:text-on-surface">
+            <span class="material-symbols-outlined text-sm">arrow_back</span> Back to findings
+          </button>
+          <div class="bg-surface-container-lowest rounded-2xl shadow-sm p-8">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-error bg-error-container/30 px-2 py-0.5 rounded-full">Critical</span>
+              <span class="text-xs text-on-surface-variant">braces library</span>
+              <span class="text-xs text-outline">·</span>
+              <span class="text-xs text-on-surface-variant">Discovered during assessment 2m ago</span>
+            </div>
+            <h3 class="font-headline text-2xl font-extrabold text-on-surface mb-3">A pattern-matching library your project uses has a known flaw</h3>
+            <p class="text-on-surface leading-relaxed mb-4">The <span class="font-mono text-sm bg-surface-container-low px-1.5 py-0.5 rounded">braces</span> library you depend on has a regex-based bug that lets an attacker send carefully crafted input to slow down or crash parts of your app. This is a high-severity issue because it can be triggered remotely.</p>
+            <p class="text-on-surface leading-relaxed mb-6">The fix is straightforward: update <span class="font-mono text-sm bg-surface-container-low px-1.5 py-0.5 rounded">braces</span> from 3.0.2 to 3.0.3. No breaking changes. OpenSec can open the pull request for you.</p>
+
+            <div class="rounded-xl bg-surface-container-low p-5 mb-6">
+              <button class="w-full flex items-center justify-between text-sm font-semibold text-on-surface-variant">
+                <span class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">code</span>Technical details</span>
+                <span class="material-symbols-outlined text-sm">expand_less</span>
+              </button>
+              <dl class="mt-4 grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                <div><dt class="text-xs text-on-surface-variant">CVE</dt><dd class="font-mono text-on-surface">CVE-2024-4068</dd></div>
+                <div><dt class="text-xs text-on-surface-variant">CVSS</dt><dd class="font-mono text-on-surface">9.1 (critical)</dd></div>
+                <div><dt class="text-xs text-on-surface-variant">Package</dt><dd class="font-mono text-on-surface">braces@3.0.2</dd></div>
+                <div><dt class="text-xs text-on-surface-variant">Fixed in</dt><dd class="font-mono text-on-surface">≥ 3.0.3</dd></div>
+                <div><dt class="text-xs text-on-surface-variant">Category</dt><dd class="text-on-surface">ReDoS (regex DoS)</dd></div>
+                <div><dt class="text-xs text-on-surface-variant">Source</dt><dd class="text-on-surface">OSV.dev · GHSA</dd></div>
+              </dl>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 flex items-center gap-2 shadow-sm">
+                <span class="material-symbols-outlined text-sm">play_arrow</span> Solve this finding
+              </button>
+              <button class="px-3 py-2.5 rounded-lg text-sm font-medium text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low">Defer</button>
+              <div class="ml-auto">
+                <button class="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low" aria-label="More options" title="More options">
+                  <span class="material-symbols-outlined">more_horiz</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Headline in plain English, technical data for when I want it. Three clear choices."</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- STORY 4 — POSTURE GUIDANCE -->
+<!-- ============================================================ -->
+<section id="s4" class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="mb-10 flex items-baseline gap-4">
+    <span class="font-headline text-7xl font-extrabold text-primary/15 leading-none">04</span>
+    <div>
+      <h2 class="font-headline text-3xl font-extrabold text-on-surface">Repo posture guidance</h2>
+      <p class="text-on-surface-variant mt-1 max-w-xl">"These aren't scary demands — they're practical steps I can do right now."</p>
+    </div>
+  </div>
+
+  <!-- 4.1 Posture checklist + fix guidance -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">4.1</span>
+      <span class="font-headline text-lg font-bold">Posture tab · expanded fix guidance</span>
+      <span class="text-xs text-outline">→ click a failing check on the dashboard</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface px-8 py-10">
+        <div class="max-w-4xl mx-auto">
+          <div class="flex items-end justify-between mb-6">
+            <div>
+              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Report card · posture</span>
+              <h3 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mt-2">Repo posture</h3>
+              <p class="text-on-surface-variant text-sm mt-1">5 of 7 checks pass · 2 remaining for completion</p>
+            </div>
+            <button class="px-4 py-2 rounded-lg bg-surface-container-lowest hover:bg-surface-container-low text-sm font-semibold flex items-center gap-2 shadow-sm">
+              <span class="material-symbols-outlined text-sm">refresh</span> Re-assess
+            </button>
+          </div>
+
+          <div class="space-y-3">
+            <!-- passing (compact) -->
+            <div class="bg-surface-container-lowest rounded-xl px-5 py-3 shadow-sm flex items-center gap-4">
+              <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+              <p class="text-sm font-medium text-on-surface flex-1">Branch protection enabled</p>
+              <span class="text-xs text-on-surface-variant">main · verified on GitHub</span>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl px-5 py-3 shadow-sm flex items-center gap-4">
+              <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+              <p class="text-sm font-medium text-on-surface flex-1">Force pushes blocked</p>
+              <span class="text-xs text-on-surface-variant">rule applies to main</span>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl px-5 py-3 shadow-sm flex items-center gap-4">
+              <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+              <p class="text-sm font-medium text-on-surface flex-1">No secrets detected in code</p>
+              <span class="text-xs text-on-surface-variant">scanned 2,318 files</span>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl px-5 py-3 shadow-sm flex items-center gap-4">
+              <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">check_circle</span>
+              <p class="text-sm font-medium text-on-surface flex-1">Lockfile is committed</p>
+              <span class="text-xs text-on-surface-variant font-mono">package-lock.json</span>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl px-5 py-3 shadow-sm flex items-center gap-4">
+              <span class="material-symbols-outlined text-outline">info</span>
+              <p class="text-sm font-medium text-on-surface-variant flex-1">Signed commits are not required</p>
+              <span class="text-xs text-on-surface-variant">advisory · doesn't affect completion</span>
+            </div>
+
+            <!-- FAILING · expanded, SECURITY.md -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+              <div class="px-5 py-4 bg-primary-container/25 flex items-start gap-4">
+                <span class="material-symbols-outlined text-primary mt-0.5">error</span>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-sm text-on-surface">SECURITY.md missing</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Every popular repo has one — it tells security researchers how to report issues responsibly.</p>
+                </div>
+                <span class="text-[11px] uppercase tracking-wider font-bold text-on-primary-container bg-primary-container/60 px-2 py-0.5 rounded-full whitespace-nowrap">Needed for completion</span>
+              </div>
+              <div class="px-5 py-5">
+                <p class="text-sm text-on-surface leading-relaxed mb-4">We've drafted a short, sensible SECURITY.md based on your repo — contact method, supported versions, disclosure timeline. You'll review it in the pull request before it merges.</p>
+                <div class="flex items-center gap-3 mb-4 rounded-lg bg-surface-container-low px-4 py-3">
+                  <span class="material-symbols-outlined text-primary">description</span>
+                  <div class="flex-1 min-w-0"><p class="text-xs font-semibold text-on-surface">Preview</p><p class="text-xs text-on-surface-variant font-mono truncate">SECURITY.md · 38 lines · reporting instructions + supported versions</p></div>
+                  <button class="text-xs font-semibold text-primary hover:underline">Preview</button>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button class="px-4 py-2 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 flex items-center gap-2 shadow-sm">
+                    <span class="material-symbols-outlined text-sm">auto_fix_high</span> Generate and open PR
+                  </button>
+                  <a href="#" class="text-sm font-semibold text-on-surface-variant hover:text-on-surface flex items-center gap-1">I'll write my own <span class="material-symbols-outlined text-sm">open_in_new</span></a>
+                </div>
+              </div>
+            </div>
+
+            <!-- FAILING · dependabot, collapsed -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm">
+              <div class="px-5 py-4 bg-primary-container/25 flex items-start gap-4">
+                <span class="material-symbols-outlined text-primary mt-0.5">error</span>
+                <div class="flex-1 min-w-0">
+                  <p class="font-semibold text-sm text-on-surface">Dependabot not configured</p>
+                  <p class="text-xs text-on-surface-variant mt-0.5">Automatic dependency update PRs keep your project safe as new CVEs land.</p>
+                </div>
+                <button class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary-dim flex items-center gap-1.5 shadow-sm">
+                  <span class="material-symbols-outlined text-sm">auto_fix_high</span> Generate config
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "OpenSec will draft the file, I'll review the PR. This isn't work, this is approval."</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- STORY 5 — COMPLETION CEREMONY -->
+<!-- ============================================================ -->
+<section id="s5" class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="mb-10 flex items-baseline gap-4">
+    <span class="font-headline text-7xl font-extrabold text-primary/15 leading-none">05</span>
+    <div>
+      <h2 class="font-headline text-3xl font-extrabold text-on-surface">Completion ceremony</h2>
+      <p class="text-on-surface-variant mt-1 max-w-xl">"I earned this. The work was worth it. I have something I can point to — and I decide where, if anywhere, I share it."</p>
+    </div>
+  </div>
+
+  <!-- 5.1 celebration moment -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">5.1</span>
+      <span class="font-headline text-lg font-bold">Completion · celebration</span>
+      <span class="text-xs text-outline">→ moment the last check flips to pass</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="relative bg-gradient-to-br from-tertiary-fixed via-surface to-primary-container/40 px-8 py-16 min-h-[620px] overflow-hidden">
+        <!-- confetti -->
+        <span class="confetti bg-primary" style="left:8%; top:10%; animation-delay:0s;"></span>
+        <span class="confetti bg-tertiary rounded-full" style="left:18%; top:20%; width:6px; height:6px; animation-delay:.3s;"></span>
+        <span class="confetti bg-primary" style="left:28%; top:6%; animation-delay:.6s;"></span>
+        <span class="confetti bg-tertiary" style="left:42%; top:14%; animation-delay:.2s;"></span>
+        <span class="confetti bg-primary rounded-full" style="left:56%; top:22%; width:6px; height:6px; animation-delay:.9s;"></span>
+        <span class="confetti bg-tertiary" style="left:68%; top:8%; animation-delay:.5s;"></span>
+        <span class="confetti bg-primary" style="left:82%; top:18%; animation-delay:.1s;"></span>
+        <span class="confetti bg-tertiary rounded-full" style="left:92%; top:26%; width:6px; height:6px; animation-delay:.7s;"></span>
+        <span class="confetti bg-primary" style="left:12%; top:30%; animation-delay:1.2s;"></span>
+        <span class="confetti bg-tertiary" style="left:34%; top:36%; animation-delay:1s;"></span>
+        <span class="confetti bg-primary" style="left:60%; top:32%; animation-delay:.8s;"></span>
+        <span class="confetti bg-tertiary" style="left:78%; top:40%; animation-delay:1.4s;"></span>
+
+        <div class="max-w-xl mx-auto text-center relative" role="status" aria-live="assertive">
+          <span class="text-xs font-bold uppercase tracking-[0.22em] text-primary">Grade A · 5 of 5 criteria met</span>
+          <h3 class="font-headline text-5xl font-extrabold text-on-surface mt-4 mb-2">Security complete</h3>
+          <p class="text-on-surface-variant text-lg mb-8 max-w-md mx-auto">You've reached baseline security on <span class="font-semibold text-on-surface">fast-markdown</span>. Completed on 2026-04-14. Your shareable summary is ready below — keep it private or post it, your call.</p>
+          <!-- completion shield -->
+          <svg class="badge-shield mx-auto" viewBox="0 0 160 190" width="150" height="180">
+            <path d="M80 6 L150 30 V96 C150 140 122 168 80 186 C38 168 10 140 10 96 V30 Z" fill="#4d44e3"/>
+            <path d="M80 6 L150 30 V96 C150 140 122 168 80 186 C38 168 10 140 10 96 V30 Z" fill="none" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
+            <text x="80" y="70" text-anchor="middle" fill="#ffffff" font-family="Manrope" font-weight="700" font-size="12" letter-spacing="1.5">SECURED</text>
+            <text x="80" y="88" text-anchor="middle" fill="#ffffff" font-family="Manrope" font-weight="800" font-size="16">by OpenSec</text>
+            <circle cx="80" cy="122" r="22" fill="#ffffff" fill-opacity="0.14"/>
+            <path d="M68 122 L78 132 L94 114" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="80" y="166" text-anchor="middle" fill="#ffffff" fill-opacity="0.7" font-family="Inter" font-weight="500" font-size="8" letter-spacing="1">COMPLETED 2026-04-14</text>
+          </svg>
+          <div class="mt-10 flex flex-col items-center gap-4">
+            <button class="px-8 py-3.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-md flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm">download</span> Download summary image
+            </button>
+            <div class="flex items-center gap-6 text-sm">
+              <button class="font-semibold text-primary hover:text-primary-dim hover:underline transition-colors flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">content_copy</span> Copy text summary
+              </button>
+              <span class="w-px h-4 bg-outline-variant/30"></span>
+              <button class="font-semibold text-primary hover:text-primary-dim hover:underline transition-colors flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-sm">code</span> Copy markdown
+              </button>
+            </div>
+          </div>
+          <p class="mt-6 text-xs text-on-surface-variant max-w-md mx-auto">OpenSec never writes to your README. The full summary panel with previews is just below.</p>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Rewarded, not blasted. This feels like graduating, not a slot machine."</p>
+  </div>
+
+  <!-- 5.2 Shareable summary card panel -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">5.2</span>
+      <span class="font-headline text-lg font-bold">Shareable summary · three actions</span>
+      <span class="text-xs text-outline">→ scroll below the celebration after confetti settles</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface px-8 py-12 min-h-[640px]">
+        <div class="max-w-4xl mx-auto">
+          <div class="mb-6">
+            <span class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Your summary is ready</span>
+            <h3 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mt-2">Share it, keep it, or ignore it</h3>
+            <p class="text-on-surface-variant text-sm mt-1 max-w-xl">Generated locally in your browser. Nothing is uploaded. Nothing touches your repo unless you choose to paste the markdown yourself.</p>
+          </div>
+
+          <div class="grid md:grid-cols-[1.3fr_1fr] gap-6">
+            <!-- Summary card preview (rendered PNG/SVG-style) -->
+            <div class="rounded-2xl shadow-sm overflow-hidden relative" style="aspect-ratio: 1200/630; background: linear-gradient(135deg, #4d44e3 0%, #575e78 100%);">
+              <div class="absolute inset-0 p-10 flex flex-col justify-between text-white">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.22em]" style="color: rgba(255,255,255,0.92);">OpenSec · Security summary</p>
+                    <h4 class="font-headline text-3xl font-extrabold mt-3">fast-markdown</h4>
+                    <p class="text-sm mt-1" style="color: rgba(255,255,255,0.95);">Completed 2026-04-14</p>
+                  </div>
+                  <svg viewBox="0 0 64 76" width="56" height="64"><path d="M32 2 L60 12 V40 C60 56 48 68 32 74 C16 68 4 56 4 40 V12 Z" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.4" stroke-width="1"/><path d="M24 40 L30 46 L42 34" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                  <div class="grid grid-cols-3 gap-6 mb-7">
+                    <div><p class="font-headline text-3xl font-extrabold leading-none">12</p><p class="text-[11px] uppercase tracking-wider mt-1.5" style="color: rgba(255,255,255,0.92);">Vulns fixed</p></div>
+                    <div><p class="font-headline text-3xl font-extrabold leading-none">5 / 5</p><p class="text-[11px] uppercase tracking-wider mt-1.5" style="color: rgba(255,255,255,0.92);">Posture checks</p></div>
+                    <div><p class="font-headline text-3xl font-extrabold leading-none">3</p><p class="text-[11px] uppercase tracking-wider mt-1.5" style="color: rgba(255,255,255,0.92);">PRs merged</p></div>
+                  </div>
+                  <div class="h-px bg-white/30 mb-4"></div>
+                  <div class="flex items-center justify-between">
+                    <p class="text-xs" style="color: rgba(255,255,255,0.92);">Generated by OpenSec · opensec.dev</p>
+                    <p class="text-xs font-semibold" style="color: rgba(255,255,255,0.98);">Grade A</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions column -->
+            <div class="space-y-3">
+              <!-- Action 1: Download -->
+              <div class="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+                <div class="flex items-start gap-3 mb-3">
+                  <span class="material-symbols-outlined text-primary mt-0.5">download</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-headline text-sm font-bold text-on-surface">Download image</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Ready for social posts or your site.</p>
+                  </div>
+                </div>
+                <div class="bg-surface-container-low rounded-lg px-3 py-2.5 text-[11px] font-mono text-on-surface-variant leading-relaxed mb-3 flex items-center gap-2">
+                  <span class="material-symbols-outlined text-sm text-on-surface-variant">image</span>
+                  <span class="flex-1 min-w-0 truncate">fast-markdown_opensec-summary_2026-04-14.png</span>
+                  <span class="text-on-surface-variant/70">1200×630 · ~80 KB</span>
+                </div>
+                <button class="w-full px-4 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 shadow-sm">Save .png</button>
+              </div>
+
+              <!-- Action 2: Copy text -->
+              <div class="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+                <div class="flex items-start gap-3 mb-3">
+                  <span class="material-symbols-outlined text-primary mt-0.5">content_copy</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-headline text-sm font-bold text-on-surface">Copy text summary</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Tweet-sized — drop it anywhere.</p>
+                  </div>
+                </div>
+                <pre class="bg-surface-container-low rounded-lg px-3 py-2.5 text-[11px] font-mono text-on-surface leading-relaxed mb-3 whitespace-pre-wrap">I secured fast-markdown with OpenSec — 12 vulns fixed, branch protection enabled, SECURITY.md added. opensec.dev</pre>
+                <button class="w-full px-4 py-2.5 rounded-lg bg-surface-container-low text-on-surface font-semibold text-sm hover:bg-surface-container">Copy to clipboard</button>
+              </div>
+
+              <!-- Action 3: Copy markdown -->
+              <div class="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+                <div class="flex items-start gap-3 mb-3">
+                  <span class="material-symbols-outlined text-primary mt-0.5">code</span>
+                  <div class="flex-1 min-w-0">
+                    <p class="font-headline text-sm font-bold text-on-surface">Copy README markdown</p>
+                    <p class="text-xs text-on-surface-variant mt-0.5">Paste it into your README yourself if you want.</p>
+                  </div>
+                </div>
+                <pre class="bg-surface-container-low rounded-lg px-3 py-2.5 text-[11px] font-mono text-on-surface leading-relaxed mb-3 overflow-x-auto">![Secured by OpenSec](opensec-summary.png)
+&lt;!-- Completed 2026-04-14 --&gt;</pre>
+                <button class="w-full px-4 py-2.5 rounded-lg bg-surface-container-low text-on-surface font-semibold text-sm hover:bg-surface-container">Copy markdown</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 rounded-xl bg-surface-container-low px-5 py-4 flex items-start gap-3">
+            <span class="material-symbols-outlined text-on-surface-variant mt-0.5">lock</span>
+            <p class="text-sm text-on-surface-variant">This card is generated on your machine. No OpenSec-hosted URL, no tracking, no account required. v1.2 will add an optional public badge with verification — not today.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "A proof of work I can keep, or share on my own terms. Nothing lands in my repo unless I put it there."</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<!-- STORY 6 — RE-ASSESS -->
+<!-- ============================================================ -->
+<section id="s6" class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="mb-10 flex items-baseline gap-4">
+    <span class="font-headline text-7xl font-extrabold text-primary/15 leading-none">06</span>
+    <div>
+      <h2 class="font-headline text-3xl font-extrabold text-on-surface">Returning to check &amp; re-assess</h2>
+      <p class="text-on-surface-variant mt-1 max-w-xl">"It's easy to keep this current. A quick re-assessment and I know where I stand."</p>
+    </div>
+  </div>
+
+  <!-- 6.1 Dashboard with last-assessed -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">6.1</span>
+      <span class="font-headline text-lg font-bold">Dashboard · weeks later · completion holding</span>
+      <span class="text-xs text-outline">→ returning user opens the app</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface px-8 py-10 min-h-[560px]">
+        <div class="max-w-5xl mx-auto grid md:grid-cols-[auto_1fr] gap-8">
+          <!-- side: completion status + last assessed -->
+          <aside class="w-full md:w-72 bg-surface-container-lowest rounded-2xl shadow-sm p-6 text-center">
+            <span class="text-[11px] font-bold uppercase tracking-[0.18em] text-tertiary">Security complete</span>
+            <!-- Shield doubles as the affordance to re-open the summary card. Hover: subtle scale + primary ring. -->
+            <button type="button" aria-label="Re-open shareable summary card" class="group mt-4 mx-auto block p-2 rounded-full transition-transform hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-container-lowest">
+              <svg class="badge-shield mx-auto" viewBox="0 0 64 76" width="80" height="96"><path d="M32 2 L60 12 V40 C60 56 48 68 32 74 C16 68 4 56 4 40 V12 Z" fill="#4d44e3"/><path d="M24 40 L30 46 L42 34" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+              <span class="sr-only">Re-open shareable summary card</span>
+              <span aria-hidden="true" class="mt-2 block text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity">Tap for summary</span>
+            </button>
+            <p class="font-headline text-base font-bold text-on-surface mt-3">Completion holding</p>
+            <div class="mt-4 flex items-center justify-center gap-4">
+              <div class="text-left">
+                <p class="font-headline text-4xl font-extrabold text-primary leading-none">A</p>
+                <p class="text-[11px] text-on-surface-variant mt-0.5 tracking-wider uppercase">5 of 5</p>
+              </div>
+              <div class="w-px h-10 bg-outline-variant/25"></div>
+              <div class="text-left">
+                <p class="text-xs text-on-surface-variant">Last assessed</p>
+                <p class="text-sm font-semibold text-on-surface">14 days ago</p>
+              </div>
+            </div>
+            <p class="text-xs text-on-surface-variant font-medium mt-4">A re-assess pulls fresh CVE data and posture state.</p>
+            <button class="mt-5 w-full px-4 py-2 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim flex items-center justify-center gap-2 active:scale-95 shadow-sm">
+              <span class="material-symbols-outlined text-sm">refresh</span> Re-assess now
+            </button>
+            <a href="#" class="block mt-3 text-xs font-semibold text-on-surface-variant hover:text-on-surface">View assessment history</a>
+          </aside>
+
+          <!-- main: report card summary -->
+          <div>
+            <div class="mb-6">
+              <span class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Welcome back, Alex</span>
+              <h3 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mt-2">fast-markdown is still secure</h3>
+              <p class="text-on-surface-variant text-sm mt-1">Nothing has changed since your last assessment. Completion criteria are all still met.</p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div class="bg-surface-container-lowest rounded-xl p-4 shadow-sm"><p class="font-headline text-2xl font-extrabold text-on-surface">0</p><p class="text-xs text-on-surface-variant mt-1">Open critical</p></div>
+              <div class="bg-surface-container-lowest rounded-xl p-4 shadow-sm"><p class="font-headline text-2xl font-extrabold text-on-surface">0</p><p class="text-xs text-on-surface-variant mt-1">Open high</p></div>
+              <div class="bg-surface-container-lowest rounded-xl p-4 shadow-sm"><p class="font-headline text-2xl font-extrabold text-tertiary">7</p><p class="text-xs text-on-surface-variant mt-1">Fixed this month</p></div>
+              <div class="bg-surface-container-lowest rounded-xl p-4 shadow-sm"><p class="font-headline text-2xl font-extrabold text-on-surface">3</p><p class="text-xs text-on-surface-variant mt-1">PRs merged</p></div>
+            </div>
+
+            <div class="bg-surface-container-lowest rounded-xl p-5 shadow-sm">
+              <h4 class="font-headline text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-4">Recent activity</h4>
+              <ul class="space-y-3">
+                <li class="flex items-center gap-3 text-sm"><span class="w-2 h-2 rounded-full bg-tertiary"></span><span class="text-on-surface flex-1">PR #47 merged · braces 3.0.2 → 3.0.3</span><span class="text-xs text-on-surface-variant">12 days ago</span></li>
+                <li class="flex items-center gap-3 text-sm"><span class="w-2 h-2 rounded-full bg-tertiary"></span><span class="text-on-surface flex-1">SECURITY.md added · PR #46 merged</span><span class="text-xs text-on-surface-variant">14 days ago</span></li>
+                <li class="flex items-center gap-3 text-sm"><span class="w-2 h-2 rounded-full bg-primary"></span><span class="text-on-surface flex-1">Completion reached · summary generated</span><span class="text-xs text-on-surface-variant">14 days ago</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "Quick check, still green. I'll re-assess when I have a minute. If I want a fresh summary card, I can regenerate it."</p>
+  </div>
+
+  <!-- 6.2 Re-assess result with new finding -->
+  <div class="mb-16">
+    <div class="mb-3 flex items-center gap-3">
+      <span class="text-xs font-bold tracking-wider text-on-surface-variant">6.2</span>
+      <span class="font-headline text-lg font-bold">Re-assess · new vulnerability detected</span>
+      <span class="text-xs text-outline">→ a new CVE lands for an existing package</span>
+    </div>
+    <div class="frame">
+      <div class="frame-chrome"><span class="frame-dot bg-[#f57a7a]"></span><span class="frame-dot bg-[#f5c767]"></span><span class="frame-dot bg-[#7ecb7a]"></span></div>
+      <div class="bg-surface px-8 py-10 min-h-[560px]">
+        <div class="max-w-3xl mx-auto">
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Re-assessment complete · 2026-04-14</span>
+          <h3 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mt-2 mb-6">One new high-severity finding</h3>
+
+          <!-- completion status banner · calm reassurance first -->
+          <div class="relative rounded-xl bg-surface-container-lowest shadow-sm px-5 py-4 flex items-start gap-4 mb-6 overflow-hidden">
+            <span class="absolute left-0 top-0 bottom-0 w-1 bg-tertiary"></span>
+            <span class="material-symbols-outlined text-tertiary mt-0.5 ml-1">shield</span>
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-sm text-on-surface">You're still at completion — for now</p>
+              <p class="text-sm text-on-surface-variant mt-1 leading-relaxed">One new high-severity finding landed since your last check. Solve it to stay at 5 of 5 criteria met. Your existing summary card is still valid until you regenerate it.</p>
+            </div>
+            <button class="text-xs font-semibold text-on-surface-variant hover:text-on-surface whitespace-nowrap">What does this mean?</button>
+          </div>
+
+          <!-- diff summary -->
+          <div class="bg-surface-container-lowest rounded-xl shadow-sm p-5 mb-6">
+            <h4 class="font-headline text-sm font-bold text-on-surface-variant uppercase tracking-wider mb-4">Since your last check</h4>
+            <ul class="space-y-3 text-sm">
+              <li class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-error-container/30 flex items-center justify-center text-error text-xs font-bold">+1</span><span class="flex-1 text-on-surface">New high-severity finding in axios</span><span class="text-xs text-on-surface-variant font-mono">CVE-2026-3342</span></li>
+              <li class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-tertiary-container/30 flex items-center justify-center text-tertiary text-xs font-bold">=</span><span class="flex-1 text-on-surface-variant">All posture checks unchanged</span><span class="text-xs text-on-surface-variant">5 passing</span></li>
+              <li class="flex items-center gap-3"><span class="w-6 h-6 rounded-full bg-tertiary-container/30 flex items-center justify-center text-tertiary text-xs font-bold">0</span><span class="flex-1 text-on-surface-variant">No previously closed findings regressed</span><span class="text-xs text-on-surface-variant">all clear</span></li>
+            </ul>
+          </div>
+
+          <!-- next action -->
+          <div class="bg-primary-container/30 rounded-xl p-5 flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+              <p class="font-semibold text-sm text-on-primary-container">Solve the new finding</p>
+              <p class="text-xs text-on-primary-container/80 mt-1">Estimated fix: bump axios 1.6.2 → 1.7.4. OpenSec can prepare the PR for your review.</p>
+            </div>
+            <button class="px-5 py-2.5 rounded-lg bg-primary text-white font-bold text-sm hover:bg-primary-dim transition-colors active:scale-95 flex items-center gap-2 shadow-sm">
+              <span class="material-symbols-outlined text-sm">play_arrow</span> Solve now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="mt-3 text-sm text-on-surface-variant italic">Feeling: "One thing to fix, one button to start. Completion isn't pulled out from under me — I get to respond."</p>
+  </div>
+</section>
+
+<!-- footer -->
+<footer class="max-w-6xl mx-auto px-8 pb-24">
+  <div class="rounded-2xl bg-surface-container-lowest shadow-sm p-8 flex items-center gap-6">
+    <span class="material-symbols-outlined text-primary text-3xl">style</span>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-headline text-lg font-bold text-on-surface">Design system notes</h3>
+      <p class="text-sm text-on-surface-variant mt-1 leading-relaxed">Every frame complies with the Serene Sentinel rules: no 1px solid borders, tonal layering via Level 0/1/2 surfaces, ghost borders only, sentence case throughout, <span class="font-mono">on-surface</span> for text (never <span class="font-mono">#000</span>), Manrope headlines, Inter body, and Material Symbols Outlined icons. Severity uses <span class="font-mono">error</span>/<span class="font-mono">tertiary</span>/<span class="font-mono">on-surface-variant</span> tokens — never arbitrary greens or reds.</p>
+    </div>
+  </div>
+</footer>
+
+</body></html>

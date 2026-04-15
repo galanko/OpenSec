@@ -17,6 +17,14 @@ Phase 6b — Wire sub-agents into the isolated workspace runtime:
 - [x] Handle `permission.asked` events — backend plumbing for tool-use approval: detect OpenCode permission events, auto-approve read-tier, wait for user approval on bash/edit/mcp, grant/deny endpoints. Workspace config stays "allow" (plumbing ready for when we flip to "ask")
 - [x] Executor prompt refinement — per-agent prompts with inline output contracts + retry-on-parse-failure with corrective follow-up
 
+v1.1 — Earn the Badge (PRD-0002, UX-0002, IMPL-0002, ADR-0025):
+
+- [ ] **C1**: Extend `finding-normalizer` agent prompt to emit `plain_description` (2–4 sentences, no jargon). Update output contract + few-shot examples. Evaluation fixture on 10 known CVEs
+- [ ] **E1**: New agent template `security_md_generator.md.j2` — reads repo, writes SECURITY.md, pushes branch, opens draft PR via `gh pr create`
+- [ ] **E2**: New agent template `dependabot_config_generator.md.j2` — detects ecosystems from lockfiles, writes `.github/dependabot.yml`, opens PR
+- [ ] **E3**: New agent template `badge_installer.md.j2` — inserts badge markdown at top of README.md (idempotent), updates "Last verified" line, opens PR
+- [ ] **E4**: `WorkspaceKind` enum (finding | repo_action) + discriminator on workspace record. Cleanup repo-action workspaces on PR completion
+
 MVP — Agentic remediation (PRD-0001, IMPL-0001):
 
 - [ ] **WP2: Repo access** — inject GH_TOKEN + OPENSEC_REPO_URL into workspace OpenCode process env from credential vault (ADR-0024). Agent handles clone/branch/push via bash
@@ -33,6 +41,61 @@ Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 - [ ] Close/reopen logic tied to ticket + validation state
 
 ## App Builder (Vertical 2)
+
+### v1.1: Earn the Badge (PRD-0002, UX-0002, IMPL-0002, ADR-0025)
+
+**Milestone A — Data layer (blocks everything else)**
+
+- [ ] **A1**: Migration `0014_earn_the_badge.sql` — add `findings.plain_description` column, create `assessments`, `posture_checks`, `badges` tables. TDD: `test_0014_schema_matches_expected` first
+- [ ] **A2**: Pydantic models + read DAOs for `assessments`, `posture_checks`, `badges` — `backend/opensec/db/dao/{assessment,posture_check,badge}.py`
+
+**Milestone B — Assessment engine (deterministic Python, no LLM)**
+
+- [ ] **B1**: Parser registry + npm parser (`package-lock.json` v1/v2/v3). Fixture tests against three real lockfiles
+- [ ] **B2**: pip parser (`Pipfile.lock` + `requirements.txt`). Fixtures + tests
+- [ ] **B3**: go parser (`go.sum`). Fixtures + tests
+- [ ] **B4**: OSV.dev HTTP client with GHSA fallback — retries, timeout, per-(package@version) caching within one assessment
+- [ ] **B5**: Posture checks module — branch protection, force pushes, secrets regex scan (AWS/GitHub/Stripe/Google/PEM patterns), SECURITY.md/lockfile/dependabot existence, signed commits advisory
+- [ ] **B6**: Assessment orchestrator `engine.py` — clones via `RepoCloner` (ADR-0024), runs parsers → CVE lookup → posture, writes rows, emits `FindingCreate` for ingest pipeline
+
+**Milestone C — Plain-language (V2 side of C1)**
+
+- [ ] **C2**: Thread `plain_description` through ingest worker + findings response schema
+
+**Milestone D — API routes**
+
+- [ ] **D1**: `POST /api/onboarding/repo` + `POST /api/onboarding/complete` + `onboarding_completed` settings flag
+- [ ] **D2**: `POST /api/assessment/run` + `GET /api/assessment/status/{id}` (SSE progress) + `GET /api/assessment/latest` (derived grade + badge criteria in payload)
+- [ ] **D3**: `POST /api/posture/fix/{check_name}` + `POST /api/badge/add-to-readme` — spawn repo-kind workspaces, return `{workspace_id}` for sidebar polling
+- [ ] **D4**: `GET /api/dashboard` — UI-shaped aggregated payload (findings counts + posture + badge status + freshness band)
+
+**Milestone F — Frontend onboarding**
+
+- [ ] **F1**: Router entry — redirect to `/onboarding/welcome` while `settings.onboarding_completed === false`. `OnboardingLayout` + shared `StepProgress`
+- [ ] **F2**: `WelcomePage` (UX frame 1.0) — single "Get started" CTA
+- [ ] **F3**: `ConnectRepoPage` (frames 1.1/1.2/1.3) — single "Verify and continue", inline validation, 700ms auto-advance. `TokenHowToDialog` modal (frame 1.1a) with scrim + blur backdrop
+- [ ] **F4**: `ConfigureAIPage` (frame 1.4) — provider cards + key + optional model
+- [ ] **F5**: `StartAssessmentPage` (frame 1.5) — three-step preview + "Start assessment"
+
+**Milestone G — Frontend dashboard + findings**
+
+- [ ] **G1**: `AssessmentProgressList` (frame 2.1) — SSE consumer of `/api/assessment/status/{id}`
+- [ ] **G2**: `DashboardPage` (frame 2.2) — `GradeRing`, `BadgePreviewCard`, `CriteriaMeter`, vulns card, posture card
+- [ ] **G3**: Extend `FindingRow` (frame 3.1) — plain-language headline, muted tech line, reweighted Solve buttons (filled on top severity only)
+- [ ] **G4**: `FindingDetailPage` + `TechnicalDetailsPanel` (frame 3.2) — plain body + collapsible tech details + primary/text/overflow action bar
+- [ ] **G5**: `PostureCheckItem` (compact/muted/expanded variants) + `GenerateFilePreview` (frame 4.1) wired to `/api/posture/fix/*`
+
+**Milestone H — Badge lifecycle**
+
+- [ ] **H1**: `ShieldSVG` (scale-responsive) + `BadgePreviewCard`
+- [ ] **H2**: `BadgeEarnedCelebration` (frame 5.1) — `ConfettiLayer`, eyebrow/headline hierarchy, `role="status" aria-live="assertive"`, `prefers-reduced-motion` fallback
+- [ ] **H3**: `AddBadgeDialog` (frame 5.2) — placement picker, pure-markdown preview, "last verified" toggle, calls `/api/badge/add-to-readme`
+- [ ] **H4**: `FreshnessCard` (frame 6.1) with Fresh/Aging/Stale bands + `AssessmentDiffList` (frame 6.2) + calm-authority re-assess banner
+
+**Milestone I — Tests + docs**
+
+- [ ] **I1**: E2E Playwright: onboarding → assessment → solve one finding → earn badge → add badge PR (seeded fixture repo)
+- [ ] **I2**: Contributor guide `docs/guides/assessment-engine.md` — how to add a parser or posture check
 
 ### Priority 1: Simplification (tech debt from architecture review, 2026-04-06)
 
