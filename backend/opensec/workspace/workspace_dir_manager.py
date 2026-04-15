@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import shutil
 import tarfile
-from typing import TYPE_CHECKING
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import CONTEXT_SECTIONS, WorkspaceDir
@@ -14,6 +15,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from opensec.models import Finding
+
+
+class WorkspaceKind(StrEnum):
+    """Discriminator for workspace directories (IMPL-0002 Milestone E4).
+
+    Finding workspaces (the existing kind) are implicit; the two repo-scoped
+    actions get explicit enum values that route to their generator agents.
+    """
+
+    repo_action_security_md = "repo_action_security_md"
+    repo_action_dependabot = "repo_action_dependabot"
 
 
 class WorkspaceDirManager:
@@ -219,6 +231,27 @@ class WorkspaceDirManager:
                 f"Workspace directory not found: {self._base_dir / workspace_id}"
             )
         return ws
+
+    # ------------------------------------------------------------------
+    # Repo-scoped workspaces (IMPL-0002 Milestone E — V1↔V2 interface stub)
+    # ------------------------------------------------------------------
+
+    def create_repo_workspace(
+        self,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
+    ) -> str:
+        """Create an ephemeral repo-scoped workspace for a generator agent.
+
+        Returns the workspace_id that V2 can poll for sidebar state (PR url,
+        status). Implemented in Session C; this is the Session-0 contract stub
+        so that downstream sessions can import ``WorkspaceKind`` and wire the
+        signature into API routes without waiting on the real implementation.
+        """
+        raise NotImplementedError(
+            "Session 0 stub — implemented in Session C (IMPL-0002 Milestone E)"
+        )
 
 
 def _validate_workspace_id(workspace_id: str) -> None:
