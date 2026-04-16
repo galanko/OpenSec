@@ -79,7 +79,50 @@ function DashboardContent() {
     )
   }
 
+  if (data.assessment == null) {
+    return <EmptyDashboard />
+  }
+
   return <ReportCard data={data} />
+}
+
+function EmptyDashboard() {
+  const navigate = useNavigate()
+  return (
+    <PageShell title="Overview">
+      <section
+        data-testid="dashboard-empty"
+        className="flex flex-col items-center gap-5 rounded-3xl bg-surface-container-low px-10 py-20 text-center"
+      >
+        <span
+          className="material-symbols-outlined text-primary"
+          style={{ fontSize: '44px' }}
+          aria-hidden
+        >
+          radar
+        </span>
+        <div>
+          <h2 className="font-headline text-2xl font-bold text-on-surface">
+            No assessment yet
+          </h2>
+          <p className="mt-2 max-w-md text-sm text-on-surface-variant">
+            Connect a repository to get your first security grade. It takes
+            under a minute.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/onboarding/welcome')}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90"
+        >
+          <span className="material-symbols-outlined text-sm" aria-hidden>
+            play_arrow
+          </span>
+          Start your first assessment
+        </button>
+      </section>
+    </PageShell>
+  )
 }
 
 function ReportCard({ data }: { data: DashboardPayload }) {
@@ -107,9 +150,27 @@ function ReportCard({ data }: { data: DashboardPayload }) {
       ? renderCompletionBlock(data, repoName, data.grade)
       : null
 
+  const totalFindings = Object.values(data.findings_count_by_priority ?? {}).reduce(
+    (a, b) => a + b,
+    0,
+  )
+  const postureFails =
+    (data.posture_total_count ?? 0) - (data.posture_pass_count ?? 0)
+  const showGradeExplainer =
+    data.grade !== 'A' && (totalFindings > 0 || postureFails > 0)
+
   return (
     <PageShell title="Overview" subtitle={repoName}>
       {completionBlock}
+      {showGradeExplainer && (
+        <GradeExplainer
+          grade={data.grade}
+          findingsCount={totalFindings}
+          posturePassing={data.posture_pass_count ?? 0}
+          postureTotal={data.posture_total_count ?? 0}
+          onStartFixing={() => navigate('/findings')}
+        />
+      )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-6">
           <section className="flex flex-col items-start gap-6 rounded-3xl bg-surface-container-low p-8 md:flex-row md:items-center">
@@ -311,6 +372,74 @@ function countCriteriaMet(c: DashboardPayload['criteria']): number {
     c.posture_checks_total > 0 &&
       c.posture_checks_passing === c.posture_checks_total,
   ].filter(Boolean).length
+}
+
+function GradeExplainer({
+  grade,
+  findingsCount,
+  posturePassing,
+  postureTotal,
+  onStartFixing,
+}: {
+  grade: DashboardPayload['grade']
+  findingsCount: number
+  posturePassing: number
+  postureTotal: number
+  onStartFixing: () => void
+}) {
+  const postureFails = Math.max(0, postureTotal - posturePassing)
+  const parts: string[] = []
+  if (findingsCount > 0) {
+    parts.push(
+      `${findingsCount} ${findingsCount === 1 ? 'vulnerability' : 'vulnerabilities'}`,
+    )
+  }
+  if (postureFails > 0) {
+    parts.push(
+      `${postureFails} of ${postureTotal} posture check${postureTotal === 1 ? '' : 's'} failing`,
+    )
+  }
+  const summary = parts.join(' and ')
+
+  return (
+    <section
+      data-testid="grade-explainer"
+      className="mb-6 rounded-3xl bg-surface-container-low p-6"
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className="material-symbols-outlined text-tertiary mt-0.5"
+          aria-hidden
+        >
+          info
+        </span>
+        <div className="flex-1">
+          <h3 className="font-headline text-lg font-bold text-on-surface">
+            {grade === 'F'
+              ? 'Your project starts at grade F'
+              : `Your project is at grade ${grade}`}
+          </h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            {summary
+              ? `We found ${summary}. Each fix moves the grade up — start anywhere below.`
+              : 'Keep fixing findings to raise the grade.'}
+          </p>
+          {findingsCount > 0 && (
+            <button
+              type="button"
+              onClick={onStartFixing}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden>
+                play_arrow
+              </span>
+              Start fixing
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  )
 }
 
 function buildHeroCopy(

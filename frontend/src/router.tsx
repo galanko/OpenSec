@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import AppLayout from '@/layouts/AppLayout'
-import FeatureFlagGate from '@/components/FeatureFlagGate'
+import OnboardingGate from '@/components/OnboardingGate'
+import FirstRunRedirect from '@/components/FirstRunRedirect'
 import DashboardPage from '@/pages/DashboardPage'
 import FindingDetailPage from '@/pages/FindingDetailPage'
 import FindingsPage from '@/pages/FindingsPage'
@@ -14,7 +15,7 @@ import ConfigureAI from '@/pages/onboarding/ConfigureAI'
 import StartAssessment from '@/pages/onboarding/StartAssessment'
 
 const gated = (page: React.ReactElement) => (
-  <FeatureFlagGate flag="v1_1_from_zero_to_secure_enabled">{page}</FeatureFlagGate>
+  <OnboardingGate>{page}</OnboardingGate>
 )
 
 export const router = createBrowserRouter([
@@ -29,7 +30,14 @@ export const router = createBrowserRouter([
     path: '/',
     element: <AppLayout />,
     children: [
-      { index: true, element: <FindingsPage /> },
+      {
+        index: true,
+        element: (
+          <FirstRunRedirect>
+            <FindingsPage />
+          </FirstRunRedirect>
+        ),
+      },
       { path: 'dashboard', element: <DashboardPage /> },
       { path: 'findings', element: <FindingsPage /> },
       { path: 'findings/:id', element: <FindingDetailPage /> },

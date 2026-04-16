@@ -801,13 +801,23 @@
       "FeatureFlags": {
         "description": "Snapshot of server-side feature flags visible to the UI.",
         "properties": {
+          "has_any_assessment": {
+            "title": "Has Any Assessment",
+            "type": "boolean"
+          },
+          "onboarding_completed": {
+            "title": "Onboarding Completed",
+            "type": "boolean"
+          },
           "v1_1_from_zero_to_secure_enabled": {
             "title": "V1 1 From Zero To Secure Enabled",
             "type": "boolean"
           }
         },
         "required": [
-          "v1_1_from_zero_to_secure_enabled"
+          "v1_1_from_zero_to_secure_enabled",
+          "onboarding_completed",
+          "has_any_assessment"
         ],
         "title": "FeatureFlags",
         "type": "object"
@@ -1852,6 +1862,16 @@
           "repo_url": {
             "title": "Repo Url",
             "type": "string"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerifiedRepo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2500,6 +2520,38 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerifiedRepo": {
+        "description": "Display-only metadata the SPA shows on the connect-success card.",
+        "properties": {
+          "default_branch": {
+            "title": "Default Branch",
+            "type": "string"
+          },
+          "permissions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "repo_name": {
+            "title": "Repo Name",
+            "type": "string"
+          },
+          "visibility": {
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo_name",
+          "visibility",
+          "default_branch"
+        ],
+        "title": "VerifiedRepo",
+        "type": "object"
+      },
       "Workspace": {
         "properties": {
           "active_plan_version": {
@@ -2820,7 +2872,7 @@
     },
     "/api/assessment/status/{assessment_id}": {
       "get": {
-        "description": "Poll assessment progress. Session B will upgrade this to SSE.",
+        "description": "Poll assessment progress.\n\nWhen the assessment is ``running``, ``step`` is the live phase from\n:func:`opensec.api._background.get_assessment_step` (e.g. ``cloning`` or\n``looking_up_cves``); otherwise it mirrors ``status``.",
         "operationId": "get_assessment_status_api_assessment_status__assessment_id__get",
         "parameters": [
           {
@@ -3212,7 +3264,7 @@
     },
     "/api/config/feature-flags": {
       "get": {
-        "description": "Return the current feature-flag values. Static; no auth gating required.",
+        "description": "Return feature flags + bootstrap hints for SPA redirect decisions.",
         "operationId": "get_feature_flags_api_config_feature_flags_get",
         "responses": {
           "200": {

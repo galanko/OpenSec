@@ -96,13 +96,20 @@ class ProductionAssessmentEngine:
         self._clone_timeout_s = clone_timeout_s
 
     async def run_assessment(
-        self, repo_url: str, *, assessment_id: str
+        self,
+        repo_url: str,
+        *,
+        assessment_id: str,
+        on_step: Callable[[str], Awaitable[None]] | None = None,
     ) -> AssessmentResult:
         token = await self._token_provider()
         _validate_repo_url(repo_url, has_token=bool(token))
 
         if self._tmp_root is not None:
             self._tmp_root.mkdir(parents=True, exist_ok=True)
+
+        if on_step is not None:
+            await on_step("cloning")
 
         tmp_root_str = str(self._tmp_root) if self._tmp_root else None
         with tempfile.TemporaryDirectory(dir=tmp_root_str) as tmp:
@@ -118,6 +125,7 @@ class ProductionAssessmentEngine:
                     repo_url=repo_url,
                     gh_client=gh,
                     osv=osv,
+                    on_step=on_step,
                 )
 
         # The orchestrator generates its own uuid for ``assessment_id``; stamp

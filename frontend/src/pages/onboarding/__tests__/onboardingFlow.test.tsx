@@ -3,10 +3,11 @@
  * Exercises all four pages (1.0 → 1.1 → 1.4 → 1.5) against the MSW
  * handlers defined in `src/test/msw/onboardingHandlers.ts`.
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import Welcome from '@/pages/onboarding/Welcome'
 import ConnectRepo from '@/pages/onboarding/ConnectRepo'
@@ -14,6 +15,9 @@ import ConfigureAI from '@/pages/onboarding/ConfigureAI'
 import StartAssessment from '@/pages/onboarding/StartAssessment'
 
 function renderWizard(initialPath = '/onboarding/welcome') {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   const router = createMemoryRouter(
     [
       { path: '/onboarding/welcome', element: <Welcome /> },
@@ -27,13 +31,20 @@ function renderWizard(initialPath = '/onboarding/welcome') {
     ],
     { initialEntries: [initialPath] },
   )
-  return render(<RouterProvider router={router} />)
+  return render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  )
 }
 
 describe('onboarding wizard', () => {
+  beforeEach(() => {
+    sessionStorage.clear()
+  })
+
   it('walks the happy path: welcome → connect → ai → start → dashboard', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const user = userEvent.setup()
     try {
       renderWizard()
 
@@ -57,21 +68,29 @@ describe('onboarding wizard', () => {
       )
       await user.click(screen.getByRole('button', { name: /verify and continue/i }))
 
-      // 1.3 Verified card appears, then auto-advances to 1.4. The wait
-      // exceeds the page's VERIFIED_AUTO_ADVANCE_MS constant (1200 ms).
+      // 1.3 Verified card appears and stays on screen until the user clicks
+      // "Continue to AI config" (no auto-advance).
       await waitFor(() =>
         expect(screen.getByText('alex-dev/fast-markdown')).toBeInTheDocument(),
       )
-      vi.advanceTimersByTime(2000)
+      await user.click(
+        screen.getByRole('button', { name: /continue to ai config/i }),
+      )
 
-      // 1.4 Configure AI
+      // 1.4 Configure AI — pick OpenAI card (default), then a model from the select.
       expect(
         await screen.findByRole('heading', { name: /configure your ai model/i }),
       ).toBeInTheDocument()
-      await user.type(screen.getByLabelText(/api key/i), 'sk-test-key')
-      await user.click(
-        screen.getByRole('button', { name: /test and continue/i }),
+      await waitFor(() =>
+        expect(
+          screen.getByRole('option', { name: 'GPT-4o mini' }),
+        ).toBeInTheDocument(),
       )
+      await user.selectOptions(
+        screen.getByLabelText(/^model/i),
+        'gpt-4o-mini',
+      )
+      await user.click(screen.getByRole('button', { name: /^continue$/i }))
 
       // 1.5 Start assessment
       expect(
@@ -82,44 +101,36 @@ describe('onboarding wizard', () => {
       // Lands on the dashboard.
       expect(await screen.findByTestId('dashboard-landed')).toBeInTheDocument()
     } finally {
-      vi.useRealTimers()
+      // no-op: real timers throughout
     }
   })
 
-  it('clicking Change during the verified window cancels the auto-advance', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-    try {
-      renderWizard('/onboarding/connect')
+  it('clicking Change on the verified card re-opens the form', async () => {
+    const user = userEvent.setup()
+    renderWizard('/onboarding/connect')
 
-      await user.type(
-        screen.getByLabelText(/repository url/i),
-        'https://github.com/alex-dev/fast-markdown',
-      )
-      await user.type(
-        screen.getByLabelText(/github personal access token/i),
-        'ghp_validtoken',
-      )
-      await user.click(
-        screen.getByRole('button', { name: /verify and continue/i }),
-      )
+    await user.type(
+      screen.getByLabelText(/repository url/i),
+      'https://github.com/alex-dev/fast-markdown',
+    )
+    await user.type(
+      screen.getByLabelText(/github personal access token/i),
+      'ghp_validtoken',
+    )
+    await user.click(
+      screen.getByRole('button', { name: /verify and continue/i }),
+    )
 
-      // 1.3 verified card is visible — back out before the 1.2s auto-advance.
-      await screen.findByText('alex-dev/fast-markdown')
-      await user.click(screen.getByRole('button', { name: /change/i }))
+    await screen.findByText('alex-dev/fast-markdown')
+    await user.click(screen.getByRole('button', { name: /change/i }))
 
-      // Advance well past the auto-advance window: we should still be on
-      // ConnectRepo (the form has re-rendered), NOT on ConfigureAI.
-      vi.advanceTimersByTime(5000)
-      expect(
-        screen.getByRole('heading', { name: /connect your project/i }),
-      ).toBeInTheDocument()
-      expect(
-        screen.queryByRole('heading', { name: /configure your ai model/i }),
-      ).not.toBeInTheDocument()
-    } finally {
-      vi.useRealTimers()
-    }
+    // After Change the form is visible again and the user has NOT advanced.
+    expect(
+      screen.getByRole('heading', { name: /connect your project/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: /configure your ai model/i }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows the missing-repo-scope error (frame 1.2) and keeps the repo URL', async () => {

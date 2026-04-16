@@ -10,6 +10,8 @@ import { request } from './client'
 
 export interface FeatureFlags {
   v1_1_from_zero_to_secure_enabled: boolean
+  onboarding_completed: boolean
+  has_any_assessment: boolean
 }
 
 export function useFeatureFlags() {

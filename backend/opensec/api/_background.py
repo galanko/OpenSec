@@ -40,6 +40,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# In-memory "current phase" per in-flight assessment. Lives next to the
+# running task; the status endpoint reads it back. A dict is sufficient:
+# state dies with the process, and a ``failed`` or ``complete`` row in the
+# DB is the durable signal.
+_ASSESSMENT_STEPS: dict[str, str] = {}
+
+
+def get_assessment_step(assessment_id: str) -> str | None:
+    """Current phase for an in-flight assessment, or ``None`` if unknown."""
+    return _ASSESSMENT_STEPS.get(assessment_id)
+
+
 async def run_and_persist_assessment(
     db: aiosqlite.Connection,
     engine: AssessmentEngineProtocol,
@@ -47,12 +59,19 @@ async def run_and_persist_assessment(
     repo_url: str,
 ) -> None:
     """Drive the engine for one assessment and persist every output it emits."""
+    async def _on_step(step: str) -> None:
+        _ASSESSMENT_STEPS[assessment_id] = step
+
     try:
         await update_assessment(db, assessment_id, AssessmentUpdate(status="running"))
-        result = await engine.run_assessment(repo_url, assessment_id=assessment_id)
+        _ASSESSMENT_STEPS[assessment_id] = "cloning"
+        result = await engine.run_assessment(
+            repo_url, assessment_id=assessment_id, on_step=_on_step
+        )
     except Exception:
         logger.exception("assessment engine failed for %s", assessment_id)
         await update_assessment(db, assessment_id, AssessmentUpdate(status="failed"))
+        _ASSESSMENT_STEPS.pop(assessment_id, None)
         return
 
     for check in result.posture_checks:
@@ -101,6 +120,8 @@ async def run_and_persist_assessment(
                     criteria_snapshot=result.criteria_snapshot,
                 ),
             )
+
+    _ASSESSMENT_STEPS.pop(assessment_id, None)
 
 
 def schedule_assessment_run(

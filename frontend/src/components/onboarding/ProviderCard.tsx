@@ -1,10 +1,16 @@
 import { cn } from '@/lib/utils'
-import type { Provider, ProviderId } from '@/pages/onboarding/ConfigureAI'
 
-export interface ProviderCardProps {
-  provider: Provider
+export interface ProviderCardData<Id extends string = string> {
+  id: Id
+  name: string
+  description: string
+  icon: string
+}
+
+export interface ProviderCardProps<Id extends string = string> {
+  provider: ProviderCardData<Id>
   selected: boolean
-  onSelect: (id: ProviderId) => void
+  onSelect: (id: Id) => void
 }
 
 /**
@@ -12,11 +18,11 @@ export interface ProviderCardProps {
  * Active state uses `ring-2 ring-primary`; inactive uses a tonal
  * background. No `1px solid` borders.
  */
-export default function ProviderCard({
+export default function ProviderCard<Id extends string = string>({
   provider,
   selected,
   onSelect,
-}: ProviderCardProps) {
+}: ProviderCardProps<Id>) {
   return (
     <button
       type="button"

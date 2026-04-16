@@ -4,13 +4,45 @@ from __future__ import annotations
 
 
 async def test_feature_flags_reports_current_value(db_client, monkeypatch) -> None:
-    """Endpoint mirrors the current ``Settings.v1_1_from_zero_to_secure_enabled``."""
+    """Endpoint mirrors the current flag + bootstrap signals for the SPA."""
     from opensec.config import settings
 
     monkeypatch.setattr(settings, "v1_1_from_zero_to_secure_enabled", False)
     resp = await db_client.get("/api/config/feature-flags")
     assert resp.status_code == 200
-    assert resp.json() == {"v1_1_from_zero_to_secure_enabled": False}
+    assert resp.json() == {
+        "v1_1_from_zero_to_secure_enabled": False,
+        "onboarding_completed": False,
+        "has_any_assessment": False,
+    }
+
+
+async def test_feature_flags_reports_assessment_presence(db_client) -> None:
+    """``has_any_assessment`` flips to True once at least one row exists."""
+    from opensec.db.connection import _db
+    from opensec.db.dao.assessment import create_assessment
+    from opensec.models import AssessmentCreate
+
+    assert _db is not None
+    await create_assessment(_db, AssessmentCreate(repo_url="https://github.com/acme/x"))
+
+    resp = await db_client.get("/api/config/feature-flags")
+    body = resp.json()
+    assert body["has_any_assessment"] is True
+    assert body["onboarding_completed"] is False
+
+
+async def test_feature_flags_reports_onboarding_completed(db_client) -> None:
+    """``onboarding_completed`` mirrors the app_setting written by the complete endpoint."""
+    from opensec.db.connection import _db
+    from opensec.db.repo_setting import upsert_setting
+
+    assert _db is not None
+    await upsert_setting(_db, "onboarding.completed", {"completed": True})
+
+    resp = await db_client.get("/api/config/feature-flags")
+    body = resp.json()
+    assert body["onboarding_completed"] is True
 
 
 def test_settings_flag_defaults_off() -> None:

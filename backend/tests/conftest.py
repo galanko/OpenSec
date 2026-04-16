@@ -18,6 +18,21 @@ async def _noop_lifespan(app):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _stub_onboarding_repo_probe():
+    """Don't hit api.github.com during tests.
+
+    ``/api/onboarding/repo`` probes GitHub for display metadata. Tests that
+    aren't specifically exercising that probe should get an instant ``None``
+    so the suite stays offline and fast.
+    """
+    with patch(
+        "opensec.api.routes.onboarding._probe_repo_metadata",
+        AsyncMock(return_value=None),
+    ):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # OpenCode mocks (existing tests)
 # ---------------------------------------------------------------------------

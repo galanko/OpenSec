@@ -10,6 +10,7 @@ Tests override via ``app.dependency_overrides[get_assessment_engine] = lambda: f
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Protocol
 
 from fastapi import HTTPException
@@ -31,10 +32,25 @@ def require_from_zero_to_secure_flag() -> None:
         raise HTTPException(status_code=404, detail="Not Found")
 
 
-class AssessmentEngineProtocol(Protocol):
-    """Minimal contract Session B builds against; Session A's real engine conforms."""
+StepCallback = Callable[[str], Awaitable[None]]
 
-    async def run_assessment(self, repo_url: str, *, assessment_id: str) -> AssessmentResult:
+
+class AssessmentEngineProtocol(Protocol):
+    """Minimal contract for the assessment engine.
+
+    ``on_step`` is an optional async callback invoked when the engine enters
+    a new phase (``cloning``, ``parsing_lockfiles``, ``looking_up_cves``,
+    ``checking_posture``, ``grading``) so the API layer can surface progress.
+    Implementations may ignore it.
+    """
+
+    async def run_assessment(
+        self,
+        repo_url: str,
+        *,
+        assessment_id: str,
+        on_step: StepCallback | None = None,
+    ) -> AssessmentResult:
         ...
 
 

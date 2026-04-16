@@ -2,9 +2,9 @@
  * AssessmentProgressList — step-by-step progress card shown while an
  * assessment is running (frame 2.1).
  *
- * IMPL-0002 Milestone G1. Polls /api/assessment/status/{id} via the
- * useAssessmentStatus hook (Session B upgrades to SSE later). Renders five
- * fixed steps keyed off the backend `step` string.
+ * Polls /api/assessment/status/{id} via the useAssessmentStatus hook. The
+ * backend emits the current phase in the ``step`` field; this component
+ * renders the five fixed rows and highlights whichever one is active.
  */
 
 import { useAssessmentStatus } from '@/api/dashboard'
@@ -15,11 +15,11 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { key: 'clone', label: 'Clone repository' },
-  { key: 'parse_lockfiles', label: 'Parse lockfiles' },
-  { key: 'cve_lookup', label: 'Cross-reference CVEs' },
-  { key: 'posture_check', label: 'Run posture check' },
-  { key: 'plain_language', label: 'Write plain-language descriptions' },
+  { key: 'cloning', label: 'Clone repository' },
+  { key: 'parsing_lockfiles', label: 'Parse lockfiles' },
+  { key: 'looking_up_cves', label: 'Cross-reference CVEs' },
+  { key: 'checking_posture', label: 'Run posture checks' },
+  { key: 'grading', label: 'Compute grade' },
 ]
 
 type StepState = 'done' | 'running' | 'pending'

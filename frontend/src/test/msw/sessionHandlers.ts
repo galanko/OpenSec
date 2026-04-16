@@ -52,7 +52,11 @@ export const sessionHandlers = [
   // FeatureFlagGate tests override this per-case via ``server.use(...)`` to
   // cover the redirect paths.
   http.get('/api/config/feature-flags', () =>
-    HttpResponse.json({ v1_1_from_zero_to_secure_enabled: true }),
+    HttpResponse.json({
+      v1_1_from_zero_to_secure_enabled: true,
+      onboarding_completed: true,
+      has_any_assessment: true,
+    }),
   ),
 
   http.post('/api/onboarding/repo', async ({ request }) => {
@@ -116,6 +120,49 @@ export const sessionHandlers = [
     return HttpResponse.json({
       check_name: checkName,
       workspace_id: `ws_${checkName}_stub`,
+    })
+  }),
+
+  http.get('/api/settings/providers', () =>
+    HttpResponse.json([
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        env: ['OPENAI_API_KEY'],
+        models: {
+          'gpt-4o': { id: 'gpt-4o', name: 'GPT-4o' },
+          'gpt-4o-mini': { id: 'gpt-4o-mini', name: 'GPT-4o mini' },
+        },
+      },
+      {
+        id: 'anthropic',
+        name: 'Anthropic',
+        env: ['ANTHROPIC_API_KEY'],
+        models: {
+          'claude-3-5-sonnet': {
+            id: 'claude-3-5-sonnet',
+            name: 'Claude 3.5 Sonnet',
+          },
+        },
+      },
+      {
+        id: 'google',
+        name: 'Google',
+        env: ['GOOGLE_API_KEY'],
+        models: {
+          'gemini-1.5-pro': { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
+        },
+      },
+    ]),
+  ),
+
+  http.put('/api/settings/model', async ({ request }) => {
+    const body = (await request.json()) as { model_full_id: string }
+    const [provider, ...rest] = body.model_full_id.split('/')
+    return HttpResponse.json({
+      model_full_id: body.model_full_id,
+      provider,
+      model_id: rest.join('/'),
     })
   }),
 

@@ -46,7 +46,7 @@ export default function ConnectionResultCard({
         <DetailCell label="Default branch" value={verified.default_branch} />
         <DetailCell
           label="Permissions"
-          value={verified.permissions.join(', ') || '—'}
+          value={verified.permissions?.join(', ') || '—'}
         />
       </div>
     </div>

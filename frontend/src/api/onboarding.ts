@@ -12,15 +12,15 @@ export interface OnboardingRepoRequest {
   github_token: string
 }
 
-/** Display-only metadata for the verified-connection card (UX frame 1.3).
- *  Today this is populated by MSW stubs; when the backend grows these
- *  fields it can be returned alongside `assessment_id`. If the backend
- *  declines, this shape can be derived locally from `repo_url`. */
+/** Display-only metadata for the verified-connection card (frame 1.3).
+ *  The backend populates this from a GitHub REST probe on ``/onboarding/repo``
+ *  and returns ``verified=None`` if GitHub declines (network, 4xx, etc.);
+ *  the UI renders a minimal fallback in that case. */
 export interface VerifiedRepoSummary {
   repo_name: string
   visibility: 'public' | 'private' | string
   default_branch: string
-  permissions: string[]
+  permissions?: string[]
 }
 
 export interface OnboardingRepoResponse {
