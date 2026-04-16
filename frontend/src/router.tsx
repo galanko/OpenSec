@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import AppLayout from '@/layouts/AppLayout'
+import DashboardPage from '@/pages/DashboardPage'
+import FindingDetailPage from '@/pages/FindingDetailPage'
 import FindingsPage from '@/pages/FindingsPage'
 import WorkspacePage from '@/pages/WorkspacePage'
 import HistoryPage from '@/pages/HistoryPage'
@@ -23,7 +25,9 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { index: true, element: <FindingsPage /> },
+      { path: 'dashboard', element: <DashboardPage /> },
       { path: 'findings', element: <FindingsPage /> },
+      { path: 'findings/:id', element: <FindingDetailPage /> },
       { path: 'queue', element: <Navigate to="/findings" replace /> },
       { path: 'workspace/:id?', element: <WorkspacePage /> },
       { path: 'history', element: <HistoryPage /> },
