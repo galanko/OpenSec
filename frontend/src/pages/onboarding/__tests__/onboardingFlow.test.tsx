@@ -86,6 +86,42 @@ describe('onboarding wizard', () => {
     }
   })
 
+  it('clicking Change during the verified window cancels the auto-advance', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    try {
+      renderWizard('/onboarding/connect')
+
+      await user.type(
+        screen.getByLabelText(/repository url/i),
+        'https://github.com/alex-dev/fast-markdown',
+      )
+      await user.type(
+        screen.getByLabelText(/github personal access token/i),
+        'ghp_validtoken',
+      )
+      await user.click(
+        screen.getByRole('button', { name: /verify and continue/i }),
+      )
+
+      // 1.3 verified card is visible — back out before the 1.2s auto-advance.
+      await screen.findByText('alex-dev/fast-markdown')
+      await user.click(screen.getByRole('button', { name: /change/i }))
+
+      // Advance well past the auto-advance window: we should still be on
+      // ConnectRepo (the form has re-rendered), NOT on ConfigureAI.
+      vi.advanceTimersByTime(5000)
+      expect(
+        screen.getByRole('heading', { name: /connect your project/i }),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('heading', { name: /configure your ai model/i }),
+      ).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows the missing-repo-scope error (frame 1.2) and keeps the repo URL', async () => {
     const user = userEvent.setup()
     renderWizard('/onboarding/connect')

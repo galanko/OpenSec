@@ -65,10 +65,10 @@ export default function TokenHowToDialog({ open, onClose }: TokenHowToDialogProp
       className="fixed inset-0 z-50 flex items-center justify-center p-6"
       onKeyDown={handleKeyDown}
     >
-      {/* Scrim + backdrop blur. Click closes the dialog. */}
-      <button
-        type="button"
-        aria-label="Close dialog"
+      {/* Scrim + backdrop blur. Click closes the dialog. Presentational —
+          assistive tech reaches close via Escape and the explicit button. */}
+      <div
+        aria-hidden="true"
         onClick={onClose}
         className="absolute inset-0 bg-on-surface/50 backdrop-blur-sm motion-safe:transition-opacity"
       />

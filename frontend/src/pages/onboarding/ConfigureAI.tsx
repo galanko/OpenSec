@@ -46,6 +46,10 @@ export default function ConfigureAI() {
   function handleContinue() {
     onboardingStorage.set('provider', providerId)
     if (model.trim()) onboardingStorage.set('model', model.trim())
+    // TODO(session-g): persist the API key to the backend vault here via
+    // `POST /api/settings/api-keys/:provider`. Today the value is dropped
+    // on navigation — matches the MSW contract, but the reassurance copy
+    // below is only accurate once Session G wires the real call.
     navigate('/onboarding/start')
   }
 
@@ -112,8 +116,8 @@ export default function ConfigureAI() {
           lock
         </span>
         <p className="text-xs text-on-surface-variant leading-relaxed">
-          Keys are stored in your local OpenSec vault. They never leave this
-          machine.
+          Keys stay on this machine. OpenSec stores them in its local vault
+          and never sends them anywhere else.
         </p>
       </div>
 

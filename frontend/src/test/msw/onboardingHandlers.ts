@@ -33,10 +33,9 @@ export const onboardingHandlers = [
       )
     }
 
-    // Deterministic error path: any PAT that encodes "no-repo-scope"
-    // (case-insensitive substring) returns a 403 that the UI renders as
-    // frame 1.2 (missing `repo` scope).
-    if (/no-?repo-?scope/i.test(body.github_token)) {
+    // Deterministic error path for the frame-1.2 test fixture. Exact
+    // match so real PATs can't accidentally trip it in dev.
+    if (body.github_token === 'no-repo-scope') {
       return HttpResponse.json(
         {
           detail:
