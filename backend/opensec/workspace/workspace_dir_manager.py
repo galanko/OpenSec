@@ -9,9 +9,20 @@ import tarfile
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from opensec.agents.template_engine import AgentTemplateEngine
+from opensec.agents.template_engine import AgentTemplateEngine, get_default_engine
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import CONTEXT_SECTIONS, WorkspaceDir
+
+
+def _build_opencode_config(mcp_servers: dict[str, dict] | None = None) -> dict:
+    """ADR-0024 permission model — ``ask`` for bash/edit, ``allow`` for webfetch."""
+    config: dict = {
+        "$schema": "https://opencode.ai/config.json",
+        "permission": {"bash": "ask", "edit": "ask", "webfetch": "allow"},
+    }
+    if mcp_servers:
+        config["mcp"] = mcp_servers
+    return config
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -96,18 +107,9 @@ class WorkspaceDirManager:
         ws.finding_json.write_text(json.dumps(finding_data, indent=2) + "\n")
         ws.finding_md.write_text(_render_finding_md(finding))
 
-        # Write opencode.json — workspace agents need bash + file access
-        opencode_config: dict = {
-            "$schema": "https://opencode.ai/config.json",
-            "permission": {
-                "bash": "ask",
-                "edit": "ask",
-                "webfetch": "allow",
-            },
-        }
-        if mcp_servers:
-            opencode_config["mcp"] = mcp_servers
-        ws.opencode_json.write_text(json.dumps(opencode_config, indent=2) + "\n")
+        ws.opencode_json.write_text(
+            json.dumps(_build_opencode_config(mcp_servers), indent=2) + "\n"
+        )
 
         # Create empty agent-runs log
         ws.agent_runs_log.touch()
@@ -260,68 +262,42 @@ class WorkspaceDirManager:
         - ``REPO_ACTION.md`` — human-readable summary of the action.
         - ``history/`` — for agent-run logs written later.
 
-        Args:
-            kind: Which repo action to run.
-            repo_url: Target repo URL.
-            params: Action-specific params (e.g. ``contact_email`` for the
-                SECURITY.md generator).
-            gh_token: Optional GitHub PAT baked into the rendered prompt so
-                the agent can clone and push against private repos.
-            template_engine: Dependency-injection hook for tests; defaults to
-                the shared templates directory.
+        ``gh_token`` is intentionally kept out of ``params`` so it is never
+        serialised into ``REPO_ACTION.md``.
 
         Returns:
             The generated workspace_id (a safe single-path-component string).
         """
-        engine = template_engine or AgentTemplateEngine()
+        engine = template_engine or get_default_engine()
         rendered = engine.render_repo_action(
             kind, repo_url=repo_url, params=params or {}, gh_token=gh_token
         )
 
-        # Generate a fresh, unique workspace_id. Using secrets keeps it
-        # collision-safe under concurrent calls without pulling in uuid.
         workspace_id = f"repo-{kind.value}-{secrets.token_hex(4)}"
         _validate_workspace_id(workspace_id)
 
         self._base_dir.mkdir(parents=True, exist_ok=True)
         workspace_root = self._base_dir / workspace_id
-        if workspace_root.exists():
-            # Astronomically unlikely but keep the semantics consistent with create().
-            raise FileExistsError(
-                f"Workspace directory already exists: {workspace_root}"
-            )
-
-        workspace_root.mkdir()
+        workspace_root.mkdir(exist_ok=False)
         (workspace_root / ".opencode" / "agents").mkdir(parents=True)
         (workspace_root / "history").mkdir()
 
-        # Write opencode.json — ADR-0024 permission model for repo actions.
-        opencode_config: dict = {
-            "$schema": "https://opencode.ai/config.json",
-            "permission": {
-                "bash": "ask",
-                "edit": "ask",
-                "webfetch": "allow",
-            },
-        }
         (workspace_root / "opencode.json").write_text(
-            json.dumps(opencode_config, indent=2) + "\n"
+            json.dumps(_build_opencode_config(), indent=2) + "\n"
         )
 
-        # Write the rendered agent prompt.
         agent_path = workspace_root / ".opencode" / "agents" / rendered.filename
         agent_path.write_text(rendered.content)
 
-        # Empty agent-runs log mirrors finding workspaces for downstream tools.
+        # Empty agent-runs log mirrors finding workspaces so downstream tooling
+        # (tail readers, log rotation) can treat all workspaces uniformly.
         (workspace_root / "history" / "agent-runs.jsonl").touch()
 
-        # Human-readable summary of what this workspace is for.
         summary_lines = [
             "# Repo action workspace",
             "",
-            f"- **Kind:** `{kind.value}`",
+            f"- **Action:** `{rendered.name}` ({kind.value})",
             f"- **Repo:** {repo_url}",
-            f"- **Agent:** `{rendered.name}`",
         ]
         if params:
             summary_lines.append("- **Params:**")

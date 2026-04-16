@@ -70,13 +70,14 @@ class TestSecurityMdGenerator:
         assert "ciso@example.org" in rendered.content
 
     def test_renders_without_gh_token(self, engine: AgentTemplateEngine) -> None:
-        """When no token is supplied, token-export lines are elided."""
+        """When no token is supplied, no token value lands in the rendered prompt."""
         rendered = engine.render_repo_action(
             WorkspaceKind.repo_action_security_md,
             repo_url="https://github.com/acme/widget",
             params={},
         )
-        assert "GH_TOKEN" not in rendered.content or "$GH_TOKEN" in rendered.content
+        # The credential-helper line (which embeds the token) must not be emitted.
+        assert "x-access-token" not in rendered.content
         assert "ghp_" not in rendered.content
 
 
@@ -124,11 +125,16 @@ class TestDependabotConfigGenerator:
 
         assert "structured_output" in content
 
-    def test_invalid_kind_raises(self, engine: AgentTemplateEngine) -> None:
-        """Unknown or finding-pipeline kinds cannot be rendered as repo actions."""
+    def test_invalid_kind_raises(
+        self, engine: AgentTemplateEngine, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A ``WorkspaceKind`` value without a registered template is rejected."""
+        from opensec.agents import template_engine as te
+
+        monkeypatch.setattr(te, "REPO_ACTION_TEMPLATES", {})
         with pytest.raises(ValueError, match="not a repo-action"):
-            engine.render_repo_action(  # type: ignore[arg-type]
-                "orchestrator",
+            engine.render_repo_action(
+                WorkspaceKind.repo_action_security_md,
                 repo_url="https://github.com/acme/widget",
                 params={},
             )

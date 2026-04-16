@@ -1,13 +1,4 @@
-"""Unit tests for create_repo_workspace (IMPL-0002 Milestone E4).
-
-The `WorkspaceDirManager.create_repo_workspace()` helper lays down an
-ephemeral workspace directory for one of the two repo-scoped posture
-actions (SECURITY.md generator, dependabot config generator). Unlike the
-finding-scoped workspaces built by `create()`, these directories are
-lighter: no finding JSON, no CONTEXT.md, no per-section context stubs — just
-the rendered agent prompt, an `opencode.json` with the ADR-0024 permission
-model, and a `REPO_ACTION.md` summary of what the agent is doing.
-"""
+"""Unit tests for ``WorkspaceDirManager.create_repo_workspace`` (IMPL-0002 E4)."""
 
 from __future__ import annotations
 
@@ -142,16 +133,21 @@ class TestDependabotRepoWorkspace:
         )
         assert w1 != w2
 
-    def test_rejects_finding_scoped_workspace_id_path_traversal(
+    def test_workspace_id_has_no_path_separators(
         self, manager: WorkspaceDirManager
     ) -> None:
-        """The method must not allow attacker-controlled repo URLs to break
-        out of the base dir via the workspace_id."""
+        """Workspace IDs must be a single path component regardless of input.
+
+        This protects callers that concatenate the ID into other paths; a
+        malicious or malformed ``repo_url`` must not appear in the ID.
+        """
         workspace_id = manager.create_repo_workspace(
             WorkspaceKind.repo_action_dependabot,
             repo_url="https://github.com/../../../evil",
             params={},
         )
-        # The id must be a single path component — no slashes.
         assert "/" not in workspace_id
+        assert "\\" not in workspace_id
         assert ".." not in workspace_id
+        # ID must resolve back to a direct child of base_dir.
+        assert (manager.base_dir / workspace_id).parent == manager.base_dir

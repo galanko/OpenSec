@@ -26,16 +26,15 @@ or branches lying around on the OpenSec repo.
 
 from __future__ import annotations
 
-import json
 import os
 import re
-import shutil
 import subprocess
 from shutil import which
 from typing import TYPE_CHECKING
 
 import pytest
 
+from opensec.agents.output_parser import extract_json_block
 from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.engine.pool import PortAllocator, WorkspaceProcessPool
 from opensec.workspace.workspace_dir_manager import WorkspaceDirManager, WorkspaceKind
@@ -103,17 +102,10 @@ _skip_no_gh_cli = pytest.mark.skipif(
 # ---------------------------------------------------------------------------
 
 
-_JSON_BLOCK = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
-
-
 def _extract_structured_output(text: str) -> dict | None:
-    """Extract the JSON contract emitted by repo-action agents."""
-    m = _JSON_BLOCK.search(text)
-    if not m:
-        return None
-    try:
-        payload = json.loads(m.group(1))
-    except json.JSONDecodeError:
+    """Extract the repo-action agent's output contract, unwrapping structured_output."""
+    payload = extract_json_block(text)
+    if payload is None:
         return None
     return payload.get("structured_output") or payload
 
@@ -245,10 +237,8 @@ async def _run_repo_action_e2e(
             _close_pr_and_branch(pr_url, branch_name, repo_slug)
         finally:
             archive = await pool.stop_on_completion(workspace_id)
-            # Archive is nice-to-have; the test isn't about archival mechanics.
             if archive is not None:
-                # Clean up the archive so tmp_path survives post-test assertions.
-                shutil.rmtree(archive.parent, ignore_errors=True)
+                archive.unlink(missing_ok=True)
 
 
 @_skip_no_origin

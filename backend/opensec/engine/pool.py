@@ -23,6 +23,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _archive_and_remove(src: Path, dest: Path, arcname: str) -> None:
+    """Create a gzipped tarball at ``dest`` and remove ``src``. Blocking."""
+    with tarfile.open(dest, "w:gz") as tar:
+        tar.add(src, arcname=arcname)
+    shutil.rmtree(src)
+
+
 class PortAllocator:
     """Simple set-based port allocator for workspace processes."""
 
@@ -276,26 +283,12 @@ class WorkspaceProcessPool:
             await self.stop(ws_id)
 
     async def stop_on_completion(self, workspace_id: str) -> Path | None:
-        """Stop a repo-action workspace and archive its directory.
+        """Stop a repo-action workspace, archive its directory, and remove it.
 
-        This is the cleanup trigger invoked by the posture-fix API route
-        (Session B) once the generator agent's draft PR has been verified.
-        It is the pool-side companion to
-        ``WorkspaceDirManager.create_repo_workspace`` (IMPL-0002 E4).
-
-        Semantics:
-          1. Terminate the subprocess and release its port (``stop``).
-          2. Archive the workspace directory as ``<ws>.tar.gz`` next to it
-             so it can be inspected post-hoc without leaving a live
-             workspace lying around.
-          3. Remove the original directory.
-
-        If no such workspace is tracked, this is a no-op and returns ``None``
-        so the caller can safely invoke it idempotently.
-
-        Returns:
-            Path to the archive, or ``None`` if the workspace was unknown
-            or no longer on disk.
+        Idempotent — returns ``None`` when the workspace is unknown so
+        callers (e.g. the Session-B posture-fix route) can invoke it freely
+        after PR verification. Archival runs in a worker thread because
+        tar-gzipping a cloned repo can block for seconds.
         """
         wp = self._processes.get(workspace_id)
         workspace_dir: Path | None = wp.workspace_dir if wp else None
@@ -306,10 +299,9 @@ class WorkspaceProcessPool:
             return None
 
         archive_path = workspace_dir.parent / f"{workspace_id}.tar.gz"
-        with tarfile.open(archive_path, "w:gz") as tar:
-            tar.add(workspace_dir, arcname=workspace_id)
-
-        shutil.rmtree(workspace_dir)
+        await asyncio.to_thread(
+            _archive_and_remove, workspace_dir, archive_path, workspace_id
+        )
         logger.info(
             "Archived repo-action workspace %s to %s",
             workspace_id,

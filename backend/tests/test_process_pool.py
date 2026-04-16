@@ -413,11 +413,7 @@ async def test_status(pool: WorkspaceProcessPool):
 async def test_stop_on_completion_archives_and_releases_port(
     pool: WorkspaceProcessPool, tmp_path: Path
 ):
-    """After a repo-action agent finishes, the pool should terminate the
-    subprocess, release the port, and archive the workspace directory so a
-    follow-up posture run can be correlated with a previous one.
-    """
-    # Build a minimal on-disk workspace so the archive call has something to tar.
+    """Stops the subprocess, releases the port, tars the workspace, removes it."""
     ws_id = "repo-security-md-abcd1234"
     ws_dir = tmp_path / ws_id
     (ws_dir / ".opencode" / "agents").mkdir(parents=True)
@@ -446,11 +442,9 @@ async def test_stop_on_completion_archives_and_releases_port(
     assert pool._ports.available == 10
     assert await pool.get(ws_id) is None
 
-    # Archive was written next to the workspace dir.
     assert archive_path is not None
     assert archive_path.exists()
     assert archive_path.name == f"{ws_id}.tar.gz"
-    # And the original workspace dir is gone (cleaned up).
     assert not ws_dir.exists()
 
 
