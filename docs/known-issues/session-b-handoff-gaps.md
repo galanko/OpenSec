@@ -1,8 +1,22 @@
 # Session B → Session A/G — Inter-session contract gaps
 
 **Surfaced:** 2026-04-16 during architect review of PR #54 (Session B).
-**Status:** Not blocking Session B merge. Must be validated in Session G (integration).
+**Status:** Two of three gaps validated clean against Session A's merged code; the third is real and must be fixed in Session G.
 **Scope:** three places where Session B's merged implementation assumes Session A behaves a specific way, and the original session prompts did not lock that down. Sessions A–F are already running concurrently; rather than chasing their prompts mid-flight, this doc captures the contracts Session G will verify and fix with a small adapter if needed.
+
+## Validation results (2026-04-16, post-merge)
+
+After all seven Sessions 0/A–F PRs landed on `main`, each gap was validated against the integrated tree:
+
+| Gap | Result | Evidence |
+|-----|--------|----------|
+| **#1 — DAO-write ownership** | ✅ **clean** | `git grep 'from opensec.db.dao' backend/opensec/assessment/` returns zero matches. Session A's orchestrator never calls a DAO. |
+| **#2 — Posture-check dict shape** | ✅ **clean** | `backend/opensec/assessment/engine.py` returns `[pc.model_dump() for pc in posture_checks]` where `PostureCheck.check_name` and `PostureCheck.status` are `Literal` types matching exactly what `_background.py::run_and_persist_assessment` reads via `check["check_name"]` / `check["status"]`. |
+| **#3 — Findings persistence path** | ❌ **real bug, deferred to Session G I0** | Session A's `engine.py::_build_findings` populates `result.findings` with non-empty `FindingCreate.model_dump()` payloads. Session B's `_background.py` only iterates `result.posture_checks`; `result.findings` is never touched. After A+B merged: every vulnerability detected by the engine is silently dropped on the floor. Five-line fix is documented in Gap 3 below. |
+
+Session G's first action item (I0) closes Gap #3 by adding the loop in `_background.py::run_and_persist_assessment`.
+
+
 
 ## Context
 
@@ -86,8 +100,8 @@ If a future multi-session execution plan surfaces the same class of ambiguity ag
 
 ## Checklist for Session G
 
-- [ ] Grep Session A's tree for `from opensec.db.dao` imports — must be empty.
+- [x] Grep Session A's tree for `from opensec.db.dao` imports — must be empty. _(Validated 2026-04-16 post-merge — clean.)_
+- [ ] Apply the Gap #3 fix-path: add the `for finding_data in result.findings` loop in `_background.py::run_and_persist_assessment` immediately after the posture-check loop. Pass `source_type="opensec-assessment"` so dashboard filters can distinguish engine-emitted findings from vendor-imported ones.
 - [ ] Run a real end-to-end assessment against a fixture repo with known posture gaps and planted vulns.
 - [ ] Assert exactly one `assessment` row, one row per unique `check_name` in `posture_check`, and the expected number of `finding` rows with `source_type='opensec-assessment'`.
-- [ ] If any assertion fails, apply the fix-path listed under the relevant gap above.
 - [ ] Update this doc with "Resolved by PR #NN (Session G)" once green.
