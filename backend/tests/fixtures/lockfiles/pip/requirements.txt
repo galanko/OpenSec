@@ -1,0 +1,9 @@
+# OpenSec pip parser fixture — mixes every line type we must tolerate.
+django==3.2.0
+requests==2.20.0
+flask>=1.1.0            # unpinned, should be skipped (no exact version)
+uvicorn
+-r other-reqs.txt
+-e ./local-pkg
+urllib3 == 1.26.5       # whitespace + inline comment variant
+pyyaml==6.0 ; python_version >= "3.8"
