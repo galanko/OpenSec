@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import shutil
 import tarfile
@@ -12,17 +13,6 @@ from typing import TYPE_CHECKING, Any
 from opensec.agents.template_engine import AgentTemplateEngine, get_default_engine
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import CONTEXT_SECTIONS, WorkspaceDir
-
-
-def _build_opencode_config(mcp_servers: dict[str, dict] | None = None) -> dict:
-    """ADR-0024 permission model — ``ask`` for bash/edit, ``allow`` for webfetch."""
-    config: dict = {
-        "$schema": "https://opencode.ai/config.json",
-        "permission": {"bash": "ask", "edit": "ask", "webfetch": "allow"},
-    }
-    if mcp_servers:
-        config["mcp"] = mcp_servers
-    return config
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -273,12 +263,8 @@ class WorkspaceDirManager:
             kind, repo_url=repo_url, params=params or {}, gh_token=gh_token
         )
 
-        workspace_id = f"repo-{kind.value}-{secrets.token_hex(4)}"
-        _validate_workspace_id(workspace_id)
-
         self._base_dir.mkdir(parents=True, exist_ok=True)
-        workspace_root = self._base_dir / workspace_id
-        workspace_root.mkdir(exist_ok=False)
+        workspace_id, workspace_root = self._allocate_workspace_dir(kind)
         (workspace_root / ".opencode" / "agents").mkdir(parents=True)
         (workspace_root / "history").mkdir()
 
@@ -297,7 +283,7 @@ class WorkspaceDirManager:
             "# Repo action workspace",
             "",
             f"- **Action:** `{rendered.name}` ({kind.value})",
-            f"- **Repo:** {repo_url}",
+            f"- **Repo:** {_scrub_repo_url(repo_url)}",
         ]
         if params:
             summary_lines.append("- **Params:**")
@@ -307,6 +293,52 @@ class WorkspaceDirManager:
         (workspace_root / "REPO_ACTION.md").write_text("\n".join(summary_lines))
 
         return workspace_id
+
+    def _allocate_workspace_dir(
+        self, kind: WorkspaceKind, *, attempts: int = 3
+    ) -> tuple[str, Path]:
+        """Generate a fresh workspace_id + atomically reserve its directory.
+
+        ``secrets.token_hex(8)`` gives 64 bits of entropy; a second allocation
+        colliding with an existing dir is vanishingly unlikely, but we retry
+        a handful of times to keep callers from needing collision handling.
+        """
+        for _ in range(attempts):
+            workspace_id = f"repo-{kind.value}-{secrets.token_hex(8)}"
+            _validate_workspace_id(workspace_id)
+            workspace_root = self._base_dir / workspace_id
+            try:
+                workspace_root.mkdir(exist_ok=False)
+            except FileExistsError:
+                continue
+            return workspace_id, workspace_root
+        raise RuntimeError(
+            f"Failed to allocate a unique workspace directory after {attempts} attempts"
+        )
+
+
+def _build_opencode_config(mcp_servers: dict[str, dict] | None = None) -> dict:
+    """ADR-0024 permission model — ``ask`` for bash/edit, ``allow`` for webfetch."""
+    config: dict = {
+        "$schema": "https://opencode.ai/config.json",
+        "permission": {"bash": "ask", "edit": "ask", "webfetch": "allow"},
+    }
+    if mcp_servers:
+        config["mcp"] = mcp_servers
+    return config
+
+
+_CREDENTIALED_URL = re.compile(r"^(https?://)[^/@\s]+@", re.IGNORECASE)
+
+
+def _scrub_repo_url(url: str) -> str:
+    """Strip embedded credentials (``user:token@host``) before persisting the URL.
+
+    Callers sometimes pass URLs like ``https://x-access-token:ghp_xxx@github.com/...``.
+    We don't want that ending up in ``REPO_ACTION.md``, which is a plain text
+    artefact under ``data/workspaces/`` and may be archived or mirrored.
+    """
+    return _CREDENTIALED_URL.sub(r"\1", url)
 
 
 def _validate_workspace_id(workspace_id: str) -> None:

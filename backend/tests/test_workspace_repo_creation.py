@@ -157,3 +157,29 @@ class TestDependabotRepoWorkspace:
         assert ".." not in workspace_id
         # ID must resolve back to a direct child of base_dir.
         assert (manager.base_dir / workspace_id).parent == manager.base_dir
+
+
+class TestScrubRepoUrl:
+    """Regression test: credentialed URLs never land in REPO_ACTION.md."""
+
+    def test_credentialed_url_is_scrubbed(
+        self, manager: WorkspaceDirManager
+    ) -> None:
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://x-access-token:ghp_leaky@github.com/acme/widget",
+            params={},
+        )
+        summary = (manager.base_dir / workspace_id / "REPO_ACTION.md").read_text()
+        assert "ghp_leaky" not in summary
+        assert "x-access-token" not in summary
+        assert "https://github.com/acme/widget" in summary
+
+    def test_plain_url_passes_through(self, manager: WorkspaceDirManager) -> None:
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://github.com/acme/widget",
+            params={},
+        )
+        summary = (manager.base_dir / workspace_id / "REPO_ACTION.md").read_text()
+        assert "https://github.com/acme/widget" in summary

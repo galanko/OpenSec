@@ -455,3 +455,29 @@ async def test_stop_on_completion_unknown_workspace_is_noop(
     result = await pool.stop_on_completion("never-started")
     assert result is None
     assert pool._ports.available == 10
+
+
+def test_archive_and_remove_is_atomic_on_failure(tmp_path: Path):
+    """A failure mid-archive must leave no partial .tar.gz at the dest path."""
+    from opensec.engine.pool import _archive_and_remove
+
+    src = tmp_path / "ws-atomic"
+    src.mkdir()
+    (src / "file.txt").write_text("payload")
+    dest = tmp_path / "ws-atomic.tar.gz"
+
+    class _BoomError(RuntimeError):
+        pass
+
+    with (
+        patch("opensec.engine.pool.tarfile.open", side_effect=_BoomError("tar exploded")),
+        pytest.raises(_BoomError),
+    ):
+        _archive_and_remove(src, dest, "ws-atomic")
+
+    assert not dest.exists(), "Failed archive run left a partial tarball behind"
+    assert not dest.with_name(dest.name + ".tmp").exists(), (
+        "Temp archive not cleaned up on failure"
+    )
+    # Source dir must survive — operator can retry or inspect.
+    assert src.exists()

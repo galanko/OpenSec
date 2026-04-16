@@ -2,6 +2,12 @@
 
 Accepts raw scanner data from any vendor and normalizes it into FindingCreate
 records via a dedicated extraction prompt. See ADR-0022 for design rationale.
+
+Token-cost note (IMPL-0002 C1, 2026-04-16): the prompt grew by roughly
+~625 input tokens when ``plain_description`` rules + examples were added.
+The growth is a fixed per-request cost, so ``MAX_BATCH_SIZE`` is unchanged.
+Small batches (1-3 findings) see ~30% input-token inflation per call —
+worth tracking in the cost report if ingest volume trends low.
 """
 
 from __future__ import annotations

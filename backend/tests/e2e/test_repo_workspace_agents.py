@@ -22,10 +22,17 @@ skips in this file):
 The tests are network- and cost-sensitive and each should complete inside
 10 minutes. Teardown MUST run even on failure — we do not leave draft PRs
 or branches lying around on the OpenSec repo.
+
+**Not xdist-safe.** Both tests push the fixed branch names
+``opensec/posture/security-md`` and ``opensec/posture/dependabot``. If run
+concurrently (e.g. under ``pytest-xdist``), two workers race on the same
+push ref and one fails. Keep this suite single-threaded or make the branch
+name unique per run before enabling ``-n auto``.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import subprocess
@@ -42,6 +49,7 @@ from opensec.workspace.workspace_dir_manager import WorkspaceDirManager, Workspa
 if TYPE_CHECKING:
     from pathlib import Path
 
+logger = logging.getLogger(__name__)
 pytestmark = pytest.mark.e2e
 
 
@@ -111,29 +119,32 @@ def _extract_structured_output(text: str) -> dict | None:
 
 
 def _close_pr_and_branch(pr_url: str | None, branch: str, repo: str) -> None:
-    """Best-effort teardown — close draft PR and delete its branch."""
+    """Best-effort teardown — close draft PR and delete its branch.
+
+    Failures are logged (not raised) so the surrounding ``finally`` block can
+    still call ``stop_on_completion``. Silent swallowing would leave an
+    operator staring at a leftover branch with no diagnostic.
+    """
     if _GH_CLI is None or _GH_TOKEN is None:
         return
     env = {**os.environ, "GH_TOKEN": _GH_TOKEN}
     if pr_url:
         # `gh pr close --delete-branch` closes and removes the branch in one shot.
-        subprocess.run(
-            [_GH_CLI, "pr", "close", pr_url, "--delete-branch", "--comment",
-             "Automated OpenSec E2E run — closing and deleting branch."],
-            env=env,
-            check=False,
-            capture_output=True,
-        )
-        return
+        cmd = [
+            _GH_CLI, "pr", "close", pr_url, "--delete-branch", "--comment",
+            "Automated OpenSec E2E run — closing and deleting branch.",
+        ]
+    else:
+        # No PR (agent may have aborted) — best-effort delete of the branch.
+        cmd = [_GH_CLI, "api", "-X", "DELETE",
+               f"repos/{repo}/git/refs/heads/{branch}"]
 
-    # No PR (agent may have aborted) — best-effort delete of the branch.
-    subprocess.run(
-        [_GH_CLI, "api", "-X", "DELETE",
-         f"repos/{repo}/git/refs/heads/{branch}"],
-        env=env,
-        check=False,
-        capture_output=True,
-    )
+    result = subprocess.run(cmd, env=env, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.warning(
+            "Teardown command %s failed (rc=%d): stdout=%s stderr=%s",
+            cmd[:3], result.returncode, result.stdout.strip(), result.stderr.strip(),
+        )
 
 
 def _repo_slug(url: str) -> str:

@@ -24,9 +24,22 @@ logger = logging.getLogger(__name__)
 
 
 def _archive_and_remove(src: Path, dest: Path, arcname: str) -> None:
-    """Create a gzipped tarball at ``dest`` and remove ``src``. Blocking."""
-    with tarfile.open(dest, "w:gz") as tar:
-        tar.add(src, arcname=arcname)
+    """Create a gzipped tarball at ``dest`` and remove ``src``. Blocking.
+
+    The tarball is written to ``<dest>.tmp`` first and renamed into place
+    only after the gzip stream is closed, so a mid-archive crash leaves
+    either (a) the original source dir intact, or (b) the final archive —
+    never a truncated ``.tar.gz`` next to an intact source dir.
+    """
+    tmp_dest = dest.with_name(dest.name + ".tmp")
+    try:
+        with tarfile.open(tmp_dest, "w:gz") as tar:
+            tar.add(src, arcname=arcname)
+        os.replace(tmp_dest, dest)
+    except BaseException:
+        # Clean up a partial tarball so a retry starts from a clean slate.
+        tmp_dest.unlink(missing_ok=True)
+        raise
     shutil.rmtree(src)
 
 
