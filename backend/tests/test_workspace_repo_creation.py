@@ -53,6 +53,7 @@ class TestSecurityMdRepoWorkspace:
             WorkspaceKind.repo_action_security_md,
             repo_url="https://github.com/acme/widget",
             params={"contact_email": "ciso@example.org"},
+            gh_token="ghp_sekret_only_in_env",
         )
 
         agent_file = (
@@ -70,6 +71,11 @@ class TestSecurityMdRepoWorkspace:
         assert "ciso@example.org" in content
         assert "opensec/posture/security-md" in content
         assert "gh pr create --draft" in content
+
+        # Defence in depth: the PAT must never be persisted to disk. The agent
+        # reads $GH_TOKEN from the workspace env at runtime (injected by the
+        # process pool), not from the rendered prompt.
+        assert "ghp_sekret_only_in_env" not in content
 
     def test_opencode_json_has_ask_perms(
         self, manager: WorkspaceDirManager

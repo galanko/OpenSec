@@ -45,8 +45,11 @@ class TestSecurityMdGenerator:
         # Draft-PR-only per ADR-0024.
         assert "gh pr create --draft" in content
 
-        # Token export for private repos.
-        assert "ghp_fake_token_for_render_test" in content
+        # When gh_token is provided, the git-config line referencing $GH_TOKEN
+        # from the workspace env is emitted — but the literal token value must
+        # never appear in the rendered prompt (it would otherwise reach the LLM).
+        assert "x-access-token:${GH_TOKEN}" in content
+        assert "ghp_fake_token_for_render_test" not in content
 
         # Must include the SECURITY.md target path instruction.
         assert "SECURITY.md" in content
@@ -70,15 +73,14 @@ class TestSecurityMdGenerator:
         assert "ciso@example.org" in rendered.content
 
     def test_renders_without_gh_token(self, engine: AgentTemplateEngine) -> None:
-        """When no token is supplied, no token value lands in the rendered prompt."""
+        """When no token is supplied, the whole git-config block is elided."""
         rendered = engine.render_repo_action(
             WorkspaceKind.repo_action_security_md,
             repo_url="https://github.com/acme/widget",
             params={},
         )
-        # The credential-helper line (which embeds the token) must not be emitted.
         assert "x-access-token" not in rendered.content
-        assert "ghp_" not in rendered.content
+        assert "GH_TOKEN" not in rendered.content
 
 
 class TestDependabotConfigGenerator:
@@ -99,6 +101,10 @@ class TestDependabotConfigGenerator:
         assert "opensec/posture/dependabot" in content
         assert "gh pr create --draft" in content
         assert ".github/dependabot.yml" in content
+
+        # Token value must never appear in the rendered prompt.
+        assert "ghp_dependabot_token" not in content
+        assert "x-access-token:${GH_TOKEN}" in content
 
         # Ecosystem detection instruction is the distinctive part of this template.
         for manifest in [
