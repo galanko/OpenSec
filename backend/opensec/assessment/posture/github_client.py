@@ -34,7 +34,10 @@ class GithubClient:
         self._timeout = timeout
 
     def _headers(self) -> dict[str, str]:
-        headers = {"Accept": "application/vnd.github+json"}
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
         return headers

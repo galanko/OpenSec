@@ -1,13 +1,9 @@
-"""GitHub Advisory Database client (IMPL-0002 B4, ADR-0025 §1).
+"""GitHub Advisory Database fallback client.
 
-Thin GraphQL client over https://api.github.com/graphql. Used only as a
-fallback when OSV.dev is unreachable. Requires a PAT with read access — if
-no token is configured, we return an empty advisory list so the orchestrator
-can degrade to `unable_to_verify`.
-
-The response shape is normalised into the same `Advisory` dataclass that
-`OsvClient` produces so the orchestrator never has to care which source
-served a given advisory.
+Thin GraphQL client. Normalises into the same `Advisory` shape `OsvClient`
+produces so the orchestrator doesn't care which source served a given
+advisory. No token -> empty result (orchestrator degrades to
+`unable_to_verify`).
 """
 
 from __future__ import annotations
@@ -59,6 +55,7 @@ class GhsaClient:
         headers = {
             "Authorization": f"Bearer {self._token}",
             "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
         }
 
         response = await self._http.post(

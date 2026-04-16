@@ -1,72 +1,40 @@
 """Lockfile parser registry.
 
-Detection is file-name based (cheap, deterministic). `detect_lockfiles(path)`
-walks the repo root and returns every recognised lockfile it finds, along
-with the parser that should handle it.
+`detect_lockfiles(path)` walks the repo root once and returns every supported
+lockfile it finds, paired with its ecosystem and parser. Callers should run
+the walk once per assessment and share the result.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from pathlib import Path
 
-from opensec.assessment.parsers.base import ParsedDependency
+from opensec.assessment._fs import iter_repo_files
+from opensec.assessment.parsers.base import Ecosystem, ParsedDependency
 from opensec.assessment.parsers.golang import parse_go_sum
 from opensec.assessment.parsers.npm import parse_npm_lockfile
-from opensec.assessment.parsers.pip import (
-    parse_pipfile_lock,
-    parse_requirements_txt,
-)
+from opensec.assessment.parsers.pip import parse_pipfile_lock, parse_requirements_txt
 
 ParserFn = Callable[[Path], list[ParsedDependency]]
 
-# File name (case-sensitive) -> parser. Order matters only for display; the
-# detector returns the full set, the caller dedupes by (name, version).
-_REGISTRY: dict[str, ParserFn] = {
-    "package-lock.json": parse_npm_lockfile,
-    "Pipfile.lock": parse_pipfile_lock,
-    "requirements.txt": parse_requirements_txt,
-    "go.sum": parse_go_sum,
+_REGISTRY: dict[str, tuple[Ecosystem, ParserFn]] = {
+    "package-lock.json": ("npm", parse_npm_lockfile),
+    "Pipfile.lock": ("pip", parse_pipfile_lock),
+    "requirements.txt": ("pip", parse_requirements_txt),
+    "go.sum": ("go", parse_go_sum),
 }
 
-# Depth at which we stop walking. Lockfiles live at repo root or one level
-# deep in backends/frontends monorepos; we intentionally skip node_modules
-# and vendor trees.
-_SKIP_DIRS = frozenset(
-    {"node_modules", "vendor", ".git", ".venv", "venv", "__pycache__", "dist", "build"}
-)
 
-
-def detect_lockfiles(repo_path: Path) -> list[tuple[str, Path, ParserFn]]:
-    """Return `(ecosystem, file_path, parser)` for every supported lockfile."""
-    hits: list[tuple[str, Path, ParserFn]] = []
-    for path in _iter_candidate_files(repo_path):
-        parser = _REGISTRY.get(path.name)
-        if parser is None:
+def detect_lockfiles(repo_path: Path) -> list[tuple[Ecosystem, Path, ParserFn]]:
+    hits: list[tuple[Ecosystem, Path, ParserFn]] = []
+    for path in iter_repo_files(repo_path):
+        entry = _REGISTRY.get(path.name)
+        if entry is None:
             continue
-        hits.append((_ecosystem_for(path.name), path, parser))
+        ecosystem, parser = entry
+        hits.append((ecosystem, path, parser))
     return hits
-
-
-def _iter_candidate_files(root: Path) -> Iterable[Path]:
-    if not root.exists():
-        return
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if any(part in _SKIP_DIRS for part in path.relative_to(root).parts):
-            continue
-        yield path
-
-
-def _ecosystem_for(filename: str) -> str:
-    if filename == "package-lock.json":
-        return "npm"
-    if filename in {"Pipfile.lock", "requirements.txt"}:
-        return "pip"
-    if filename == "go.sum":
-        return "go"
-    return "unknown"
 
 
 __all__ = [

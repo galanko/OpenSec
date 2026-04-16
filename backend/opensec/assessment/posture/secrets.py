@@ -1,10 +1,8 @@
-"""Secret regex scanner (IMPL-0002 B5, risks row).
+"""Regex-based secret scanner.
 
-Fixed list of high-specificity patterns — the PRD explicitly accepts this is
-a best-effort check that reports "no obvious secrets detected" rather than
-pretending to replace a real secret scanner. `.opensec/secrets-ignore` (one
-relative path per line) provides an allow-list for known-false-positive
-files like samples and fixtures.
+High-specificity patterns only — the PRD accepts this is a best-effort check
+("no obvious secrets detected"). `.opensec/secrets-ignore` (one relative
+path per line) allow-lists known false-positive files like samples.
 """
 
 from __future__ import annotations
@@ -12,12 +10,12 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
+from opensec.assessment._fs import iter_repo_files
 from opensec.assessment.posture import PostureCheckResult
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-# (rule_name, compiled pattern). High specificity — low false-positive rate.
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("aws_akia", re.compile(r"AKIA[0-9A-Z]{16}")),
     ("github_ghp", re.compile(r"ghp_[A-Za-z0-9]{36}")),
@@ -27,17 +25,14 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("pem_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
 )
 
-_SKIP_DIRS = frozenset(
-    {"node_modules", "vendor", ".git", ".venv", "venv", "__pycache__", "dist", "build"}
-)
-_MAX_FILE_BYTES = 1_048_576  # 1 MiB — skip huge binaries cheaply.
+_MAX_FILE_BYTES = 1_048_576
 
 
 def scan_for_secrets(repo_path: Path) -> PostureCheckResult:
     ignore_paths = _load_ignore_list(repo_path)
     matches: list[dict[str, Any]] = []
 
-    for file_path in _walk_files(repo_path):
+    for file_path in iter_repo_files(repo_path):
         rel = file_path.relative_to(repo_path).as_posix()
         if rel in ignore_paths:
             continue
@@ -68,20 +63,8 @@ def _load_ignore_list(repo_path: Path) -> set[str]:
     ignore_file = repo_path / ".opensec" / "secrets-ignore"
     if not ignore_file.is_file():
         return set()
-    out: set[str] = set()
-    for raw in ignore_file.read_text().splitlines():
-        line = raw.strip()
-        if line and not line.startswith("#"):
-            out.add(line)
-    return out
-
-
-def _walk_files(root: Path):
-    if not root.exists():
-        return
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if any(part in _SKIP_DIRS for part in path.relative_to(root).parts):
-            continue
-        yield path
+    return {
+        line.strip()
+        for line in ignore_file.read_text().splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }

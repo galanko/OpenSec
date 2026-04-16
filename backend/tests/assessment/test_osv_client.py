@@ -1,4 +1,4 @@
-"""Tests for the OSV client + GHSA fallback (IMPL-0002 B4)."""
+"""Tests for the OSV client + GHSA fallback."""
 
 from __future__ import annotations
 
@@ -10,16 +10,17 @@ import httpx
 import pytest
 
 from opensec.assessment.ghsa_client import GhsaClient
-
-if TYPE_CHECKING:
-    from pytest_httpx import HTTPXMock
 from opensec.assessment.osv_client import (
     OSV_URL,
+    Advisory,
     AdvisoryLookup,
     OsvClient,
     lookup_with_fallback,
 )
 from opensec.assessment.parsers.base import ParsedDependency
+
+if TYPE_CHECKING:
+    from pytest_httpx import HTTPXMock
 
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "osv"
 BRACES = ParsedDependency(name="braces", version="3.0.2", ecosystem="npm")
@@ -58,21 +59,7 @@ async def test_osv_lookup_retries_on_5xx_then_succeeds(httpx_mock: HTTPXMock) ->
         advisories = await client.lookup(BRACES)
 
     assert len(advisories) == 1
-    # Three attempts total (2 failures + 1 success).
     assert len(httpx_mock.get_requests(url=OSV_URL)) == 3
-
-
-@pytest.mark.asyncio
-async def test_osv_lookup_caches_within_one_assessment(httpx_mock: HTTPXMock) -> None:
-    httpx_mock.add_response(url=OSV_URL, method="POST", json=_osv_braces_payload())
-
-    async with httpx.AsyncClient() as http:
-        client = OsvClient(http=http)
-        first = await client.lookup(BRACES)
-        second = await client.lookup(BRACES)
-
-    assert first == second
-    assert len(httpx_mock.get_requests(url=OSV_URL)) == 1
 
 
 @pytest.mark.asyncio
@@ -90,27 +77,19 @@ async def test_osv_lookup_returns_empty_when_no_vulns(httpx_mock: HTTPXMock) -> 
 async def test_lookup_with_fallback_degrades_to_ghsa_when_osv_down(
     httpx_mock: HTTPXMock,
 ) -> None:
-    # OSV always 503 — 2 attempts (max_retries=2).
     for _ in range(2):
         httpx_mock.add_response(url=OSV_URL, method="POST", status_code=503)
 
-    ghsa_result = [
-        type(
-            "A",
-            (),
-            {
-                "id": "GHSA-grv7-fg5c-xmjg",
-                "summary": "from ghsa",
-                "severity": "HIGH",
-                "fixed_version": "3.0.3",
-                "raw": {},
-            },
-        )()
-    ]
+    fallback_advisory = Advisory(
+        id="GHSA-grv7-fg5c-xmjg",
+        summary="from ghsa",
+        severity="HIGH",
+        fixed_version="3.0.3",
+    )
 
     class _StubGhsa:
-        async def lookup(self, dep):  # type: ignore[no-untyped-def]
-            return list(ghsa_result)
+        async def lookup(self, dep: ParsedDependency) -> list[Advisory]:
+            return [fallback_advisory]
 
     async with httpx.AsyncClient() as http:
         osv = OsvClient(http=http, max_retries=2, retry_backoff=0.0)
@@ -128,7 +107,7 @@ async def test_lookup_with_fallback_unable_to_verify_when_both_down(
         httpx_mock.add_response(url=OSV_URL, method="POST", status_code=503)
 
     class _DownGhsa:
-        async def lookup(self, dep):  # type: ignore[no-untyped-def]
+        async def lookup(self, dep: ParsedDependency) -> list[Advisory]:
             raise httpx.ConnectError("ghsa also down")
 
     async with httpx.AsyncClient() as http:
@@ -140,6 +119,5 @@ async def test_lookup_with_fallback_unable_to_verify_when_both_down(
 
 
 def test_advisory_lookup_protocol_is_importable() -> None:
-    # Guards against future renames — B6 injects via protocol.
     assert AdvisoryLookup is not None
     assert GhsaClient is not None

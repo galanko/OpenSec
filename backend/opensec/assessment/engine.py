@@ -1,21 +1,19 @@
-"""Assessment orchestrator (IMPL-0002 B6, ADR-0025 §1).
+"""Assessment orchestrator.
 
-Composes the three pure layers — parsers, advisory lookups, and posture
-checks — into a single `AssessmentResult`. No DB writes: Session B owns
-persistence. No LLM: Session C owns plain-language normalisation.
+Composes parsers, advisory lookups, and posture checks into a single
+`AssessmentResult`. Pure — no DB writes, no LLM, no outbound clone.
 
-Public entry points:
-- `run_assessment_on_path(repo_path, ...)` — what Session A tests exercise.
-- `run_assessment(repo_url)` — clones then delegates. Left as `NotImplementedError`
-  until `RepoCloner` lands (ADR-0024). Session B mocks `run_assessment` at the
-  route boundary per EXEC-0002, so this is safe for today.
-- `derive_grade(...)` — pure function, reusable by downstream read paths.
+Entry points:
+- `run_assessment_on_path` — what unit tests exercise.
+- `run_assessment` — stub pending `RepoCloner` (ADR-0024).
+- `derive_grade` — pure helper; the read path recomputes on every request.
 """
 
 from __future__ import annotations
 
+import asyncio
 import uuid
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from opensec.assessment.osv_client import lookup_with_fallback
@@ -27,35 +25,22 @@ from opensec.models.finding import FindingCreate
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from opensec.assessment.osv_client import Advisory, OsvClient
+    from opensec.assessment.osv_client import Advisory, AdvisoryLookup
     from opensec.assessment.parsers.base import ParsedDependency
+    from opensec.assessment.posture import GithubAPI
     from opensec.models.assessment import Grade
+    from opensec.models.posture_check import PostureCheckName, PostureCheckStatus
 
-
-class _GithubAPI(Protocol):
-    async def get_branch_protection(
-        self, owner: str, repo: str, branch: str
-    ) -> Any: ...
-
-    async def list_recent_commits(
-        self, owner: str, repo: str, branch: str, *, limit: int = 20
-    ) -> Any: ...
-
-
-class _AdvisoryLookup(Protocol):
-    async def lookup(self, dep: ParsedDependency) -> list[Advisory]: ...
+# Cap on concurrent advisory lookups. OSV tolerates this easily and
+# `httpx.AsyncClient` reuses its connection pool. Without this, ~1000 deps
+# serialized at 50 ms each blows the ADR-0025 ~10s assessment budget.
+_LOOKUP_CONCURRENCY = 10
 
 
 async def run_assessment(repo_url: str) -> AssessmentResult:
-    """Top-level entry — clones and delegates.
-
-    TODO(ADR-0024): wire `RepoCloner` when it lands in its own PR. For now
-    Session A unit tests target `run_assessment_on_path` directly and
-    Session B mocks `run_assessment` at the route boundary.
-    """
     raise NotImplementedError(
-        "run_assessment requires RepoCloner (ADR-0024). "
-        "Call run_assessment_on_path directly in tests."
+        "run_assessment requires RepoCloner (ADR-0024); "
+        "use run_assessment_on_path until it lands."
     )
 
 
@@ -63,27 +48,29 @@ async def run_assessment_on_path(
     repo_path: Path,
     *,
     repo_url: str,
-    gh_client: _GithubAPI,
-    osv: OsvClient | _AdvisoryLookup,
-    ghsa: _AdvisoryLookup | None = None,
+    gh_client: GithubAPI,
+    osv: AdvisoryLookup,
+    ghsa: AdvisoryLookup | None = None,
     branch: str = "main",
 ) -> AssessmentResult:
     assessment_id = str(uuid.uuid4())
     coords = _coords_from_repo_url(repo_url, branch=branch)
 
-    # 1. Parse every detected lockfile, dedupe.
-    deps = _collect_dependencies(repo_path)
-
-    # 2. Advisory lookups (OSV, degrade to GHSA, degrade to unable-to-verify).
+    lockfiles = detect_lockfiles(repo_path)
+    deps = _collect_dependencies(lockfiles)
     findings = await _build_findings(deps, osv=osv, ghsa=ghsa)
 
-    # 3. Posture checks — fixed 7.
     posture_checks = await run_all_posture_checks(
-        repo_path, gh_client=gh_client, coords=coords, assessment_id=assessment_id
+        repo_path,
+        gh_client=gh_client,
+        coords=coords,
+        assessment_id=assessment_id,
+        pre_detected_lockfiles=lockfiles,
     )
-    posture_statuses = {pc.check_name: pc.status for pc in posture_checks}
+    posture_statuses: dict[PostureCheckName, PostureCheckStatus] = {
+        pc.check_name: pc.status for pc in posture_checks
+    }
 
-    # 4. Derive the criteria snapshot and grade.
     snapshot = _build_snapshot(findings, posture_statuses)
     grade = derive_grade(snapshot, findings, posture_statuses)
 
@@ -100,54 +87,34 @@ async def run_assessment_on_path(
 def derive_grade(
     criteria: CriteriaSnapshot,
     findings: list[dict[str, Any]],
-    posture_statuses: dict[str, str] | None = None,
+    posture_statuses: dict[PostureCheckName, PostureCheckStatus] | None = None,
 ) -> Grade:
     """Five-criteria derivation per ADR-0025 §2.
 
-    Criteria:
-        1. Zero open critical vulnerability findings
-        2. Zero open high vulnerability findings
-        3. Branch protection enabled on default branch
-        4. No secrets detected
-        5. SECURITY.md exists
-
-    Count met, map to grade: 5->A, 4->B, 3->C, 2->D, else F.
+    Met criteria: no criticals, no highs, branch_protection pass,
+    no_secrets_in_code pass, SECURITY.md present. Count -> A..F.
     """
     posture_statuses = posture_statuses or {}
-    severities = [_severity_of(f) for f in findings]
+    severities = {_severity_of(f) for f in findings}
 
-    met = 0
-    if "CRITICAL" not in severities:
-        met += 1
-    if "HIGH" not in severities:
-        met += 1
-    if posture_statuses.get("branch_protection") == "pass":
-        met += 1
-    if posture_statuses.get("no_secrets_in_code") == "pass":
-        met += 1
-    if criteria.security_md_present:
-        met += 1
-
-    if met == 5:
-        return "A"
-    if met == 4:
-        return "B"
-    if met == 3:
-        return "C"
-    if met == 2:
-        return "D"
-    return "F"
+    met = sum(
+        [
+            "CRITICAL" not in severities,
+            "HIGH" not in severities,
+            posture_statuses.get("branch_protection") == "pass",
+            posture_statuses.get("no_secrets_in_code") == "pass",
+            criteria.security_md_present,
+        ]
+    )
+    return {5: "A", 4: "B", 3: "C", 2: "D"}.get(met, "F")
 
 
-# ---------------------------------------------------------------------------
-# internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _collect_dependencies(repo_path: Path) -> list[ParsedDependency]:
+def _collect_dependencies(
+    lockfiles: list[tuple[str, Path, Any]],
+) -> list[ParsedDependency]:
     seen: set[tuple[str, str, str]] = set()
     deps: list[ParsedDependency] = []
-    for _ecosystem, file_path, parser in detect_lockfiles(repo_path):
+    for _ecosystem, file_path, parser in lockfiles:
         try:
             parsed = parser(file_path)
         except Exception:  # noqa: BLE001 — one malformed lockfile shouldn't kill the run
@@ -164,22 +131,25 @@ def _collect_dependencies(repo_path: Path) -> list[ParsedDependency]:
 async def _build_findings(
     deps: list[ParsedDependency],
     *,
-    osv: OsvClient | _AdvisoryLookup,
-    ghsa: _AdvisoryLookup | None,
+    osv: AdvisoryLookup,
+    ghsa: AdvisoryLookup | None,
 ) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    for dep in deps:
-        result = await lookup_with_fallback(dep, osv=osv, ghsa=ghsa)  # type: ignore[arg-type]
+    if not deps:
+        return []
+    semaphore = asyncio.Semaphore(_LOOKUP_CONCURRENCY)
+
+    async def _one(dep: ParsedDependency) -> list[dict[str, Any]]:
+        async with semaphore:
+            result = await lookup_with_fallback(dep, osv=osv, ghsa=ghsa)
         if result.unable_to_verify or not result.advisories:
-            continue
-        for advisory in result.advisories:
-            findings.append(_finding_from_advisory(advisory, dep))
-    return findings
+            return []
+        return [_finding_from_advisory(a, dep) for a in result.advisories]
+
+    per_dep = await asyncio.gather(*(_one(d) for d in deps))
+    return [finding for batch in per_dep for finding in batch]
 
 
-def _finding_from_advisory(
-    advisory: Advisory, dep: ParsedDependency
-) -> dict[str, Any]:
+def _finding_from_advisory(advisory: Advisory, dep: ParsedDependency) -> dict[str, Any]:
     title = advisory.summary or f"{dep.name}@{dep.version} vulnerable"
     return FindingCreate(
         source_type="osv",
@@ -200,14 +170,15 @@ def _finding_from_advisory(
 
 
 def _build_snapshot(
-    findings: list[dict[str, Any]], posture_statuses: dict[str, str]
+    findings: list[dict[str, Any]],
+    posture_statuses: dict[PostureCheckName, PostureCheckStatus],
 ) -> CriteriaSnapshot:
-    severities = [_severity_of(f) for f in findings]
+    severities = {_severity_of(f) for f in findings}
     passing = sum(1 for s in posture_statuses.values() if s == "pass")
     return CriteriaSnapshot(
         no_critical_vulns="CRITICAL" not in severities,
         posture_checks_passing=passing,
-        posture_checks_total=len(posture_statuses) or 7,
+        posture_checks_total=len(posture_statuses),
         security_md_present=posture_statuses.get("security_md") == "pass",
         dependabot_present=posture_statuses.get("dependabot_config") == "pass",
     )
@@ -215,19 +186,11 @@ def _build_snapshot(
 
 def _severity_of(finding: dict[str, Any]) -> str:
     raw = finding.get("raw_severity")
-    if isinstance(raw, str):
-        return raw.upper()
-    return "UNKNOWN"
+    return raw.upper() if isinstance(raw, str) else "UNKNOWN"
 
 
 def _coords_from_repo_url(repo_url: str, *, branch: str) -> RepoCoords:
     parsed = urlparse(repo_url)
-    path = parsed.path.strip("/")
-    if path.endswith(".git"):
-        path = path[: -len(".git")]
-    parts = path.split("/", 1)
-    if len(parts) == 2:
-        owner, repo = parts
-    else:
-        owner, repo = ("", path or "")
-    return RepoCoords(owner=owner, repo=repo, branch=branch)
+    path = parsed.path.strip("/").removesuffix(".git")
+    owner, _, repo = path.partition("/")
+    return RepoCoords(owner=owner, repo=repo or path, branch=branch)

@@ -1,13 +1,9 @@
-"""npm `package-lock.json` parser covering lockfile versions 1, 2, and 3.
+"""npm `package-lock.json` parser covering lockfileVersion 1, 2, and 3.
 
 - v1: entries live under `dependencies` (nested tree).
-- v2: both `packages` (flat, node_modules/<name>) and `dependencies` are present;
-      we read `packages` (authoritative) and ignore `dependencies`.
-- v3: `packages` only.
+- v2/v3: read `packages` (authoritative, flat). Root `""` entry is skipped.
 
-The root package (`""` key in `packages`) is skipped. Entries without a
-`version` are skipped (not raised) — missing versions are harmless metadata
-holes, not parse failures.
+Entries without a `version` are harmless metadata holes — skipped, not raised.
 """
 
 from __future__ import annotations
@@ -15,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
+from opensec.assessment._fs import safe_read_text
 from opensec.assessment.parsers.base import ParsedDependency
 
 if TYPE_CHECKING:
@@ -22,7 +19,7 @@ if TYPE_CHECKING:
 
 
 def parse_npm_lockfile(path: Path) -> list[ParsedDependency]:
-    data = json.loads(path.read_text())
+    data = json.loads(safe_read_text(path))
     version = data.get("lockfileVersion")
 
     if version == 1:
@@ -54,10 +51,7 @@ def _walk_v1(deps: dict[str, Any], out: dict[tuple[str, str], ParsedDependency])
 def _parse_v2_or_v3(packages: dict[str, Any]) -> list[ParsedDependency]:
     out: dict[tuple[str, str], ParsedDependency] = {}
     for key, entry in packages.items():
-        if not key:
-            # Root package — not a dependency.
-            continue
-        if not isinstance(entry, dict):
+        if not key or not isinstance(entry, dict):
             continue
         name = _name_from_packages_key(key, entry)
         version = entry.get("version")
@@ -68,7 +62,6 @@ def _parse_v2_or_v3(packages: dict[str, Any]) -> list[ParsedDependency]:
 
 
 def _name_from_packages_key(key: str, entry: dict[str, Any]) -> str | None:
-    """Derive package name from `node_modules/<...>` key, falling back to entry.name."""
     name_attr = entry.get("name")
     if isinstance(name_attr, str) and name_attr:
         return name_attr

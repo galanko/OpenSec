@@ -1,14 +1,15 @@
-"""Filesystem posture checks: SECURITY.md, lockfile presence, dependabot.yml (B5)."""
+"""Filesystem posture checks: SECURITY.md, lockfile presence, dependabot.yml."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from opensec.assessment.parsers import detect_lockfiles
 from opensec.assessment.posture import PostureCheckResult
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from opensec.assessment.parsers import Ecosystem, ParserFn
 
 _SECURITY_MD_PATHS = ("SECURITY.md", ".github/SECURITY.md", "docs/SECURITY.md")
 _DEPENDABOT_PATHS = (".github/dependabot.yml", ".github/dependabot.yaml")
@@ -29,8 +30,16 @@ def check_security_md(repo_path: Path) -> PostureCheckResult:
     )
 
 
-def check_lockfile_present(repo_path: Path) -> PostureCheckResult:
-    hits = detect_lockfiles(repo_path)
+def check_lockfile_present(
+    repo_path: Path,
+    pre_detected: list[tuple[Ecosystem, Path, ParserFn]] | None = None,
+) -> PostureCheckResult:
+    if pre_detected is None:
+        from opensec.assessment.parsers import detect_lockfiles
+
+        hits = detect_lockfiles(repo_path)
+    else:
+        hits = pre_detected
     if hits:
         return PostureCheckResult(
             check_name="lockfile_present",
