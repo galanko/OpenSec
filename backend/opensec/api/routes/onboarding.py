@@ -25,8 +25,19 @@ from opensec.api._engine_dep import (
 from opensec.assessment.posture.github_client import GithubClient, UnableToVerify
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import create_assessment, get_assessment
+from opensec.db.repo_integration import (
+    create_integration,
+    list_integrations,
+    update_integration,
+)
 from opensec.db.repo_setting import upsert_setting
-from opensec.models import AssessmentCreate
+from opensec.models import (
+    AssessmentCreate,
+    IntegrationConfigCreate,
+    IntegrationConfigUpdate,
+)
+
+# ``upsert_setting`` is still used by ``/complete`` (``onboarding.completed``).
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +76,68 @@ def _parse_owner_repo(repo_url: str) -> tuple[str, str] | None:
     if name.endswith(".git"):
         name = name[:-4]
     return owner, name
+
+
+GITHUB_ADAPTER_TYPE = "github"
+GITHUB_PROVIDER_NAME = "GitHub"
+GITHUB_TOKEN_KEY = "token"
+
+
+async def _upsert_github_integration(
+    db,
+    http_request: FastAPIRequest,
+    token: str,
+    repo_url: str,
+    verified: VerifiedRepo | None,
+) -> None:
+    """Single source of truth for the onboarding PAT.
+
+    Writes the GitHub integration row + credential through the same path the
+    Integrations settings page uses, so "solve a finding" sees the PAT that
+    onboarding just collected. Idempotent: reruns update the existing row
+    instead of creating a duplicate.
+    """
+    integrations = await list_integrations(db)
+    existing = next(
+        (i for i in integrations if i.adapter_type == GITHUB_ADAPTER_TYPE), None
+    )
+
+    config = {
+        "repo_url": repo_url,
+        "default_branch": verified.default_branch if verified else None,
+        "repo_name": verified.repo_name if verified else None,
+    }
+
+    if existing is None:
+        integration = await create_integration(
+            db,
+            IntegrationConfigCreate(
+                adapter_type=GITHUB_ADAPTER_TYPE,
+                provider_name=GITHUB_PROVIDER_NAME,
+                config=config,
+                action_tier=2,
+            ),
+        )
+    else:
+        integration = await update_integration(
+            db,
+            existing.id,
+            IntegrationConfigUpdate(enabled=True, config=config, action_tier=2),
+        )
+        assert integration is not None
+
+    vault = getattr(http_request.app.state, "vault", None)
+    if vault is None:
+        # No vault in this deployment — the token is lost. Logged loudly so
+        # operators know to set OPENSEC_CREDENTIAL_KEY. The Integrations row
+        # still exists; they can re-enter the PAT from Settings.
+        logger.warning(
+            "credential vault not initialized; GitHub PAT from onboarding was not stored. "
+            "Set OPENSEC_CREDENTIAL_KEY to enable durable credential storage."
+        )
+        return
+
+    await vault.store(integration.id, GITHUB_TOKEN_KEY, token)
 
 
 async def _probe_repo_metadata(
@@ -121,10 +194,14 @@ async def connect_repo(
     if not repo_url:
         raise HTTPException(status_code=422, detail="repo_url must not be empty")
 
-    # MVP ad-hoc storage; routing through the credential vault is follow-up work.
-    await upsert_setting(db, "onboarding.github_token", {"token": request.github_token})
-
     verified = await _probe_repo_metadata(repo_url, request.github_token)
+
+    # Store the PAT through the same path the Integrations settings page uses —
+    # single source of truth. "Solve a finding" + posture-fix spawner both
+    # read from this row later.
+    await _upsert_github_integration(
+        db, http_request, request.github_token, repo_url, verified
+    )
 
     assessment = await create_assessment(db, AssessmentCreate(repo_url=repo_url))
     schedule_assessment_run(http_request.app, db, engine, assessment.id, repo_url)

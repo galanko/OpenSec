@@ -61,12 +61,14 @@ async def test_dashboard_seeded(db_client, criteria):
             PostureCheckCreate(assessment_id=a.id, check_name=name, status=status),
         )
 
-    # Findings with mixed priorities.
+    # Findings with mixed priorities — scoped to the current assessment so
+    # the dashboard counts them (non-assessment findings are excluded by the
+    # current-assessment scope filter).
     for pri in ["P1", "P1", "P2", "P3"]:
         await create_finding(
             _db,
             FindingCreate(
-                source_type="tenable",
+                source_type="opensec-assessment",
                 source_id=f"v-{pri}-{id(pri)}",
                 title=f"x-{pri}",
                 normalized_priority=pri,

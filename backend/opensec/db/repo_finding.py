@@ -79,15 +79,31 @@ async def list_findings(
     *,
     status: str | None = None,
     has_workspace: bool | None = None,
+    source_type: str | None = None,
+    created_since_iso: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[Finding]:
+    """List findings, optionally scoped to an assessment window.
+
+    ``source_type`` + ``created_since_iso`` together act as an "assessment
+    scope": pass ``source_type='opensec-assessment'`` + the latest assessment's
+    ``started_at`` to return only findings the current run surfaced.
+    """
     conditions: list[str] = []
     params: list[str | int] = []
 
     if status:
         conditions.append("f.status = ?")
         params.append(status)
+
+    if source_type is not None:
+        conditions.append("f.source_type = ?")
+        params.append(source_type)
+
+    if created_since_iso is not None:
+        conditions.append("f.created_at >= ?")
+        params.append(created_since_iso)
 
     if has_workspace is True:
         conditions.append(
@@ -134,18 +150,33 @@ async def delete_finding(db: aiosqlite.Connection, finding_id: str) -> bool:
     return cursor.rowcount > 0
 
 
-async def count_findings_by_priority(db: aiosqlite.Connection) -> dict[str, int]:
+async def count_findings_by_priority(
+    db: aiosqlite.Connection,
+    *,
+    source_type: str | None = None,
+    created_since_iso: str | None = None,
+) -> dict[str, int]:
     """Return ``{priority: count}`` for findings with a non-null priority.
 
-    Used by dashboard and assessment/latest; avoids materialising every row when
-    only aggregate counts are needed (IMPL-0002 D4, D2).
+    ``source_type`` + ``created_since_iso`` together scope the count to an
+    assessment window so the dashboard stat matches the findings list.
     """
+    conditions: list[str] = ["normalized_priority IS NOT NULL"]
+    params: list[str] = []
+    if source_type is not None:
+        conditions.append("source_type = ?")
+        params.append(source_type)
+    if created_since_iso is not None:
+        conditions.append("created_at >= ?")
+        params.append(created_since_iso)
+    where = " AND ".join(conditions)
     cursor = await db.execute(
-        """
+        f"""
         SELECT normalized_priority, COUNT(*) AS n
           FROM finding
-         WHERE normalized_priority IS NOT NULL
+         WHERE {where}
          GROUP BY normalized_priority
-        """
+        """,  # noqa: S608
+        params,
     )
     return {row["normalized_priority"]: row["n"] for row in await cursor.fetchall()}

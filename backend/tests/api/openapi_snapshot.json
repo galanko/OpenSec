@@ -3286,7 +3286,7 @@
     },
     "/api/dashboard": {
       "get": {
-        "description": "Aggregate dashboard payload: latest assessment + findings + posture.",
+        "description": "Aggregate dashboard payload: latest assessment + findings + posture.\n\nThe findings count is scoped to the current assessment window (source\n``opensec-assessment``, created at or after the latest assessment's start)\nso the Vulnerabilities tile always matches what the Findings page shows.",
         "operationId": "get_dashboard_api_dashboard_get",
         "responses": {
           "200": {
@@ -3308,6 +3308,7 @@
     },
     "/api/findings": {
       "get": {
+        "description": "List findings.\n\nWhen ``scope=current`` the list is scoped to the latest assessment's\nwindow (``source_type='opensec-assessment'`` + ``created_at`` at or after\nthe latest assessment's ``started_at``) so the Findings page matches the\ndashboard's Vulnerabilities tile.",
         "operationId": "list_findings_endpoint_api_findings_get",
         "parameters": [
           {
@@ -3340,6 +3341,22 @@
                 }
               ],
               "title": "Has Workspace"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
             }
           },
           {

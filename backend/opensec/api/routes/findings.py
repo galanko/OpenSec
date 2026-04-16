@@ -101,12 +101,37 @@ async def create_finding_endpoint(body: FindingCreate, db=Depends(get_db)):
 async def list_findings_endpoint(
     status: str | None = None,
     has_workspace: bool | None = None,
+    scope: str | None = None,
     limit: int = 100,
     offset: int = 0,
     db=Depends(get_db),
 ):
+    """List findings.
+
+    When ``scope=current`` the list is scoped to the latest assessment's
+    window (``source_type='opensec-assessment'`` + ``created_at`` at or after
+    the latest assessment's ``started_at``) so the Findings page matches the
+    dashboard's Vulnerabilities tile.
+    """
+    source_type: str | None = None
+    created_since_iso: str | None = None
+    if scope == "current":
+        from opensec.db.dao.assessment import get_latest_assessment
+
+        latest = await get_latest_assessment(db)
+        if latest is None:
+            return []
+        source_type = "opensec-assessment"
+        created_since_iso = latest.started_at
+
     return await list_findings(
-        db, status=status, has_workspace=has_workspace, limit=limit, offset=offset,
+        db,
+        status=status,
+        has_workspace=has_workspace,
+        source_type=source_type,
+        created_since_iso=created_since_iso,
+        limit=limit,
+        offset=offset,
     )
 
 

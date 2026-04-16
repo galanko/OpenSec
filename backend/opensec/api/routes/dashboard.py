@@ -32,8 +32,12 @@ class DashboardPayload(BaseModel):
 
 @router.get("", response_model=DashboardPayload)
 async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
-    """Aggregate dashboard payload: latest assessment + findings + posture."""
-    counts = await count_findings_by_priority(db)
+    """Aggregate dashboard payload: latest assessment + findings + posture.
+
+    The findings count is scoped to the current assessment window (source
+    ``opensec-assessment``, created at or after the latest assessment's start)
+    so the Vulnerabilities tile always matches what the Findings page shows.
+    """
     latest = await get_latest_assessment(db)
 
     if latest is None:
@@ -41,12 +45,17 @@ async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
             assessment=None,
             grade=None,
             criteria=CriteriaSnapshot(),
-            findings_count_by_priority=counts,
+            findings_count_by_priority={},
             posture_pass_count=0,
             posture_total_count=0,
             completion_id=None,
         )
 
+    counts = await count_findings_by_priority(
+        db,
+        source_type="opensec-assessment",
+        created_since_iso=latest.started_at,
+    )
     pass_count, total_count = await count_posture_pass_total(db, latest.id)
     completion = await get_completion_for_assessment(db, latest.id)
 

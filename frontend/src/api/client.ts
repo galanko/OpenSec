@@ -418,10 +418,17 @@ export const api = {
     new EventSource(`/api/workspaces/${workspaceId}/chat/stream?session_id=${sessionId}`),
 
   // Findings
-  listFindings: (params?: { status?: string; has_workspace?: boolean; limit?: number; offset?: number }) => {
+  listFindings: (params?: {
+    status?: string;
+    has_workspace?: boolean;
+    scope?: 'current';
+    limit?: number;
+    offset?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.has_workspace != null) qs.set('has_workspace', String(params.has_workspace));
+    if (params?.scope) qs.set('scope', params.scope);
     if (params?.limit) qs.set('limit', String(params.limit));
     if (params?.offset) qs.set('offset', String(params.offset));
     const q = qs.toString();

@@ -8,9 +8,11 @@
  */
 
 import type React from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useDashboard, useFixPostureCheck } from '@/api/dashboard'
 import type { DashboardPayload, PostureFixableCheck } from '@/api/dashboard'
+import { onboardingApi } from '@/api/onboarding'
 import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
 import CompletionProgressCard from '@/components/dashboard/CompletionProgressCard'
 import GradeRing from '@/components/dashboard/GradeRing'
@@ -19,6 +21,7 @@ import ScorecardInfoLine from '@/components/dashboard/ScorecardInfoLine'
 import CompletionCelebration from '@/components/completion/CompletionCelebration'
 import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
 import SummaryActionPanel from '@/components/completion/SummaryActionPanel'
+import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import ErrorState from '@/components/ErrorState'
 import PageShell from '@/components/PageShell'
@@ -50,6 +53,7 @@ export default function DashboardPage() {
 
 function DashboardContent() {
   const { data, isLoading, isError, refetch } = useDashboard()
+  useAckOnboardingOnce(data)
 
   if (isError) {
     return (
@@ -125,9 +129,39 @@ function EmptyDashboard() {
   )
 }
 
+/**
+ * Fire ``POST /api/onboarding/complete`` exactly once, the first time the
+ * dashboard sees the current assessment flip to ``complete``. This moves the
+ * completion ack off the wizard (which used to block on a 409 → complete
+ * transition, defeating the progress-list UX).
+ */
+function useAckOnboardingOnce(data: DashboardPayload | undefined): void {
+  const ackedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const assessment = data?.assessment
+    if (!assessment || assessment.status !== 'complete') return
+    if (ackedRef.current.has(assessment.id)) return
+    ackedRef.current.add(assessment.id)
+    onboardingApi
+      .complete({ assessment_id: assessment.id })
+      .catch(() => {
+        // Already-complete onboarding is expected (idempotent); swallow.
+      })
+  }, [data?.assessment])
+}
+
+interface PostureFeedback {
+  kind: 'success' | 'error'
+  checkName: PostureFixableCheck
+  message: string
+}
+
 function ReportCard({ data }: { data: DashboardPayload }) {
   const navigate = useNavigate()
   const fixMutation = useFixPostureCheck()
+  const [postureFeedback, setPostureFeedback] = useState<PostureFeedback | null>(
+    null,
+  )
 
   const repoName = repoNameFromUrl(data.assessment?.repo_url)
   const criteria = data.criteria
@@ -137,8 +171,29 @@ function ReportCard({ data }: { data: DashboardPayload }) {
   const heroCopy = buildHeroCopy(data.grade, remaining)
 
   const handleGenerate = (checkName: PostureFixableCheck) => {
+    setPostureFeedback(null)
     fixMutation.mutate(checkName, {
-      onSuccess: (resp) => navigate(`/workspace/${resp.workspace_id}`),
+      onSuccess: (resp) => {
+        setPostureFeedback({
+          kind: 'success',
+          checkName,
+          message:
+            `We spawned a workspace (${resp.workspace_id}). The agent is drafting ` +
+            'the pull request — check your GitHub notifications in a minute.',
+        })
+      },
+      onError: (err) => {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        setPostureFeedback({
+          kind: 'error',
+          checkName,
+          message: msg.includes('No repo registered')
+            ? 'Run an assessment first — we need a repo to open the PR against.'
+            : msg.includes('vault') || msg.includes('token')
+              ? 'GitHub integration not configured. Open Settings to add a PAT.'
+              : msg,
+        })
+      },
     })
   }
 
@@ -204,6 +259,7 @@ function ReportCard({ data }: { data: DashboardPayload }) {
               data={data}
               onGenerate={handleGenerate}
               pending={fixMutation.isPending}
+              feedback={postureFeedback}
             />
           </div>
 
@@ -287,10 +343,12 @@ function PostureCard({
   data,
   onGenerate,
   pending,
+  feedback,
 }: {
   data: DashboardPayload
   onGenerate: (checkName: PostureFixableCheck) => void
   pending: boolean
+  feedback: PostureFeedback | null
 }) {
   const { posture_pass_count, posture_total_count, criteria } = data
   const failures: Array<{
@@ -325,6 +383,39 @@ function PostureCard({
           {posture_pass_count} of {posture_total_count} checks pass
         </p>
       </header>
+
+      {feedback && feedback.kind === 'error' && (
+        <InlineErrorCallout
+          title={`Couldn't open the PR for ${feedback.checkName === 'security_md' ? 'SECURITY.md' : 'Dependabot'}`}
+          body={<>{feedback.message}</>}
+          action={
+            feedback.message.toLowerCase().includes('github integration')
+              ? { label: 'Open Settings', href: '/settings' }
+              : undefined
+          }
+        />
+      )}
+      {feedback && feedback.kind === 'success' && (
+        <div
+          role="status"
+          className="rounded-lg bg-tertiary-container/30 px-4 py-3 flex items-start gap-3"
+        >
+          <span
+            className="material-symbols-outlined text-tertiary flex-shrink-0"
+            aria-hidden
+          >
+            check_circle
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-on-surface">
+              Workspace spawned
+            </p>
+            <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+              {feedback.message}
+            </p>
+          </div>
+        </div>
+      )}
 
       <ul role="list" className="flex flex-col gap-3">
         {failures.map((f) => (

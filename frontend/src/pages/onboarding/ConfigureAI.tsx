@@ -5,7 +5,7 @@ import ProviderCard from '@/components/onboarding/ProviderCard'
 import WizardNav from '@/components/onboarding/WizardNav'
 import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
 import ModelPickerDialog from '@/components/onboarding/ModelPickerDialog'
-import { useProviders, useUpdateModel } from '@/api/hooks'
+import { useProviders, useSetApiKey, useUpdateModel } from '@/api/hooks'
 import { onboardingStorage } from './storage'
 
 /**
@@ -56,11 +56,14 @@ export default function ConfigureAI() {
   const navigate = useNavigate()
   const { data: providers } = useProviders()
   const updateModel = useUpdateModel()
+  const setApiKey = useSetApiKey()
 
   const [providerId, setProviderId] = useState<ProviderChoice>('openai')
   const [selection, setSelection] = useState<Selection | null>(null)
+  const [apiKey, setApiKeyInput] = useState('')
   const [otherOpen, setOtherOpen] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [allowBypass, setAllowBypass] = useState(false)
 
   // Models available for the short-list providers. "Other" always opens the
   // picker — we never need a local model list for it.
@@ -86,25 +89,35 @@ export default function ConfigureAI() {
     setOtherOpen(false)
   }
 
-  function handleContinue() {
-    if (!selection) return
-    setErrorMsg(null)
-    const fullId = `${selection.provider}/${selection.model}`
-    updateModel.mutate(fullId, {
-      onSuccess: () => {
-        onboardingStorage.set('provider', selection.provider)
-        onboardingStorage.set('model', selection.model)
-        navigate('/onboarding/start')
-      },
-      onError: (err) => {
-        setErrorMsg(
-          err instanceof Error ? err.message : 'Could not save model choice',
-        )
-      },
-    })
+  function advance(selected: Selection) {
+    onboardingStorage.set('provider', selected.provider)
+    onboardingStorage.set('model', selected.model)
+    navigate('/onboarding/start')
   }
 
-  const canContinue = !!selection && !updateModel.isPending
+  async function handleContinue() {
+    if (!selection || !apiKey.trim()) return
+    setErrorMsg(null)
+    const fullId = `${selection.provider}/${selection.model}`
+    try {
+      await setApiKey.mutateAsync({ provider: selection.provider, key: apiKey.trim() })
+      await updateModel.mutateAsync(fullId)
+      advance(selection)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not save your choice'
+      setErrorMsg(msg)
+      setAllowBypass(true)
+    }
+  }
+
+  function handleSaveAnyway() {
+    if (!selection) return
+    advance(selection)
+  }
+
+  const pending = setApiKey.isPending || updateModel.isPending
+  const canContinue =
+    !!selection && apiKey.trim().length > 0 && !pending
 
   return (
     <OnboardingShell step={2}>
@@ -191,30 +204,66 @@ export default function ConfigureAI() {
         </div>
       )}
 
-      {errorMsg && (
-        <InlineErrorCallout
-          title="Could not save the model choice"
-          body={<>{errorMsg}</>}
+      <label className="block mb-5">
+        <span className="block text-sm font-semibold text-on-surface mb-2">
+          API key <span className="text-error">*</span>
+        </span>
+        <input
+          type="password"
+          autoComplete="off"
+          value={apiKey}
+          onChange={(e) => {
+            setApiKeyInput(e.target.value)
+            setErrorMsg(null)
+            setAllowBypass(false)
+          }}
+          placeholder="sk-••••••••••••••••••••••••••••"
+          className="w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:ring-primary/30 focus:outline-none text-sm font-mono"
         />
-      )}
+      </label>
 
-      <div className="mt-6 flex items-start gap-3 rounded-lg bg-surface-container-low px-4 py-3">
+      <div className="flex items-start gap-3 rounded-xl bg-primary-container/30 px-5 py-4">
         <span
-          className="material-symbols-outlined text-tertiary text-sm mt-0.5"
+          className="material-symbols-outlined text-primary mt-0.5"
           aria-hidden="true"
         >
-          info
+          shield
         </span>
-        <p className="text-xs text-on-surface-variant leading-relaxed">
-          Your selection becomes the default model OpenSec uses for every
-          explanation and draft fix. Set API keys per-provider in Settings.
+        <p className="text-sm text-on-primary-container leading-relaxed">
+          Your key is encrypted on disk in the local credential vault. It never
+          travels to OpenSec servers — agents talk directly to your chosen
+          provider.
         </p>
       </div>
+
+      {errorMsg && (
+        <InlineErrorCallout
+          title="We couldn't verify that key"
+          body={
+            <>
+              {errorMsg}
+              {allowBypass && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={handleSaveAnyway}
+                    className="font-semibold text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded"
+                  >
+                    Save anyway and continue
+                  </button>
+                  .
+                </>
+              )}
+            </>
+          }
+        />
+      )}
 
       <WizardNav
         onBack={() => navigate('/onboarding/connect')}
         onNext={handleContinue}
-        nextLabel={updateModel.isPending ? 'Saving…' : 'Continue'}
+        nextLabel={pending ? 'Testing…' : 'Test and continue'}
         nextDisabled={!canContinue}
       />
 

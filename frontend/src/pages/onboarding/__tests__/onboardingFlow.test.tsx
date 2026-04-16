@@ -77,7 +77,7 @@ describe('onboarding wizard', () => {
         screen.getByRole('button', { name: /continue to ai config/i }),
       )
 
-      // 1.4 Configure AI — pick OpenAI card (default), then a model from the select.
+      // 1.4 Configure AI — pick OpenAI card (default), a model, then type the API key.
       expect(
         await screen.findByRole('heading', { name: /configure your ai model/i }),
       ).toBeInTheDocument()
@@ -90,7 +90,10 @@ describe('onboarding wizard', () => {
         screen.getByLabelText(/^model/i),
         'gpt-4o-mini',
       )
-      await user.click(screen.getByRole('button', { name: /^continue$/i }))
+      await user.type(screen.getByLabelText(/api key/i), 'sk-test-key')
+      await user.click(
+        screen.getByRole('button', { name: /test and continue/i }),
+      )
 
       // 1.5 Start assessment
       expect(

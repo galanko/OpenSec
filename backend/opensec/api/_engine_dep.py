@@ -54,25 +54,34 @@ class AssessmentEngineProtocol(Protocol):
         ...
 
 
-async def _github_token_from_settings() -> str | None:
-    """Resolve the stored GitHub token from the ``onboarding.github_token`` setting.
+async def _github_token_from_integration() -> str | None:
+    """Resolve the GitHub PAT from the ``github`` Integrations row + vault.
 
-    The onboarding route (``POST /api/onboarding/repo``) stores the PAT as
-    ``{"token": "..."}`` via ``upsert_setting``. Routing through the real
-    credential vault is deferred; reading from the same row keeps the engine
-    working end-to-end without a vault integration in this PR.
+    This is the single accessor every consumer (assessment engine, posture-fix
+    spawner, "solve a finding" workspace builder, onboarding's GitHub probe)
+    calls. Returns ``None`` when the vault is not initialized or no GitHub
+    integration has been configured yet.
     """
     # Late imports — avoid circulars with ``opensec.db.connection`` at module load.
     from opensec.db.connection import _db
-    from opensec.db.repo_setting import get_setting
+    from opensec.db.repo_integration import list_integrations
+    from opensec.main import app
 
     if _db is None:
         return None
-    row = await get_setting(_db, "onboarding.github_token")
-    if row is None or not isinstance(row.value, dict):
+    integrations = await list_integrations(_db)
+    github = next((i for i in integrations if i.adapter_type == "github"), None)
+    if github is None or not github.enabled:
         return None
-    token = row.value.get("token")
-    return token if isinstance(token, str) and token else None
+
+    vault = getattr(app.state, "vault", None)
+    if vault is None:
+        return None
+
+    try:
+        return await vault.retrieve(github.id, "token")
+    except Exception:
+        return None
 
 
 def get_assessment_engine() -> AssessmentEngineProtocol:
@@ -104,7 +113,7 @@ def get_assessment_engine() -> AssessmentEngineProtocol:
         )
 
     return ProductionAssessmentEngine(
-        token_provider=_github_token_from_settings,
+        token_provider=_github_token_from_integration,
         tmp_root=tmp_root,
     )
 
@@ -121,12 +130,33 @@ class RepoWorkspaceSpawnerProtocol(Protocol):
         ...
 
 
-def get_repo_workspace_spawner() -> RepoWorkspaceSpawnerProtocol:
-    """Default provider — raises until Session C + G wire ``create_repo_workspace``.
+class _DefaultRepoWorkspaceSpawner:
+    """Production spawner backed by ``WorkspaceDirManager.create_repo_workspace``.
 
-    Route tests in Session B override this via ``app.dependency_overrides``.
+    Creates the on-disk workspace scaffolding and returns the workspace id. The
+    posture-fix route relays the id to the SPA so the user can track agent
+    progress. DB workspace rows (which require ``finding_id``) are not created
+    here — repo-action workspaces are finding-less by design.
     """
-    raise NotImplementedError(
-        "Repo workspace spawner is not wired yet (Session C + G). "
-        "Tests must override get_repo_workspace_spawner via FastAPI dependency_overrides."
-    )
+
+    async def spawn_repo_workspace(
+        self, *, kind: WorkspaceKind, repo_url: str
+    ) -> str:
+        from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
+
+        token = await _github_token_from_integration()
+        data_dir = settings.resolve_data_dir()
+        manager = WorkspaceDirManager(base_dir=data_dir / "workspaces")
+        return manager.create_repo_workspace(
+            kind, repo_url=repo_url, gh_token=token
+        )
+
+
+def get_repo_workspace_spawner() -> RepoWorkspaceSpawnerProtocol:
+    """Default provider — returns the real spawner built on ``WorkspaceDirManager``.
+
+    Route tests override this via ``app.dependency_overrides``.
+    """
+    return _DefaultRepoWorkspaceSpawner()
+
+
