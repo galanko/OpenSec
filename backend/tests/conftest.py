@@ -128,9 +128,19 @@ async def db_client():
     # Reset integration layer state (may be stale from other tests).
     app.state.vault = None
     app.state.audit_logger = None
+    app.state.assessment_tasks = []
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+    # Drain any assessment background tasks before closing the DB so they don't
+    # race a closed connection (EXEC-0002 Session B).
+    import asyncio as _asyncio
+
+    pending = list(getattr(app.state, "assessment_tasks", []))
+    if pending:
+        await _asyncio.gather(*pending, return_exceptions=True)
+    app.state.assessment_tasks = []
 
     await close_db()

@@ -20,6 +20,7 @@ def _row_to_finding(row: aiosqlite.Row) -> Finding:
         source_id=row["source_id"],
         title=row["title"],
         description=row["description"],
+        plain_description=row["plain_description"],
         raw_severity=row["raw_severity"],
         normalized_priority=row["normalized_priority"],
         asset_id=row["asset_id"],
@@ -39,10 +40,10 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
     await db.execute(
         """
         INSERT INTO finding
-            (id, source_type, source_id, title, description, raw_severity,
-             normalized_priority, asset_id, asset_label, status, likely_owner,
-             why_this_matters, raw_payload, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, source_type, source_id, title, description, plain_description,
+             raw_severity, normalized_priority, asset_id, asset_label, status,
+             likely_owner, why_this_matters, raw_payload, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             finding_id,
@@ -50,6 +51,7 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
             data.source_id,
             data.title,
             data.description,
+            data.plain_description,
             data.raw_severity,
             data.normalized_priority,
             data.asset_id,
