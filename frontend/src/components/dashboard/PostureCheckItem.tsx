@@ -80,7 +80,7 @@ export default function PostureCheckItem({
     <li
       data-testid="posture-check-item"
       data-state="fail"
-      className="flex flex-col gap-3 rounded-2xl bg-primary-container/25 p-4 lg:flex-row lg:items-start"
+      className="flex flex-col gap-3 rounded-2xl bg-primary-container/25 p-4 sm:flex-row sm:items-start"
     >
       <span
         className="material-symbols-outlined text-error"

@@ -5,8 +5,15 @@
  * Polls /api/assessment/status/{id} via the useAssessmentStatus hook. The
  * backend emits the current phase in the ``step`` field; this component
  * renders the five fixed rows and highlights whichever one is active.
+ *
+ * Client-side pacing: tiny repos finish in under a second, which makes the
+ * progress list feel like a flicker rather than a process. We guarantee each
+ * step stays on screen for at least ``MIN_STEP_DWELL_MS`` so the five rows
+ * take ~10 seconds total to walk through even when the backend is done
+ * immediately. If the backend is slower than the pacer, the backend wins.
  */
 
+import { useEffect, useState } from 'react'
 import { useAssessmentStatus } from '@/api/dashboard'
 
 interface Step {
@@ -22,12 +29,12 @@ const STEPS: Step[] = [
   { key: 'grading', label: 'Compute grade' },
 ]
 
+const MIN_STEP_DWELL_MS = 2_000
+
 type StepState = 'done' | 'running' | 'pending'
 
-function stateFor(step: Step, activeIdx: number, status?: string): StepState {
-  if (status === 'complete') return 'done'
-  // activeIdx === -1 signals "step unknown" — keep every row pending rather
-  // than falsely highlighting the first step.
+function stateFor(step: Step, activeIdx: number, isComplete: boolean): StepState {
+  if (isComplete) return 'done'
   if (activeIdx < 0) return 'pending'
   const idx = STEPS.findIndex((s) => s.key === step.key)
   if (idx < activeIdx) return 'done'
@@ -43,7 +50,10 @@ export default function AssessmentProgressList({
   assessmentId,
 }: AssessmentProgressListProps) {
   const { data } = useAssessmentStatus(assessmentId)
-  const activeIdx = STEPS.findIndex((s) => s.key === data?.step)
+  const backendIdx = STEPS.findIndex((s) => s.key === data?.step)
+  const displayedIdx = usePacedStep(backendIdx, data?.status === 'complete')
+  const isCompleteForDisplay =
+    data?.status === 'complete' && displayedIdx >= STEPS.length - 1
 
   return (
     <section
@@ -75,7 +85,7 @@ export default function AssessmentProgressList({
         className="w-full max-w-md space-y-3 text-left"
       >
         {STEPS.map((step) => {
-          const state = stateFor(step, activeIdx, data?.status)
+          const state = stateFor(step, displayedIdx, isCompleteForDisplay)
           return (
             <li
               key={step.key}
@@ -104,6 +114,30 @@ export default function AssessmentProgressList({
       </ul>
     </section>
   )
+}
+
+/**
+ * Displayed step index = ``max(backendIdx, pacedIdx)`` where ``pacedIdx``
+ * advances by one every ``MIN_STEP_DWELL_MS``. Stays on the last step until
+ * the backend reports ``complete``; then allows the final row to flip to
+ * "done". Never moves backward.
+ */
+function usePacedStep(backendIdx: number, backendComplete: boolean): number {
+  const [pacedIdx, setPacedIdx] = useState(0)
+
+  useEffect(() => {
+    if (pacedIdx >= STEPS.length - 1) return
+    const t = window.setTimeout(() => {
+      setPacedIdx((i) => Math.min(i + 1, STEPS.length - 1))
+    }, MIN_STEP_DWELL_MS)
+    return () => window.clearTimeout(t)
+  }, [pacedIdx])
+
+  const effective = Math.max(pacedIdx, backendIdx)
+  // Before the backend reports complete, never show "all done" — hold the
+  // final step as "running" so the user can see why we're waiting.
+  if (backendComplete) return STEPS.length - 1
+  return Math.min(effective, STEPS.length - 1)
 }
 
 function StepIcon({ state }: { state: StepState }) {

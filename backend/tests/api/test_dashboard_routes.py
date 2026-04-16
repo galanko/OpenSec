@@ -75,7 +75,7 @@ async def test_dashboard_seeded(db_client, criteria):
             ),
         )
 
-    completion = await create_completion(
+    await create_completion(
         _db,
         CompletionCreate(
             assessment_id=a.id,
@@ -93,4 +93,39 @@ async def test_dashboard_seeded(db_client, criteria):
     assert data["findings_count_by_priority"] == {"P1": 2, "P2": 1, "P3": 1}
     assert data["posture_pass_count"] == 3
     assert data["posture_total_count"] == 5
-    assert data["completion_id"] == completion.id
+    # Grade B + not all_met → celebration is suppressed even though a
+    # completion row exists, so the dashboard does not flash a stale banner.
+    assert data["completion_id"] is None
+
+
+async def test_dashboard_surfaces_completion_when_grade_a_and_all_met(
+    db_client,
+):
+    """Grade A + every criterion met → completion_id flows through."""
+    from opensec.db.connection import _db
+    from opensec.db.dao.assessment import create_assessment, set_assessment_result
+    from opensec.db.dao.completion import create_completion
+
+    all_met = CriteriaSnapshot(
+        no_critical_vulns=True,
+        posture_checks_passing=5,
+        posture_checks_total=5,
+        security_md_present=True,
+        dependabot_present=True,
+    )
+
+    assert _db is not None
+    a = await create_assessment(_db, AssessmentCreate(repo_url="https://github.com/a/b"))
+    await set_assessment_result(_db, a.id, grade="A", criteria_snapshot=all_met)
+    completion = await create_completion(
+        _db,
+        CompletionCreate(
+            assessment_id=a.id,
+            repo_url="https://github.com/a/b",
+            criteria_snapshot=all_met,
+        ),
+    )
+
+    resp = await db_client.get("/api/dashboard")
+    assert resp.status_code == 200
+    assert resp.json()["completion_id"] == completion.id

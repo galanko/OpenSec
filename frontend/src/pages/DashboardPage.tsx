@@ -197,12 +197,12 @@ function ReportCard({ data }: { data: DashboardPayload }) {
     })
   }
 
-  // Render the celebration overlay + summary-action panel only when the
-  // backend has recorded a completion with a concrete letter grade. Completion
-  // is an additive state on the dashboard, not a separate page.
+  // Only celebrate at grade A with a live completion row. The backend already
+  // suppresses stale completion_ids when the current snapshot no longer meets
+  // every criterion; this guard is defence in depth against a stale payload.
   const completionBlock =
-    data.completion_id && isLetterGrade(data.grade)
-      ? renderCompletionBlock(data, repoName, data.grade)
+    data.completion_id && data.grade === 'A'
+      ? renderCompletionBlock(data, repoName, 'A')
       : null
 
   const totalFindings = Object.values(data.findings_count_by_priority ?? {}).reduce(
@@ -226,52 +226,50 @@ function ReportCard({ data }: { data: DashboardPayload }) {
           onStartFixing={() => navigate('/findings')}
         />
       )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-        <div className="flex flex-col gap-6">
-          <section className="flex flex-col items-start gap-6 rounded-3xl bg-surface-container-low p-8 md:flex-row md:items-center">
-            <GradeRing
-              grade={data.grade}
-              criteriaMet={criteriaMet}
-              criteriaTotal={CRITERIA_TOTAL}
-            />
-            <div className="flex-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">
-                Security grade
-              </p>
-              <h2 className="mt-1 font-headline text-3xl font-bold text-on-surface">
-                {heroCopy.headline}
-              </h2>
-              <p className="mt-2 text-base text-on-surface-variant">
-                {heroCopy.body}
-              </p>
-            </div>
-          </section>
-
-          <CompletionProgressCard
+      <div className="flex flex-col gap-6">
+        <section className="flex flex-col items-start gap-6 rounded-3xl bg-surface-container-low p-8 md:flex-row md:items-center">
+          <GradeRing
+            grade={data.grade}
             criteriaMet={criteriaMet}
             criteriaTotal={CRITERIA_TOTAL}
-            repoName={repoName}
           />
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <VulnerabilitiesCard data={data} onStartFixing={() => navigate('/findings')} />
-            <PostureCard
-              data={data}
-              onGenerate={handleGenerate}
-              pending={fixMutation.isPending}
-              feedback={postureFeedback}
+          <div className="flex-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              Security grade
+            </p>
+            <h2 className="mt-1 font-headline text-3xl font-bold text-on-surface">
+              {heroCopy.headline}
+            </h2>
+            <p className="mt-2 text-base text-on-surface-variant">
+              {heroCopy.body}
+            </p>
+          </div>
+          <div className="w-full md:w-auto md:max-w-xs md:flex-shrink-0">
+            <CompletionStatusCard
+              completionId={data.completion_id ?? null}
+              completedAt={data.assessment?.completed_at ?? null}
             />
           </div>
+        </section>
 
-          <ScorecardInfoLine />
-        </div>
+        <CompletionProgressCard
+          criteriaMet={criteriaMet}
+          criteriaTotal={CRITERIA_TOTAL}
+          repoName={repoName}
+        />
 
-        <aside>
-          <CompletionStatusCard
-            completionId={data.completion_id ?? null}
-            completedAt={data.assessment?.completed_at ?? null}
-          />
-        </aside>
+        <VulnerabilitiesCard
+          data={data}
+          onStartFixing={() => navigate('/findings')}
+        />
+        <PostureCard
+          data={data}
+          onGenerate={handleGenerate}
+          pending={fixMutation.isPending}
+          feedback={postureFeedback}
+        />
+
+        <ScorecardInfoLine />
       </div>
     </PageShell>
   )
@@ -572,10 +570,6 @@ function repoNameFromUrl(url: string | null | undefined): string {
 }
 
 type LetterGrade = 'A' | 'B' | 'C' | 'D' | 'F'
-
-function isLetterGrade(value: unknown): value is LetterGrade {
-  return value === 'A' || value === 'B' || value === 'C' || value === 'D' || value === 'F'
-}
 
 function renderCompletionBlock(
   data: DashboardPayload,
