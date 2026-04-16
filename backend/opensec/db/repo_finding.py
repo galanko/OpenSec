@@ -20,6 +20,7 @@ def _row_to_finding(row: aiosqlite.Row) -> Finding:
         source_id=row["source_id"],
         title=row["title"],
         description=row["description"],
+        plain_description=row["plain_description"],
         raw_severity=row["raw_severity"],
         normalized_priority=row["normalized_priority"],
         asset_id=row["asset_id"],
@@ -39,10 +40,10 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
     await db.execute(
         """
         INSERT INTO finding
-            (id, source_type, source_id, title, description, raw_severity,
-             normalized_priority, asset_id, asset_label, status, likely_owner,
-             why_this_matters, raw_payload, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, source_type, source_id, title, description, plain_description,
+             raw_severity, normalized_priority, asset_id, asset_label, status,
+             likely_owner, why_this_matters, raw_payload, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             finding_id,
@@ -50,6 +51,7 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
             data.source_id,
             data.title,
             data.description,
+            data.plain_description,
             data.raw_severity,
             data.normalized_priority,
             data.asset_id,
@@ -130,3 +132,20 @@ async def delete_finding(db: aiosqlite.Connection, finding_id: str) -> bool:
     cursor = await db.execute("DELETE FROM finding WHERE id = ?", (finding_id,))
     await db.commit()
     return cursor.rowcount > 0
+
+
+async def count_findings_by_priority(db: aiosqlite.Connection) -> dict[str, int]:
+    """Return ``{priority: count}`` for findings with a non-null priority.
+
+    Used by dashboard and assessment/latest; avoids materialising every row when
+    only aggregate counts are needed (IMPL-0002 D4, D2).
+    """
+    cursor = await db.execute(
+        """
+        SELECT normalized_priority, COUNT(*) AS n
+          FROM finding
+         WHERE normalized_priority IS NOT NULL
+         GROUP BY normalized_priority
+        """
+    )
+    return {row["normalized_priority"]: row["n"] for row in await cursor.fetchall()}

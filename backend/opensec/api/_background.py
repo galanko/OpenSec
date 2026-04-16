@@ -1,0 +1,100 @@
+"""Background orchestration for assessment runs (EXEC-0002 Session B).
+
+Both ``/api/assessment/run`` and ``/api/onboarding/repo`` need to kick off an
+engine run without blocking the response. This module owns:
+
+  * ``run_and_persist_assessment`` — the single coroutine that drives the engine
+    and writes its results to the DB. Public (no underscore) so other routes can
+    import it without reaching across a module-private boundary.
+  * ``schedule_assessment_run`` — fires the coroutine as a task tracked in
+    ``app.state.assessment_tasks`` and self-evicts on completion so the set
+    doesn't grow unboundedly over a long-running process.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import TYPE_CHECKING
+
+from opensec.db.dao.assessment import set_assessment_result, update_assessment
+from opensec.db.dao.completion import (
+    create_completion,
+    get_completion_for_assessment,
+)
+from opensec.db.dao.posture_check import upsert_posture_check
+from opensec.models import (
+    AssessmentUpdate,
+    CompletionCreate,
+    PostureCheckCreate,
+)
+
+if TYPE_CHECKING:
+    import aiosqlite
+    from fastapi import FastAPI
+
+    from opensec.api._engine_dep import AssessmentEngineProtocol
+
+logger = logging.getLogger(__name__)
+
+
+async def run_and_persist_assessment(
+    db: aiosqlite.Connection,
+    engine: AssessmentEngineProtocol,
+    assessment_id: str,
+    repo_url: str,
+) -> None:
+    """Drive the engine for one assessment and persist every output it emits."""
+    try:
+        await update_assessment(db, assessment_id, AssessmentUpdate(status="running"))
+        result = await engine.run_assessment(repo_url, assessment_id=assessment_id)
+    except Exception:
+        logger.exception("assessment engine failed for %s", assessment_id)
+        await update_assessment(db, assessment_id, AssessmentUpdate(status="failed"))
+        return
+
+    for check in result.posture_checks:
+        await upsert_posture_check(
+            db,
+            PostureCheckCreate(
+                assessment_id=assessment_id,
+                check_name=check["check_name"],
+                status=check["status"],
+                detail=check.get("detail"),
+            ),
+        )
+
+    await set_assessment_result(
+        db, assessment_id, grade=result.grade, criteria_snapshot=result.criteria_snapshot
+    )
+
+    if result.criteria_snapshot.all_met():
+        existing = await get_completion_for_assessment(db, assessment_id)
+        if existing is None:
+            await create_completion(
+                db,
+                CompletionCreate(
+                    assessment_id=assessment_id,
+                    repo_url=repo_url,
+                    criteria_snapshot=result.criteria_snapshot,
+                ),
+            )
+
+
+def schedule_assessment_run(
+    app: FastAPI,
+    db: aiosqlite.Connection,
+    engine: AssessmentEngineProtocol,
+    assessment_id: str,
+    repo_url: str,
+) -> asyncio.Task[None]:
+    """Fire-and-track an assessment run. Tasks self-evict on completion."""
+    tasks: set[asyncio.Task[None]] = getattr(app.state, "assessment_tasks", None) or set()
+    task = asyncio.create_task(
+        run_and_persist_assessment(db, engine, assessment_id, repo_url),
+        name=f"assessment:{assessment_id}",
+    )
+    tasks.add(task)
+    task.add_done_callback(tasks.discard)
+    app.state.assessment_tasks = tasks
+    return task
