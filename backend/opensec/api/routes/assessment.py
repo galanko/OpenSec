@@ -16,7 +16,11 @@ from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
 
 from opensec.api._background import schedule_assessment_run
-from opensec.api._engine_dep import AssessmentEngineProtocol, get_assessment_engine
+from opensec.api._engine_dep import (
+    AssessmentEngineProtocol,
+    get_assessment_engine,
+    require_from_zero_to_secure_flag,
+)
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import create_assessment, get_assessment
 from opensec.db.dao.assessment import (
@@ -64,7 +68,11 @@ _STATUS_TO_PROGRESS: dict[AssessmentStatus, int] = {
 }
 
 
-@router.post("/run", response_model=AssessmentRunResponse)
+@router.post(
+    "/run",
+    response_model=AssessmentRunResponse,
+    dependencies=[Depends(require_from_zero_to_secure_flag)],
+)
 async def run_assessment(
     request: AssessmentCreate,
     http_request: FastAPIRequest,

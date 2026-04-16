@@ -99,13 +99,12 @@ function ReportCard({ data }: { data: DashboardPayload }) {
     })
   }
 
-  // Session G: when the backend has recorded a completion, render the
-  // celebration overlay + summary-action panel above the report card. The
-  // dashboard is still the home; completion is an additive state, not a
-  // separate page.
+  // Render the celebration overlay + summary-action panel only when the
+  // backend has recorded a completion with a concrete letter grade. Completion
+  // is an additive state on the dashboard, not a separate page.
   const completionBlock =
-    data.completion_id && data.grade
-      ? renderCompletionBlock(data, repoName)
+    data.completion_id && isLetterGrade(data.grade)
+      ? renderCompletionBlock(data, repoName, data.grade)
       : null
 
   return (
@@ -352,22 +351,17 @@ function repoNameFromUrl(url: string | null | undefined): string {
   }
 }
 
-/**
- * Render the completion celebration overlay + summary-action panel. Both are
- * Session F components that have lived in the tree un-wired; Session G puts
- * them on the user-visible path so the E2E (and the real user) can reach
- * Download / Copy text / Copy markdown.
- *
- * Kept inline rather than extracted because the only caller is ReportCard and
- * the inputs are fully derived from its ``data`` param. A dedicated wrapper
- * component would mean more props threading for zero reuse.
- */
+type LetterGrade = 'A' | 'B' | 'C' | 'D' | 'F'
+
+function isLetterGrade(value: unknown): value is LetterGrade {
+  return value === 'A' || value === 'B' || value === 'C' || value === 'D' || value === 'F'
+}
+
 function renderCompletionBlock(
   data: DashboardPayload,
   repoName: string,
+  grade: LetterGrade,
 ): React.ReactNode {
-  // grade is guaranteed non-null by the caller's guard.
-  const grade = data.grade as 'A' | 'B' | 'C' | 'D' | 'F'
   const completionId = data.completion_id ?? ''
   const completedAtIso = data.assessment?.completed_at ?? null
   const completedDate = formatCompletedDate(completedAtIso)

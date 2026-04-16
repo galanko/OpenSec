@@ -56,26 +56,35 @@ async def run_and_persist_assessment(
         return
 
     for check in result.posture_checks:
-        await upsert_posture_check(
-            db,
-            PostureCheckCreate(
-                assessment_id=assessment_id,
-                check_name=check["check_name"],
-                status=check["status"],
-                detail=check.get("detail"),
-            ),
-        )
+        try:
+            await upsert_posture_check(
+                db,
+                PostureCheckCreate(
+                    assessment_id=assessment_id,
+                    check_name=check["check_name"],
+                    status=check["status"],
+                    detail=check.get("detail"),
+                ),
+            )
+        except Exception:
+            logger.exception(
+                "failed to persist posture check %s for assessment %s",
+                check.get("check_name"),
+                assessment_id,
+            )
 
-    # Gap #3 (docs/known-issues/session-b-handoff-gaps.md): the engine populates
-    # ``result.findings`` with ``FindingCreate.model_dump()`` payloads. Without
-    # this loop, every vulnerability the assessment surfaces is silently dropped
-    # on the floor. We override ``source_type`` to ``opensec-assessment`` so the
-    # dashboard can distinguish engine-emitted findings from vendor-imported
-    # ones (the engine's per-advisory ``source_type="osv"`` is preserved in
-    # ``raw_payload.source`` inside ``_finding_from_advisory``).
+    # Persist each finding independently. A single malformed advisory must not
+    # abort the whole assessment and leave the row stuck in ``running``.
     for finding_data in result.findings:
-        payload = {**finding_data, "source_type": "opensec-assessment"}
-        await create_finding(db, FindingCreate(**payload))
+        try:
+            payload = {**finding_data, "source_type": "opensec-assessment"}
+            await create_finding(db, FindingCreate(**payload))
+        except Exception:
+            logger.exception(
+                "failed to persist finding for assessment %s: %r",
+                assessment_id,
+                finding_data.get("cve_id") or finding_data.get("title"),
+            )
 
     await set_assessment_result(
         db, assessment_id, grade=result.grade, criteria_snapshot=result.criteria_snapshot

@@ -1,19 +1,11 @@
 /**
- * Test-only MSW handlers for the eight routes Sessions B/D/E/F each mocked
- * during their stand-alone builds. Session G (this file) consolidates them
- * here so component tests keep working without the handlers being part of the
- * dev-time mock set. Dev now talks to the real FastAPI backend via
- * ``scripts/dev.sh``; only vitest loads this module.
+ * Test-only MSW handlers for routes served by the real backend in production
+ * but that component tests still want to stub deterministically. Loaded by
+ * vitest only (``src/test-setup.ts`` installs them in ``beforeEach``); never
+ * shipped to the dev service worker.
  *
- * Wired via ``src/test-setup.ts``:
- *
- * ```ts
- * server.use(...sessionHandlers)  // before each test
- * ```
- *
- * Tests that want non-default payloads continue to call ``setDashboardFixture``
- * or ``server.use(http.get(...))`` per-test — those overrides are still
- * reset between tests by ``afterEach(() => server.resetHandlers())``.
+ * Tests can override per-case via ``server.use(...)`` or ``setDashboardFixture``;
+ * ``afterEach(() => server.resetHandlers())`` cleans up between tests.
  */
 import { http, HttpResponse } from 'msw'
 import {
@@ -56,15 +48,13 @@ function deriveRepoName(url: string): string {
 }
 
 export const sessionHandlers = [
-  // Session G — feature flags. Tests default to the flag ON so gated routes
-  // render normally; the FeatureFlagGate test overrides this per-case via
-  // ``server.use(...)`` to cover the redirect paths.
+  // Default the flag ON so gated routes render normally in component tests.
+  // FeatureFlagGate tests override this per-case via ``server.use(...)`` to
+  // cover the redirect paths.
   http.get('/api/config/feature-flags', () =>
     HttpResponse.json({ v1_1_from_zero_to_secure_enabled: true }),
   ),
 
-  // Session D — onboarding wizard (the real backend handles these now in
-  // production; the component tests still want deterministic responses).
   http.post('/api/onboarding/repo', async ({ request }) => {
     const body = (await request.json()) as StubbedRepoRequest
 
@@ -109,7 +99,6 @@ export const sessionHandlers = [
     return HttpResponse.json({ onboarding_completed: true })
   }),
 
-  // Session E — dashboard aggregate payload + assessment status poller.
   http.get('/api/dashboard', () =>
     HttpResponse.json(getDashboardFixture(activeFixture)),
   ),
@@ -122,7 +111,6 @@ export const sessionHandlers = [
     return HttpResponse.json(step)
   }),
 
-  // Session E — posture-check fix.
   http.post('/api/posture/fix/:checkName', ({ params }) => {
     const checkName = params.checkName as 'security_md' | 'dependabot_config'
     return HttpResponse.json({
@@ -131,7 +119,6 @@ export const sessionHandlers = [
     })
   }),
 
-  // Session F — completion share-action recorder.
   http.post('/api/completion/:id/share-action', async ({ params, request }) => {
     const body = (await request.json()) as { action: ShareAction }
     return HttpResponse.json(

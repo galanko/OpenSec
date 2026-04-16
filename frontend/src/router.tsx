@@ -13,9 +13,6 @@ import ConnectRepo from '@/pages/onboarding/ConnectRepo'
 import ConfigureAI from '@/pages/onboarding/ConfigureAI'
 import StartAssessment from '@/pages/onboarding/StartAssessment'
 
-// EXEC-0002 Session G: onboarding is gated behind
-// ``v1_1_from_zero_to_secure_enabled``. When the flag is off, the wizard
-// is unreachable — any direct navigation redirects to /findings.
 const gated = (page: React.ReactElement) => (
   <FeatureFlagGate flag="v1_1_from_zero_to_secure_enabled">{page}</FeatureFlagGate>
 )

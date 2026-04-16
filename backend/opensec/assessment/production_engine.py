@@ -29,7 +29,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
+import signal
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -96,8 +98,8 @@ class ProductionAssessmentEngine:
     async def run_assessment(
         self, repo_url: str, *, assessment_id: str
     ) -> AssessmentResult:
-        _validate_repo_url(repo_url)
         token = await self._token_provider()
+        _validate_repo_url(repo_url, has_token=bool(token))
 
         if self._tmp_root is not None:
             self._tmp_root.mkdir(parents=True, exist_ok=True)
@@ -136,25 +138,39 @@ class ProductionAssessmentEngine:
         url = _inject_token(repo_url, token)
         redacted_url = _redact_token(url, token)
 
-        env = {"GIT_TERMINAL_PROMPT": "0"}
+        # Merge, don't replace, the parent env: git needs PATH to locate
+        # git-remote-https, plus HOME/SSL_CERT_FILE on some hosts.
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+
+        # ``--`` separates options from positional args so an attacker-controlled
+        # URL can't be interpreted as a git flag. Paired with the netloc check
+        # in _validate_repo_url for defence in depth.
         proc = await asyncio.create_subprocess_exec(
             "git",
             "clone",
             "--depth",
             "1",
             "--single-branch",
+            "--",
             url,
             str(target),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=env,
+            start_new_session=True,
         )
         try:
             _, stderr = await asyncio.wait_for(
                 proc.communicate(), timeout=self._clone_timeout_s
             )
         except TimeoutError:
-            proc.kill()
+            # Kill the whole process group — git spawns git-remote-https as a
+            # child and a plain proc.kill() leaves it running.
+            if proc.pid:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    proc.kill()
             await proc.wait()
             raise RuntimeError(
                 f"git clone timed out after {self._clone_timeout_s}s for {redacted_url}"
@@ -167,23 +183,37 @@ class ProductionAssessmentEngine:
             )
 
 
-def _validate_repo_url(repo_url: str) -> None:
-    """Reject anything we shouldn't clone from — non-https schemes and local paths.
+TOKEN_HOST_ALLOWLIST = frozenset({"github.com", "www.github.com"})
 
-    The clone step runs as the backend process; accepting arbitrary ``file://``
-    or ``ssh://`` URLs would let a user read anything the backend can see. This
-    matches the onboarding wizard's contract: public GitHub URLs over HTTPS.
+
+def _validate_repo_url(repo_url: str, *, has_token: bool = False) -> None:
+    """Reject anything we shouldn't clone from.
+
+    * HTTPS-only — accepting ``http://`` leaks the PAT in cleartext and ``file://``
+      / ``ssh://`` would let a user read whatever the backend process can see.
+    * Hosts cannot start with ``-`` so a crafted URL cannot be interpreted as a
+      git option even if ``--`` separation is somehow bypassed.
+    * When a token is being injected, restrict the host to GitHub so we don't
+      exfiltrate the PAT to an attacker-controlled server.
     """
     if not repo_url:
         raise ValueError("repo_url must not be empty")
     parsed = urlparse(repo_url)
-    if parsed.scheme not in {"https", "http"}:
+    if parsed.scheme != "https":
         raise ValueError(
             f"repo_url must be https:// (got scheme {parsed.scheme!r}); "
-            "non-HTTP(S) clones are rejected for safety"
+            "non-HTTPS clones are rejected for safety"
         )
     if not parsed.netloc:
         raise ValueError(f"repo_url is missing a host: {repo_url!r}")
+    host = parsed.hostname or ""
+    if host.startswith("-") or parsed.netloc.startswith("-"):
+        raise ValueError(f"repo_url host may not begin with '-': {repo_url!r}")
+    if has_token and host.lower() not in TOKEN_HOST_ALLOWLIST:
+        raise ValueError(
+            f"repo_url host {host!r} is not in the token-injection allowlist; "
+            "refusing to forward the GitHub token to a non-GitHub host"
+        )
 
 
 def _inject_token(repo_url: str, token: str | None) -> str:

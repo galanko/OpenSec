@@ -13,7 +13,11 @@ from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
 
 from opensec.api._background import schedule_assessment_run
-from opensec.api._engine_dep import AssessmentEngineProtocol, get_assessment_engine
+from opensec.api._engine_dep import (
+    AssessmentEngineProtocol,
+    get_assessment_engine,
+    require_from_zero_to_secure_flag,
+)
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import create_assessment, get_assessment
 from opensec.db.repo_setting import upsert_setting
@@ -40,7 +44,11 @@ class OnboardingCompleteResponse(BaseModel):
     onboarding_completed: bool
 
 
-@router.post("/repo", response_model=OnboardingRepoResponse)
+@router.post(
+    "/repo",
+    response_model=OnboardingRepoResponse,
+    dependencies=[Depends(require_from_zero_to_secure_flag)],
+)
 async def connect_repo(
     request: OnboardingRepoRequest,
     http_request: FastAPIRequest,
@@ -60,7 +68,11 @@ async def connect_repo(
     return OnboardingRepoResponse(assessment_id=assessment.id, repo_url=repo_url)
 
 
-@router.post("/complete", response_model=OnboardingCompleteResponse)
+@router.post(
+    "/complete",
+    response_model=OnboardingCompleteResponse,
+    dependencies=[Depends(require_from_zero_to_secure_flag)],
+)
 async def complete_onboarding(
     request: OnboardingCompleteRequest,
     db=Depends(get_db),

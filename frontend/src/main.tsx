@@ -8,10 +8,8 @@ import './index.css'
 
 /**
  * In dev, stand up the MSW service worker for the handful of routes that don't
- * yet have a real backend (Findings list + detail, pending a follow-up PR).
- * Session G removed the dev-time mocks for onboarding / dashboard / assessment
- * status / posture-fix / completion share-action — those now talk to FastAPI
- * via the Vite proxy. Production skips this entirely.
+ * yet have a real backend (Findings list + detail). Everything else goes
+ * through the Vite proxy to FastAPI. Production skips this entirely.
  *
  * Set `VITE_USE_REAL_API=1` (or `VITE_MSW=off`) to bypass the worker and let
  * every request through to the backend.

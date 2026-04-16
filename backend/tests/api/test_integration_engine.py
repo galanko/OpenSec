@@ -197,8 +197,9 @@ async def test_real_engine_http_mock_surface(
         shutil.copytree(planted_repo, target)
 
     def _handle(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.host)
-        if request.url.host == "api.osv.dev":
+        host = request.url.host
+        calls.append(host)
+        if host == "api.osv.dev":
             return httpx.Response(200, json={"vulns": []})
         return httpx.Response(403, json={"message": "integration test"})
 

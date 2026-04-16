@@ -70,11 +70,8 @@ describe('<FeatureFlagGate />', () => {
       ),
     )
     renderWithRouter()
-    // The hook retries once on error, so give it generous headroom before the
-    // ``isError`` state settles and the gate redirects.
-    await waitFor(
-      () => expect(screen.getByTestId('findings')).toBeInTheDocument(),
-      { timeout: 5_000 },
+    await waitFor(() =>
+      expect(screen.getByTestId('findings')).toBeInTheDocument(),
     )
   })
 })

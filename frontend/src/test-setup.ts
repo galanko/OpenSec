@@ -17,11 +17,9 @@ import { fetch as undiciFetch } from 'undici'
 // `server.use(...)`; we reset between tests so overrides don't leak.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 
-// Session G moved the Session-B/D/E/F handlers out of the dev-time mock set
-// (they now have real backend implementations). Component tests still want
-// deterministic responses for those routes, so we register them in every
-// test's beforeEach — they're scoped to vitest and never loaded by the dev
-// browser worker.
+// Component tests still want deterministic responses for the routes the dev
+// browser worker no longer mocks. Register them per-test so the handlers stay
+// scoped to vitest and never leak into the dev service worker.
 beforeEach(() => {
   server.use(...sessionHandlers)
 })

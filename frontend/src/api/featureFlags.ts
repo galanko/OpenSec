@@ -1,9 +1,8 @@
 /**
  * Read-only feature-flag snapshot from the backend.
  *
- * The onboarding wizard + new v1.1 dashboard entry points are gated behind
- * ``v1_1_from_zero_to_secure_enabled``. Default is ``false`` on the server;
- * ``@galanko`` flips it on after the Session G PR merges for a canary.
+ * Default on the server is ``false`` for every flag; consumers treat "no data
+ * yet" as flag-off so the gate is fail-closed during fetch + on error.
  */
 
 import { useQuery } from '@tanstack/react-query'
@@ -17,10 +16,9 @@ export function useFeatureFlags() {
   return useQuery({
     queryKey: ['feature-flags'],
     queryFn: () => request<FeatureFlags>('/api/config/feature-flags'),
-    // Flags rarely change at runtime; don't thrash the network.
     staleTime: 60_000,
-    // If the backend is momentarily down we don't want the wizard to wedge —
-    // treat "no data yet" as flag-off via the consumer's default.
-    retry: 1,
+    // Skip retries — a flag endpoint should fail fast so the gate redirects
+    // instead of flashing a blank screen through backoff.
+    retry: false,
   })
 }
