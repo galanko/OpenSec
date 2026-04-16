@@ -8,6 +8,7 @@ import pytest
 
 from opensec.api._engine_dep import get_repo_workspace_spawner
 from opensec.main import app
+from opensec.workspace.workspace_dir_manager import WorkspaceKind
 
 
 @dataclass
@@ -17,7 +18,7 @@ class FakeSpawner:
     fixed_workspace_id: str = "ws-123"
     calls: list[dict] = field(default_factory=list)
 
-    async def spawn_repo_workspace(self, *, kind: str, repo_url: str) -> str:
+    async def spawn_repo_workspace(self, *, kind: WorkspaceKind, repo_url: str) -> str:
         self.calls.append({"kind": kind, "repo_url": repo_url})
         return self.fixed_workspace_id
 
@@ -51,7 +52,10 @@ async def test_fix_security_md(db_client, fake_spawner):
     assert data["workspace_id"] == "ws-123"
     assert data["check_name"] == "security_md"
     assert fake_spawner.calls == [
-        {"kind": "repo_action_security_md", "repo_url": "https://github.com/a/b"}
+        {
+            "kind": WorkspaceKind.repo_action_security_md,
+            "repo_url": "https://github.com/a/b",
+        }
     ]
 
 
@@ -60,7 +64,7 @@ async def test_fix_dependabot_config(db_client, fake_spawner):
 
     resp = await db_client.post("/api/posture/fix/dependabot_config")
     assert resp.status_code == 200
-    assert fake_spawner.calls[0]["kind"] == "repo_action_dependabot"
+    assert fake_spawner.calls[0]["kind"] == WorkspaceKind.repo_action_dependabot
 
 
 async def test_fix_unknown_check_returns_422(db_client, fake_spawner):

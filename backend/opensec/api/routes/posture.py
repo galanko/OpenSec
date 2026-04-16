@@ -19,6 +19,7 @@ from opensec.api._engine_dep import (
 )
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import get_latest_assessment
+from opensec.workspace.workspace_dir_manager import WorkspaceKind
 
 router = APIRouter(prefix="/posture", tags=["posture"])
 
@@ -30,9 +31,9 @@ class PostureFixResponse(BaseModel):
     check_name: PostureFixCheckName
 
 
-_CHECK_TO_WORKSPACE_KIND: dict[PostureFixCheckName, str] = {
-    "security_md": "repo_action_security_md",
-    "dependabot_config": "repo_action_dependabot",
+_CHECK_TO_WORKSPACE_KIND: dict[PostureFixCheckName, WorkspaceKind] = {
+    "security_md": WorkspaceKind.repo_action_security_md,
+    "dependabot_config": WorkspaceKind.repo_action_dependabot,
 }
 
 

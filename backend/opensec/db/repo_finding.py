@@ -132,3 +132,20 @@ async def delete_finding(db: aiosqlite.Connection, finding_id: str) -> bool:
     cursor = await db.execute("DELETE FROM finding WHERE id = ?", (finding_id,))
     await db.commit()
     return cursor.rowcount > 0
+
+
+async def count_findings_by_priority(db: aiosqlite.Connection) -> dict[str, int]:
+    """Return ``{priority: count}`` for findings with a non-null priority.
+
+    Used by dashboard and assessment/latest; avoids materialising every row when
+    only aggregate counts are needed (IMPL-0002 D4, D2).
+    """
+    cursor = await db.execute(
+        """
+        SELECT normalized_priority, COUNT(*) AS n
+          FROM finding
+         WHERE normalized_priority IS NOT NULL
+         GROUP BY normalized_priority
+        """
+    )
+    return {row["normalized_priority"]: row["n"] for row in await cursor.fetchall()}

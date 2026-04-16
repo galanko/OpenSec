@@ -13,8 +13,8 @@ from pydantic import BaseModel
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import get_latest_assessment
 from opensec.db.dao.completion import get_completion_for_assessment
-from opensec.db.dao.posture_check import list_posture_checks_for_assessment
-from opensec.db.repo_finding import list_findings
+from opensec.db.dao.posture_check import count_posture_pass_total
+from opensec.db.repo_finding import count_findings_by_priority
 from opensec.models import Assessment, CriteriaSnapshot, Grade
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -33,13 +33,9 @@ class DashboardPayload(BaseModel):
 @router.get("", response_model=DashboardPayload)
 async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
     """Aggregate dashboard payload: latest assessment + findings + posture."""
-    findings = await list_findings(db, limit=10_000)
-    counts: dict[str, int] = {}
-    for f in findings:
-        if f.normalized_priority:
-            counts[f.normalized_priority] = counts.get(f.normalized_priority, 0) + 1
-
+    counts = await count_findings_by_priority(db)
     latest = await get_latest_assessment(db)
+
     if latest is None:
         return DashboardPayload(
             assessment=None,
@@ -51,10 +47,7 @@ async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
             completion_id=None,
         )
 
-    posture_checks = await list_posture_checks_for_assessment(db, latest.id)
-    pass_count = sum(1 for c in posture_checks if c.status == "pass")
-    total_count = len(posture_checks)
-
+    pass_count, total_count = await count_posture_pass_total(db, latest.id)
     completion = await get_completion_for_assessment(db, latest.id)
 
     return DashboardPayload(

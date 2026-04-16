@@ -68,6 +68,24 @@ async def list_posture_checks_for_assessment(
     return [_row_to_posture_check(r) for r in rows]
 
 
+async def count_posture_pass_total(
+    db: aiosqlite.Connection, assessment_id: str
+) -> tuple[int, int]:
+    """Return ``(pass_count, total_count)`` for one assessment's posture sweep."""
+    cursor = await db.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN status = 'pass' THEN 1 ELSE 0 END), 0) AS passes,
+            COUNT(*) AS total
+          FROM posture_check
+         WHERE assessment_id = ?
+        """,
+        (assessment_id,),
+    )
+    row = await cursor.fetchone()
+    return (row["passes"], row["total"]) if row else (0, 0)
+
+
 async def upsert_posture_check(
     db: aiosqlite.Connection, data: PostureCheckCreate
 ) -> PostureCheck:

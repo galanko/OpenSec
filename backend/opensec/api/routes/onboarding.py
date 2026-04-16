@@ -8,14 +8,12 @@ the ``onboarding.completed`` setting once the first assessment succeeds.
 
 from __future__ import annotations
 
-import asyncio
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
 
+from opensec.api._background import schedule_assessment_run
 from opensec.api._engine_dep import AssessmentEngineProtocol, get_assessment_engine
-from opensec.api.routes.assessment import _run_and_persist
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import create_assessment, get_assessment
 from opensec.db.repo_setting import upsert_setting
@@ -54,20 +52,11 @@ async def connect_repo(
     if not repo_url:
         raise HTTPException(status_code=422, detail="repo_url must not be empty")
 
-    # MVP: persist token in app_setting. Real credential vault integration is a
-    # Session G follow-up (the vault is already used elsewhere in the stack; out
-    # of scope for Session B's thin route layer).
+    # MVP ad-hoc storage; Session G can route through the real credential vault.
     await upsert_setting(db, "onboarding.github_token", {"token": request.github_token})
 
     assessment = await create_assessment(db, AssessmentCreate(repo_url=repo_url))
-
-    task = asyncio.create_task(
-        _run_and_persist(db, engine, assessment.id, repo_url)
-    )
-    tasks: list[asyncio.Task] = getattr(http_request.app.state, "assessment_tasks", [])
-    tasks.append(task)
-    http_request.app.state.assessment_tasks = tasks
-
+    schedule_assessment_run(http_request.app, db, engine, assessment.id, repo_url)
     return OnboardingRepoResponse(assessment_id=assessment.id, repo_url=repo_url)
 
 

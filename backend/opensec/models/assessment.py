@@ -29,6 +29,16 @@ class CriteriaSnapshot(BaseModel):
     security_md_present: bool = False
     dependabot_present: bool = False
 
+    def all_met(self) -> bool:
+        """True only if every criterion is satisfied (ADR-0025 completion gate)."""
+        return (
+            self.no_critical_vulns
+            and self.security_md_present
+            and self.dependabot_present
+            and self.posture_checks_total > 0
+            and self.posture_checks_passing == self.posture_checks_total
+        )
+
 
 class AssessmentCreate(BaseModel):
     repo_url: str

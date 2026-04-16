@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
@@ -128,7 +129,7 @@ async def db_client():
     # Reset integration layer state (may be stale from other tests).
     app.state.vault = None
     app.state.audit_logger = None
-    app.state.assessment_tasks = []
+    app.state.assessment_tasks = set()
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -136,11 +137,9 @@ async def db_client():
 
     # Drain any assessment background tasks before closing the DB so they don't
     # race a closed connection (EXEC-0002 Session B).
-    import asyncio as _asyncio
-
-    pending = list(getattr(app.state, "assessment_tasks", []))
+    pending = list(getattr(app.state, "assessment_tasks", set()))
     if pending:
-        await _asyncio.gather(*pending, return_exceptions=True)
-    app.state.assessment_tasks = []
+        await asyncio.gather(*pending, return_exceptions=True)
+    app.state.assessment_tasks = set()
 
     await close_db()

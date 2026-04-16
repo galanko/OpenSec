@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from opensec.models import AssessmentResult
+    from opensec.workspace.workspace_dir_manager import WorkspaceKind
 
 
 class AssessmentEngineProtocol(Protocol):
@@ -44,7 +45,7 @@ class RepoWorkspaceSpawnerProtocol(Protocol):
     """Minimal contract for spawning a posture-fix repo workspace (Session C)."""
 
     async def spawn_repo_workspace(
-        self, *, kind: str, repo_url: str
+        self, *, kind: WorkspaceKind, repo_url: str
     ) -> str:  # returns workspace_id
         ...
 
