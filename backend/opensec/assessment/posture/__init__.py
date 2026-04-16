@@ -63,22 +63,23 @@ async def run_all_posture_checks(
     )
     from opensec.assessment.posture.secrets import scan_for_secrets
 
-    # Fire the two REST calls in parallel; fetch branch protection once and
-    # share it between the two checks that care.
-    protection, commits = await asyncio.gather(
+    # One gather: two REST calls in parallel with four thread-pool FS checks.
+    # Branch protection is fetched once and shared between the two checks
+    # that care about it.
+    (
+        protection,
+        commits,
+        secrets_res,
+        security_res,
+        lockfile_res,
+        dependabot_res,
+    ) = await asyncio.gather(
         gh_client.get_branch_protection(coords.owner, coords.repo, coords.branch),
         gh_client.list_recent_commits(coords.owner, coords.repo, coords.branch),
-    )
-
-    # Run filesystem checks off-loop so they don't block the REST coroutines.
-    scan_task = asyncio.to_thread(scan_for_secrets, repo_path)
-    security_md_task = asyncio.to_thread(check_security_md, repo_path)
-    lockfile_task = asyncio.to_thread(
-        check_lockfile_present, repo_path, pre_detected_lockfiles
-    )
-    dependabot_task = asyncio.to_thread(check_dependabot_config, repo_path)
-    secrets_res, security_res, lockfile_res, dependabot_res = await asyncio.gather(
-        scan_task, security_md_task, lockfile_task, dependabot_task
+        asyncio.to_thread(scan_for_secrets, repo_path),
+        asyncio.to_thread(check_security_md, repo_path),
+        asyncio.to_thread(check_lockfile_present, repo_path, pre_detected_lockfiles),
+        asyncio.to_thread(check_dependabot_config, repo_path),
     )
 
     results: list[PostureCheckResult] = [

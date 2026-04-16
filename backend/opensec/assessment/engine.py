@@ -12,6 +12,7 @@ Entry points:
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from opensec.assessment.posture import GithubAPI
     from opensec.models.assessment import Grade
     from opensec.models.posture_check import PostureCheckName, PostureCheckStatus
+
+logger = logging.getLogger(__name__)
 
 # Cap on concurrent advisory lookups. OSV tolerates this easily and
 # `httpx.AsyncClient` reuses its connection pool. Without this, ~1000 deps
@@ -93,14 +96,20 @@ def derive_grade(
 
     Met criteria: no criticals, no highs, branch_protection pass,
     no_secrets_in_code pass, SECURITY.md present. Count -> A..F.
+
+    Policy: an advisory with UNKNOWN severity fails criterion 1 and 2 —
+    we treat "could be critical" as "is critical" for grading. Operators
+    see the grade drop and investigate rather than silently benefiting
+    from missing severity metadata.
     """
     posture_statuses = posture_statuses or {}
     severities = {_severity_of(f) for f in findings}
+    has_unknown = "UNKNOWN" in severities
 
     met = sum(
         [
-            "CRITICAL" not in severities,
-            "HIGH" not in severities,
+            "CRITICAL" not in severities and not has_unknown,
+            "HIGH" not in severities and not has_unknown,
             posture_statuses.get("branch_protection") == "pass",
             posture_statuses.get("no_secrets_in_code") == "pass",
             criteria.security_md_present,
@@ -117,7 +126,12 @@ def _collect_dependencies(
     for _ecosystem, file_path, parser in lockfiles:
         try:
             parsed = parser(file_path)
-        except Exception:  # noqa: BLE001 — one malformed lockfile shouldn't kill the run
+        except Exception as exc:  # noqa: BLE001 — one malformed lockfile shouldn't kill the run
+            logger.warning(
+                "assessment: skipped malformed lockfile %s: %s",
+                file_path,
+                exc,
+            )
             continue
         for dep in parsed:
             key = (dep.ecosystem, dep.name, dep.version)
@@ -190,7 +204,23 @@ def _severity_of(finding: dict[str, Any]) -> str:
 
 
 def _coords_from_repo_url(repo_url: str, *, branch: str) -> RepoCoords:
-    parsed = urlparse(repo_url)
-    path = parsed.path.strip("/").removesuffix(".git")
+    """Parse `owner/repo` out of the URL we're assessing.
+
+    Accepts `https://host/owner/repo[.git][/]` and `git@host:owner/repo[.git]`
+    (SSH). Raises `ValueError` on anything we can't confidently parse — the
+    GitHub API client would otherwise 404 silently and every
+    protection-dependent check would report `"unknown"`.
+    """
+    if repo_url.startswith("git@") and ":" in repo_url:
+        path = repo_url.split(":", 1)[1]
+    else:
+        parsed = urlparse(repo_url)
+        if not parsed.scheme or not parsed.netloc:
+            raise ValueError(f"cannot parse owner/repo from repo_url: {repo_url!r}")
+        path = parsed.path
+
+    path = path.strip("/").removesuffix(".git")
     owner, _, repo = path.partition("/")
-    return RepoCoords(owner=owner, repo=repo or path, branch=branch)
+    if not owner or not repo:
+        raise ValueError(f"cannot parse owner/repo from repo_url: {repo_url!r}")
+    return RepoCoords(owner=owner, repo=repo, branch=branch)

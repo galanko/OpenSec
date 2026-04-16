@@ -121,3 +121,54 @@ async def test_lookup_with_fallback_unable_to_verify_when_both_down(
 def test_advisory_lookup_protocol_is_importable() -> None:
     assert AdvisoryLookup is not None
     assert GhsaClient is not None
+
+
+# ---------------------------------------------------------------------------
+# CVSS fallback (review finding #6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_osv_lookup_falls_back_to_cvss_band_when_severity_missing(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """OSV returns a vuln with no `database_specific.severity` but with a
+    CVSS v3 vector carrying a HIGH availability impact -> severity=HIGH.
+    """
+    payload = {
+        "vulns": [
+            {
+                "id": "GHSA-abcd-efgh-ijkl",
+                "summary": "cvss-only",
+                "severity": [
+                    {
+                        "type": "CVSS_V3",
+                        "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H",
+                    }
+                ],
+                "affected": [],
+            }
+        ]
+    }
+    httpx_mock.add_response(url=OSV_URL, method="POST", json=payload)
+
+    async with httpx.AsyncClient() as http:
+        client = OsvClient(http=http)
+        advisories = await client.lookup(BRACES)
+
+    assert len(advisories) == 1
+    assert advisories[0].severity == "HIGH"
+
+
+@pytest.mark.asyncio
+async def test_osv_lookup_returns_unknown_when_no_severity_anywhere(
+    httpx_mock: HTTPXMock,
+) -> None:
+    payload = {"vulns": [{"id": "GHSA-no-sev", "summary": "x", "affected": []}]}
+    httpx_mock.add_response(url=OSV_URL, method="POST", json=payload)
+
+    async with httpx.AsyncClient() as http:
+        client = OsvClient(http=http)
+        advisories = await client.lookup(BRACES)
+
+    assert advisories[0].severity == "UNKNOWN"

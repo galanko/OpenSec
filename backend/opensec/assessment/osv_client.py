@@ -140,7 +140,47 @@ def _extract_severity(vuln: dict[str, Any]) -> str:
         raw = database_specific.get("severity")
         if isinstance(raw, str) and raw:
             return raw.upper()
+    # Fall back to CVSS v3 vector banding when the database didn't attach
+    # its own severity label. Pragmatic bucket, not a full CVSS scorer.
+    for entry in vuln.get("severity") or []:
+        if not isinstance(entry, dict):
+            continue
+        score = entry.get("score")
+        if isinstance(score, str):
+            banded = _cvss_vector_band(score)
+            if banded is not None:
+                return banded
     return "UNKNOWN"
+
+
+def _cvss_vector_band(vector: str) -> str | None:
+    """Map a CVSS v3 vector string to a coarse severity band.
+
+    Looks at the C/I/A impact metrics only: any H -> HIGH, any L -> MEDIUM,
+    all N -> LOW. Intentionally not a faithful CVSS calculator — a full
+    scorer is follow-up work.
+    """
+    if not vector.startswith("CVSS:"):
+        return None
+    impacts = {
+        _cvss_impact_value(vector, f"/{key}:") for key in ("C", "I", "A")
+    }
+    impacts.discard(None)
+    if "H" in impacts:
+        return "HIGH"
+    if "L" in impacts:
+        return "MEDIUM"
+    if impacts:
+        return "LOW"
+    return None
+
+
+def _cvss_impact_value(vector: str, marker: str) -> str | None:
+    idx = vector.find(marker)
+    if idx == -1:
+        return None
+    value = vector[idx + len(marker) : idx + len(marker) + 1]
+    return value or None
 
 
 def _extract_fixed_version(vuln: dict[str, Any]) -> str | None:

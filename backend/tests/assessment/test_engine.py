@@ -12,7 +12,11 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from opensec.assessment.engine import derive_grade, run_assessment_on_path
+from opensec.assessment.engine import (
+    _coords_from_repo_url,
+    derive_grade,
+    run_assessment_on_path,
+)
 from opensec.assessment.osv_client import Advisory
 from opensec.assessment.posture.github_client import UnableToVerify
 from opensec.models.assessment import CriteriaSnapshot
@@ -196,3 +200,90 @@ def test_derive_grade_f_when_criticals_present() -> None:
     findings = [{"raw_severity": "CRITICAL"}]
     posture_statuses = {"branch_protection": "fail", "no_secrets_in_code": "fail"}
     assert derive_grade(snap, findings, posture_statuses) == "F"
+
+
+def test_derive_grade_counts_unknown_severity_against_criteria() -> None:
+    """An UNKNOWN-severity advisory fails both the no-critical and no-high
+    criteria — conservative policy per review finding #3.
+    """
+    snap = CriteriaSnapshot(
+        security_md_present=True,
+        posture_checks_passing=7,
+        posture_checks_total=7,
+    )
+    findings = [{"raw_severity": "UNKNOWN"}]
+    posture_statuses = {
+        "branch_protection": "pass",
+        "no_secrets_in_code": "pass",
+    }
+    # 3 criteria met (bp, secrets, security_md), 2 missed (unknown counts).
+    assert derive_grade(snap, findings, posture_statuses) == "C"
+
+
+# ---------------------------------------------------------------------------
+# _coords_from_repo_url (review finding #1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "url,expected_owner,expected_repo",
+    [
+        ("https://github.com/acme/demo", "acme", "demo"),
+        ("https://github.com/acme/demo.git", "acme", "demo"),
+        ("https://github.com/acme/demo/", "acme", "demo"),
+        ("git@github.com:acme/demo.git", "acme", "demo"),
+        ("git@github.com:acme/demo", "acme", "demo"),
+    ],
+)
+def test_coords_from_repo_url_handles_supported_forms(
+    url: str, expected_owner: str, expected_repo: str
+) -> None:
+    coords = _coords_from_repo_url(url, branch="main")
+    assert coords.owner == expected_owner
+    assert coords.repo == expected_repo
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "not a url",
+        "https://github.com/",
+        "https://github.com/just-owner",
+        "",
+    ],
+)
+def test_coords_from_repo_url_raises_on_malformed(url: str) -> None:
+    with pytest.raises(ValueError, match="repo_url"):
+        _coords_from_repo_url(url, branch="main")
+
+
+# ---------------------------------------------------------------------------
+# Malformed lockfile logging (review finding #4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_assessment_skips_malformed_lockfile_with_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Invalid JSON in a recognised lockfile name.
+    (tmp_path / "package-lock.json").write_text("{this is not json")
+
+    gh = AsyncMock()
+    gh.get_branch_protection.return_value = None
+    gh.list_recent_commits.return_value = []
+    osv = AsyncMock()
+    osv.lookup.return_value = []
+
+    with caplog.at_level("WARNING", logger="opensec.assessment.engine"):
+        result = await run_assessment_on_path(
+            tmp_path,
+            repo_url="https://github.com/a/b",
+            gh_client=gh,
+            osv=osv,
+        )
+
+    assert result.findings == []
+    # The warning surfaces which file was skipped + why.
+    assert any("skipped malformed lockfile" in record.message for record in caplog.records)
+    assert any("package-lock.json" in record.message for record in caplog.records)
