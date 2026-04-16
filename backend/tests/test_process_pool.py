@@ -403,3 +403,81 @@ async def test_status(pool: WorkspaceProcessPool):
     assert status["available_ports"] == 9
     assert "ws-1" in status["workspaces"]
     assert status["workspaces"]["ws-1"]["port"] == 5100
+
+
+# ---------------------------------------------------------------------------
+# stop_on_completion — repo-action cleanup trigger (IMPL-0002 E4)
+# ---------------------------------------------------------------------------
+
+
+async def test_stop_on_completion_archives_and_releases_port(
+    pool: WorkspaceProcessPool, tmp_path: Path
+):
+    """Stops the subprocess, releases the port, tars the workspace, removes it."""
+    ws_id = "repo-security-md-abcd1234"
+    ws_dir = tmp_path / ws_id
+    (ws_dir / ".opencode" / "agents").mkdir(parents=True)
+    (ws_dir / "opencode.json").write_text("{}")
+    (ws_dir / "REPO_ACTION.md").write_text("stub")
+
+    mock_proc = _make_mock_subprocess()
+    mock_httpx = _make_mock_httpx_healthy()
+
+    with (
+        patch(
+            "opensec.engine.pool.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=mock_proc),
+        ),
+        patch("opensec.engine.pool.httpx.AsyncClient", return_value=mock_httpx),
+    ):
+        await pool.start(ws_id, ws_dir)
+
+    assert pool._ports.available == 9
+    mock_proc.returncode = None  # still running until we call stop
+
+    archive_path = await pool.stop_on_completion(ws_id)
+
+    # Process terminated + port freed.
+    mock_proc.terminate.assert_called_once()
+    assert pool._ports.available == 10
+    assert await pool.get(ws_id) is None
+
+    assert archive_path is not None
+    assert archive_path.exists()
+    assert archive_path.name == f"{ws_id}.tar.gz"
+    assert not ws_dir.exists()
+
+
+async def test_stop_on_completion_unknown_workspace_is_noop(
+    pool: WorkspaceProcessPool,
+):
+    """Calling stop_on_completion on a workspace we never started must not raise."""
+    result = await pool.stop_on_completion("never-started")
+    assert result is None
+    assert pool._ports.available == 10
+
+
+def test_archive_and_remove_is_atomic_on_failure(tmp_path: Path):
+    """A failure mid-archive must leave no partial .tar.gz at the dest path."""
+    from opensec.engine.pool import _archive_and_remove
+
+    src = tmp_path / "ws-atomic"
+    src.mkdir()
+    (src / "file.txt").write_text("payload")
+    dest = tmp_path / "ws-atomic.tar.gz"
+
+    class _BoomError(RuntimeError):
+        pass
+
+    with (
+        patch("opensec.engine.pool.tarfile.open", side_effect=_BoomError("tar exploded")),
+        pytest.raises(_BoomError),
+    ):
+        _archive_and_remove(src, dest, "ws-atomic")
+
+    assert not dest.exists(), "Failed archive run left a partial tarball behind"
+    assert not dest.with_name(dest.name + ".tmp").exists(), (
+        "Temp archive not cleaned up on failure"
+    )
+    # Source dir must survive — operator can retry or inspect.
+    assert src.exists()

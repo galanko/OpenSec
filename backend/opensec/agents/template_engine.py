@@ -10,6 +10,8 @@ import jinja2
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from opensec.workspace.workspace_dir_manager import WorkspaceKind
+
 # The 6 agent filenames (stem only) in pipeline order.
 AGENT_NAMES: list[str] = [
     "orchestrator",
@@ -22,13 +24,32 @@ AGENT_NAMES: list[str] = [
     "validation_checker",
 ]
 
+# Repo-scoped single-shot template agents (IMPL-0002 E1, E2; ADR-0024).
+# Maps WorkspaceKind values to the Jinja template stem under templates/.
+# Kept as string keys to avoid an import cycle with workspace_dir_manager.
+REPO_ACTION_TEMPLATES: dict[str, str] = {
+    "repo_action_security_md": "security_md_generator",
+    "repo_action_dependabot": "dependabot_config_generator",
+}
+
 _DEFAULT_TEMPLATES_DIR = None  # Resolved lazily to avoid import-time Path I/O
+_default_engine: AgentTemplateEngine | None = None
 
 
 def _get_default_templates_dir() -> Path:
     from pathlib import Path
 
     return Path(__file__).parent / "templates"
+
+
+def get_default_engine() -> AgentTemplateEngine:
+    """Shared ``AgentTemplateEngine`` — avoid re-scanning the templates dir
+    on every repo-workspace creation. Safe to share: the engine is read-only
+    after construction and Jinja's ``FileSystemLoader`` is thread-safe."""
+    global _default_engine
+    if _default_engine is None:
+        _default_engine = AgentTemplateEngine()
+    return _default_engine
 
 
 @dataclass(frozen=True)
@@ -120,6 +141,49 @@ class AgentTemplateEngine:
 
         content = template.render(**context)
         return RenderedAgent(name=name, filename=f"{name}.md", content=content)
+
+    def render_repo_action(
+        self,
+        kind: WorkspaceKind,
+        *,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
+        gh_token: str | None = None,
+    ) -> RenderedAgent:
+        """Render a single-shot repo-action agent template (ADR-0024).
+
+        Args:
+            kind: The repo-action ``WorkspaceKind``.
+            repo_url: The target GitHub repo URL the agent will clone.
+            params: Extra template variables (e.g. ``contact_email``). The
+                templates reference these as ``{{ params.contact_email }}``;
+                they are NOT splatted into the top-level context so template
+                authors see a single clear entry point for caller data.
+            gh_token: Optional GitHub PAT. When provided, the rendered prompt
+                includes the token-export lines so the agent can push to a
+                private repo.
+
+        Raises:
+            ValueError: If ``kind`` is not a repo-action kind.
+        """
+        template_stem = REPO_ACTION_TEMPLATES.get(kind.value)
+        if template_stem is None:
+            raise ValueError(
+                f"{kind.value!r} is not a repo-action kind. "
+                f"Valid kinds: {sorted(REPO_ACTION_TEMPLATES)}"
+            )
+
+        template = self._env.get_template(f"{template_stem}.md.j2")
+        content = template.render(
+            repo_url=repo_url,
+            params=params or {},
+            gh_token=gh_token,
+        )
+        return RenderedAgent(
+            name=template_stem,
+            filename=f"{template_stem}.md",
+            content=content,
+        )
 
     def render_all(
         self,
