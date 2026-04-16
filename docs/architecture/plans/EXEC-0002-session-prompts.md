@@ -47,24 +47,31 @@ Every prompt assumes:
 
 ## Session A — Assessment engine
 
-> You are implementing Session A of `docs/architecture/plans/EXEC-0002-from-zero-to-secure.md`. The contracts freeze (Session 0) has already merged — pull `main` first.
+> You are implementing Session A of `docs/architecture/plans/EXEC-0002-from-zero-to-secure.md`. The contracts freeze (Session 0) and the API-routes + DAOs work (Session B) have already merged — pull `main` first.
 >
-> **Read first:** `docs/architecture/plans/IMPL-0002-earn-the-badge.md` (Milestone B), `docs/adr/0025-assessment-engine-and-badge-lifecycle.md`, `CLAUDE.md`.
+> **Read first:** `docs/architecture/plans/IMPL-0002-earn-the-badge.md` (Milestone B), `docs/adr/0025-assessment-engine-and-badge-lifecycle.md`, `CLAUDE.md`, and the contract that Session B builds against: `backend/opensec/api/_engine_dep.py::AssessmentEngineProtocol` and `backend/opensec/api/_background.py::run_and_persist_assessment`.
 >
 > **Scope:** IMPL-0002 Milestone B (B1–B6) — lockfile parsers, OSV.dev client, GHSA fallback, posture checks, assessment orchestrator.
 >
 > **Owns files:** `backend/opensec/assessment/**`, fixtures under `backend/tests/fixtures/lockfiles/**`, tests under `backend/tests/assessment/**`.
 >
-> **Do NOT touch:** API routes (Session B), frontend (Sessions D/E/F), agent templates (Session C), DB migrations (Session 0 owns).
+> **Do NOT touch:** API routes (Session B), frontend (Sessions D/E/F), agent templates (Session C), DB migrations (Session 0 owns), and **`backend/opensec/db/dao/**`** (Session B owns — see interface contract below).
 >
-> **Uses from Session 0:** `Finding` / `Assessment` / `PostureCheck` Pydantic models. Import them, don't redefine.
+> **Uses from Session 0:** `Finding` / `Assessment` / `PostureCheck` / `AssessmentResult` Pydantic models. Import them, don't redefine.
+>
+> **Interface contract with Session B (the rule that makes the engine swap trivial in Session G):**
+>
+> 1. Your `engine.run_assessment(repo_url, *, assessment_id)` **returns** an `AssessmentResult`. It MUST NOT import `opensec.db.dao.*` — the `assessments` and `posture_checks` rows are written by Session B's `run_and_persist_assessment` from your return value.
+> 2. The `posture_checks` field on `AssessmentResult` is `list[dict[str, Any]]` and each item MUST have keys `check_name` (str matching `PostureCheckName`), `status` (`"pass"|"fail"|"advisory"|"unknown"`), and optionally `detail` (dict or None). Matches `PostureCheckCreate` minus `assessment_id`. Session B reads these keys by name; silent breakage if you pick other names.
+> 3. The `findings` field on `AssessmentResult` is informational only — Session B does NOT persist it. Your engine is responsible for pushing every emitted finding into the existing ingest pipeline via `opensec.db.repo_ingest_job.create_ingest_job` (or `opensec.db.repo_finding.create_finding` for synchronous cases). Set `source_type="opensec-assessment"` for these so they're distinguishable from vendor-imported findings.
+> 4. Your engine conforms to `AssessmentEngineProtocol`. Session G's entire integration step is replacing `get_assessment_engine()`'s body with `return YourEngine(...)`.
 >
 > **TDD order:**
 > 1. Check real `package-lock.json` v1, v2, v3 fixtures into `backend/tests/fixtures/lockfiles/npm/`. Write `test_npm_parser_extracts_every_dep_with_version`. Watch it fail. Write the npm parser. (B1)
 > 2. Same pattern for pip (B2) and go (B3).
 > 3. Write `test_osv_lookup_returns_advisories_for_braces_3_0_2` with a recorded response via `httpx.MockTransport`. Write the OSV client + GHSA fallback. (B4)
 > 4. Write `test_branch_protection_check_reports_missing_rule_as_fail` with a mocked `GithubClient`. Write the posture checks module. (B5)
-> 5. End-to-end unit test of the orchestrator against a fixture repo with planted vulns + planted posture issues. Write `engine.py`. (B6)
+> 5. End-to-end unit test of the orchestrator: given a fixture repo with planted vulns + planted posture issues, assert it returns an `AssessmentResult` with the right `grade`, `criteria_snapshot`, `posture_checks` shape, and that it wrote the expected findings to the ingest pipeline. Write `engine.py`. (B6)
 >
 > **Branch:** `feat/from-zero-to-secure-assessment-engine`. One PR to `main` when all milestone-B tests pass.
 >
@@ -242,7 +249,7 @@ Every prompt assumes:
 > **Steps:**
 >
 > 1. Delete the MSW mocks in the frontend for routes that now have real backend implementations. Routes: `POST /api/onboarding/repo`, `POST /api/onboarding/complete`, `POST /api/assessment/run`, `GET /api/assessment/status/:id`, `GET /api/assessment/latest`, `GET /api/dashboard`, `POST /api/posture/fix/:check`, `POST /api/completion/:id/share-action`. Leave any others mocked if they exist.
-> 2. In `backend/tests/api/`, replace the `FakeAssessmentEngine` from Session B with the real engine from Session A. Re-run the full backend test suite — `uv run pytest -v`. Fix any integration breakage by reopening the owning session's PR as a hot-fix.
+> 2. Wire the real engine into the DI seam. Concretely: edit `backend/opensec/api/_engine_dep.py::get_assessment_engine` so its body returns an instance of Session A's engine (`from opensec.assessment.engine import AssessmentEngine; return AssessmentEngine(...)`). Same for `get_repo_workspace_spawner` — its body should construct and return the spawner shim built on top of Session C's `WorkspaceDirManager.create_repo_workspace`. Do NOT touch the protocol definitions or route code; the whole point of Session B's DI seam is that integration is a two-line body swap. Re-run `uv run pytest -v` — route tests still use `app.dependency_overrides` with the fake and must stay green.
 > 3. Write the end-to-end Playwright test at `frontend/tests/e2e/from_zero_to_secure.spec.ts`: start from empty DB, complete onboarding against a seeded fixture repo, run assessment, solve one finding, reach completion, click Download, verify a non-empty PNG lands in the Playwright download directory. Verify via backend check that `completions.share_actions_used` contains `download`.
 > 4. Run the cross-browser PNG-export smoke across Chromium, Firefox, and WebKit (`playwright test --project=chromium --project=firefox --project=webkit`).
 > 5. Write `docs/guides/assessment-engine.md` — a contributor guide for adding a new lockfile parser or posture check. 1–2 pages.

@@ -19,11 +19,13 @@ Phase 6b — Wire sub-agents into the isolated workspace runtime:
 
 v1.1 — Earn the Badge (PRD-0002, UX-0002, IMPL-0002, ADR-0025):
 
-- [ ] **C1**: Extend `finding-normalizer` agent prompt to emit `plain_description` (2–4 sentences, no jargon). Update output contract + few-shot examples. Evaluation fixture on 10 known CVEs
+_Session C owns. The V2 side of this work (C2 ingest threading, D3 posture routes, `WorkspaceKind` stub, E3 deletion) shipped in Sessions 0 + B. Session B's `run_and_persist_assessment` and the `RepoWorkspaceSpawnerProtocol` DI seam expect Session C's deliverables._
+
+- [ ] **C1**: Extend `finding-normalizer` agent prompt to emit `plain_description` (2–4 sentences, no jargon). Update output contract + few-shot examples. Evaluation fixture on 10 known CVEs. The V2 side (ingest threading + DAO column) is already landed; this just fills the new field
 - [ ] **E1**: New agent template `security_md_generator.md.j2` — reads repo, writes SECURITY.md, pushes branch, opens draft PR via `gh pr create`
 - [ ] **E2**: New agent template `dependabot_config_generator.md.j2` — detects ecosystems from lockfiles, writes `.github/dependabot.yml`, opens PR
-- [ ] **E3**: New agent template `badge_installer.md.j2` — inserts badge markdown at top of README.md (idempotent), updates "Last verified" line, opens PR
-- [ ] **E4**: `WorkspaceKind` enum (finding | repo_action) + discriminator on workspace record. Cleanup repo-action workspaces on PR completion
+- [ ] ~~**E3**~~ — Badge installer agent removed from scope per IMPL-0002 Revision 2 (deferred to v1.2)
+- [ ] **E4**: Implement `WorkspaceDirManager.create_repo_workspace(kind, repo_url, params)` (the stub landed in Session 0). Cleanup repo-action workspaces on PR completion. Provide a small shim that conforms to `opensec.api._engine_dep.RepoWorkspaceSpawnerProtocol` so Session G's integration is a body swap of `get_repo_workspace_spawner`
 
 MVP — Agentic remediation (PRD-0001, IMPL-0001):
 
@@ -46,28 +48,31 @@ Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 
 **Milestone A — Data layer (blocks everything else)**
 
-- [ ] **A1**: Migration `0014_earn_the_badge.sql` — add `findings.plain_description` column, create `assessments`, `posture_checks`, `badges` tables. TDD: `test_0014_schema_matches_expected` first
-- [ ] **A2**: Pydantic models + read DAOs for `assessments`, `posture_checks`, `badges` — `backend/opensec/db/dao/{assessment,posture_check,badge}.py`
+- [x] **A1**: Migration `0014_from_zero_to_secure.sql` (Session 0, PR #52) — adds `finding.plain_description`, creates `assessment`, `posture_check`, `completion` tables
+- [x] **A2**: Pydantic models (Session 0, PR #52) + DAOs (Session B, PR #54) — `backend/opensec/db/dao/{assessment,posture_check,completion}.py`
 
 **Milestone B — Assessment engine (deterministic Python, no LLM)**
+
+_Session A owns. Conforms to `backend/opensec/api/_engine_dep.py::AssessmentEngineProtocol`. Returns `AssessmentResult`; does NOT write DAO rows (Session B's `run_and_persist_assessment` owns persistence). See EXEC-0002-session-prompts.md → Session A for the full interface contract._
 
 - [ ] **B1**: Parser registry + npm parser (`package-lock.json` v1/v2/v3). Fixture tests against three real lockfiles
 - [ ] **B2**: pip parser (`Pipfile.lock` + `requirements.txt`). Fixtures + tests
 - [ ] **B3**: go parser (`go.sum`). Fixtures + tests
 - [ ] **B4**: OSV.dev HTTP client with GHSA fallback — retries, timeout, per-(package@version) caching within one assessment
 - [ ] **B5**: Posture checks module — branch protection, force pushes, secrets regex scan (AWS/GitHub/Stripe/Google/PEM patterns), SECURITY.md/lockfile/dependabot existence, signed commits advisory
-- [ ] **B6**: Assessment orchestrator `engine.py` — clones via `RepoCloner` (ADR-0024), runs parsers → CVE lookup → posture, writes rows, emits `FindingCreate` for ingest pipeline
+- [ ] **B6**: Assessment orchestrator `engine.py` — clones via `RepoCloner` (ADR-0024), runs parsers → CVE lookup → posture, emits findings into the ingest pipeline, returns an `AssessmentResult` with `grade`, `criteria_snapshot`, and a `posture_checks` list whose items have keys `check_name`/`status`/`detail`
 
 **Milestone C — Plain-language (V2 side of C1)**
 
-- [ ] **C2**: Thread `plain_description` through ingest worker + findings response schema
+- [x] **C2**: Thread `plain_description` through ingest worker + findings DAO (Session B, PR #54)
 
-**Milestone D — API routes**
+**Milestone D — API routes** (all shipped in Session B, PR #54)
 
-- [ ] **D1**: `POST /api/onboarding/repo` + `POST /api/onboarding/complete` + `onboarding_completed` settings flag
-- [ ] **D2**: `POST /api/assessment/run` + `GET /api/assessment/status/{id}` (SSE progress) + `GET /api/assessment/latest` (derived grade + badge criteria in payload)
-- [ ] **D3**: `POST /api/posture/fix/{check_name}` + `POST /api/badge/add-to-readme` — spawn repo-kind workspaces, return `{workspace_id}` for sidebar polling
-- [ ] **D4**: `GET /api/dashboard` — UI-shaped aggregated payload (findings counts + posture + badge status + freshness band)
+- [x] **D1**: `POST /api/onboarding/repo` + `POST /api/onboarding/complete` + `onboarding.completed` + `onboarding.github_token` settings flags
+- [x] **D2**: `POST /api/assessment/run` (background task via `_background.schedule_assessment_run`) + `GET /api/assessment/status/{id}` (synchronous shape; SSE upgrade deferred to Session G) + `GET /api/assessment/latest` with derived grade, criteria, findings-count-by-priority, posture pass/total
+- [x] **D3**: `POST /api/posture/fix/{check_name}` for `security_md` | `dependabot_config`. Spawns a repo workspace via `RepoWorkspaceSpawnerProtocol` DI seam (Session C wires the real spawner). `/api/badge/add-to-readme` removed from scope per IMPL-0002 Revision 2 (deferred to v1.2)
+- [x] **D4**: `GET /api/dashboard` — UI-shaped aggregated payload (findings counts + posture pass/total + criteria + completion_id). No freshness band per IMPL-0002 Revision 2
+- [x] **D5**: `POST /api/completion/{id}/share-action` — idempotent insertion-order-dedup append to `completion.share_actions_used`
 
 **Milestone F — Frontend onboarding**
 
@@ -85,17 +90,22 @@ Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 - [ ] **G4**: `FindingDetailPage` + `TechnicalDetailsPanel` (frame 3.2) — plain body + collapsible tech details + primary/text/overflow action bar
 - [ ] **G5**: `PostureCheckItem` (compact/muted/expanded variants) + `GenerateFilePreview` (frame 4.1) wired to `/api/posture/fix/*`
 
-**Milestone H — Badge lifecycle**
+**Milestone H — Completion ceremony + summary card** (per IMPL-0002 Revision 2)
 
-- [ ] **H1**: `ShieldSVG` (scale-responsive) + `BadgePreviewCard`
-- [ ] **H2**: `BadgeEarnedCelebration` (frame 5.1) — `ConfettiLayer`, eyebrow/headline hierarchy, `role="status" aria-live="assertive"`, `prefers-reduced-motion` fallback
-- [ ] **H3**: `AddBadgeDialog` (frame 5.2) — placement picker, pure-markdown preview, "last verified" toggle, calls `/api/badge/add-to-readme`
-- [ ] **H4**: `FreshnessCard` (frame 6.1) with Fresh/Aging/Stale bands + `AssessmentDiffList` (frame 6.2) + calm-authority re-assess banner
+- [ ] **H1**: `ShieldSVG` (scale-responsive). "LAST VERIFIED" → "COMPLETED" caption
+- [ ] **H2**: `CompletionCelebration` (frame 5.1) — `ConfettiLayer`, eyebrow/headline ("Security complete"), `role="status" aria-live="assertive"`, `prefers-reduced-motion` fallback; filled-primary `Download summary image` + two text-link share actions
+- [ ] **H3**: `ShareableSummaryCard` — `1200×630` div with sanctioned gradient, all white text ≥ `rgba(255,255,255,0.92)`; `ref`-forwarded for PNG export
+- [ ] **H4**: `SummaryActionPanel` — three tiles (download PNG / copy text / copy markdown); each click posts to `/api/completion/{id}/share-action`
+- [ ] **H5**: `imageExport.ts` — dynamic-imported `html-to-image`; `{ pixelRatio: 2, cacheBust: true, width: 1200, height: 630 }`
 
-**Milestone I — Tests + docs**
+**Milestone I — Integration + E2E + docs** (Session G)
 
-- [ ] **I1**: E2E Playwright: onboarding → assessment → solve one finding → earn badge → add badge PR (seeded fixture repo)
+- [ ] **I0**: Replace DI seam defaults — `get_assessment_engine` returns Session A's real engine; `get_repo_workspace_spawner` returns Session C's shim on `WorkspaceDirManager.create_repo_workspace`. Two-line body swap; no route/protocol changes
+- [ ] **I1**: E2E Playwright: onboarding → assessment → solve one finding → reach completion → download summary image → verify PNG + `completion.share_actions_used` contains `download`
 - [ ] **I2**: Contributor guide `docs/guides/assessment-engine.md` — how to add a parser or posture check
+- [ ] **I3**: Remove MSW handlers for the eight real routes; keep everything else mocked
+- [ ] **I4**: Cross-browser (Chromium/Firefox/WebKit) smoke for `imageExport.ts`
+- [ ] **I5**: `OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED` feature flag in `backend/opensec/config.py` (default `false`); guard the onboarding-wizard redirect
 
 ### Priority 1: Simplification (tech debt from architecture review, 2026-04-06)
 
