@@ -9,13 +9,19 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "storybook": "storybook dev -p 6006 --config-dir ../.storybook",
+    "build-storybook": "storybook build --config-dir ../.storybook",
     "generate:types": "openapi-typescript http://localhost:8000/openapi.json -o src/api/types.ts",
     "generate:types:snapshot": "openapi-typescript ../backend/tests/api/openapi_snapshot.json -o src/api/types.ts"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.95.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "html-to-image": "^1.11.13",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
@@ -26,6 +32,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@storybook/react-vite": "^10.3.5",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/typography": "^0.5.19",
@@ -45,6 +52,7 @@
     "msw": "^2.13.3",
     "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.8",
+    "storybook": "^10.3.5",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",

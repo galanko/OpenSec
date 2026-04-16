@@ -213,6 +213,7 @@ __marimo__/
 node_modules/
 frontend/dist/
 frontend/build/
+frontend/storybook-static/
 .npm
 .eslintcache
 *.tsbuildinfo
