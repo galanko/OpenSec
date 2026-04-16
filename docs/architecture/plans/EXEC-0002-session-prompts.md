@@ -235,14 +235,14 @@ Every prompt assumes:
 
 > You are implementing Session G of `docs/architecture/plans/EXEC-0002-from-zero-to-secure.md`. Sessions A–F have merged to `main` — pull the latest.
 >
-> **Read first:** `docs/architecture/plans/EXEC-0002-from-zero-to-secure.md` (Session G block), `docs/architecture/plans/IMPL-0002-earn-the-badge.md` (Milestone I).
+> **Read first:** `docs/architecture/plans/EXEC-0002-from-zero-to-secure.md` (Session G block), `docs/architecture/plans/IMPL-0002-earn-the-badge.md` (Milestone I), and **`docs/known-issues/session-b-handoff-gaps.md`** — three inter-session contract gaps that Session B's merged code assumes Session A resolves in a specific way. Validate each before declaring integration done.
 >
 > **Scope:** integration, E2E, cross-browser smoke, contributor docs. The feature flag flip.
 >
 > **Steps:**
 >
 > 1. Delete the MSW mocks in the frontend for routes that now have real backend implementations. Routes: `POST /api/onboarding/repo`, `POST /api/onboarding/complete`, `POST /api/assessment/run`, `GET /api/assessment/status/:id`, `GET /api/assessment/latest`, `GET /api/dashboard`, `POST /api/posture/fix/:check`, `POST /api/completion/:id/share-action`. Leave any others mocked if they exist.
-> 2. In `backend/tests/api/`, replace the `FakeAssessmentEngine` from Session B with the real engine from Session A. Re-run the full backend test suite — `uv run pytest -v`. Fix any integration breakage by reopening the owning session's PR as a hot-fix.
+> 2. Wire the real engine into the DI seam. Edit `backend/opensec/api/_engine_dep.py::get_assessment_engine` so its body returns Session A's engine (`from opensec.assessment.engine import AssessmentEngine; return AssessmentEngine(...)`). Same for `get_repo_workspace_spawner` — its body should construct and return the spawner shim built on top of Session C's `WorkspaceDirManager.create_repo_workspace`. Do NOT touch the protocol definitions or route code; the DI seam is designed so integration is a two-line body swap. Then resolve the three contract gaps in `docs/known-issues/session-b-handoff-gaps.md` (posture-check dict shape, findings persistence path, DAO-write ownership) — each is either a "Session A already did it this way, good" confirmation or a small adapter in `_background.run_and_persist_assessment`. Re-run `uv run pytest -v` — route tests still use `app.dependency_overrides` with the fake and must stay green.
 > 3. Write the end-to-end Playwright test at `frontend/tests/e2e/from_zero_to_secure.spec.ts`: start from empty DB, complete onboarding against a seeded fixture repo, run assessment, solve one finding, reach completion, click Download, verify a non-empty PNG lands in the Playwright download directory. Verify via backend check that `completions.share_actions_used` contains `download`.
 > 4. Run the cross-browser PNG-export smoke across Chromium, Firefox, and WebKit (`playwright test --project=chromium --project=firefox --project=webkit`).
 > 5. Write `docs/guides/assessment-engine.md` — a contributor guide for adding a new lockfile parser or posture check. 1–2 pages.

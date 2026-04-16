@@ -85,17 +85,22 @@ Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 - [ ] **G4**: `FindingDetailPage` + `TechnicalDetailsPanel` (frame 3.2) — plain body + collapsible tech details + primary/text/overflow action bar
 - [ ] **G5**: `PostureCheckItem` (compact/muted/expanded variants) + `GenerateFilePreview` (frame 4.1) wired to `/api/posture/fix/*`
 
-**Milestone H — Badge lifecycle**
+**Milestone H — Completion ceremony + summary card** (per IMPL-0002 Revision 2)
 
-- [ ] **H1**: `ShieldSVG` (scale-responsive) + `BadgePreviewCard`
-- [ ] **H2**: `BadgeEarnedCelebration` (frame 5.1) — `ConfettiLayer`, eyebrow/headline hierarchy, `role="status" aria-live="assertive"`, `prefers-reduced-motion` fallback
-- [ ] **H3**: `AddBadgeDialog` (frame 5.2) — placement picker, pure-markdown preview, "last verified" toggle, calls `/api/badge/add-to-readme`
-- [ ] **H4**: `FreshnessCard` (frame 6.1) with Fresh/Aging/Stale bands + `AssessmentDiffList` (frame 6.2) + calm-authority re-assess banner
+- [ ] **H1**: `ShieldSVG` (scale-responsive). "LAST VERIFIED" → "COMPLETED" caption
+- [ ] **H2**: `CompletionCelebration` (frame 5.1) — `ConfettiLayer`, eyebrow/headline ("Security complete"), `role="status" aria-live="assertive"`, `prefers-reduced-motion` fallback; filled-primary `Download summary image` + two text-link share actions
+- [ ] **H3**: `ShareableSummaryCard` — `1200×630` div with sanctioned gradient, all white text ≥ `rgba(255,255,255,0.92)`; `ref`-forwarded for PNG export
+- [ ] **H4**: `SummaryActionPanel` — three tiles (download PNG / copy text / copy markdown); each click posts to `/api/completion/{id}/share-action`
+- [ ] **H5**: `imageExport.ts` — dynamic-imported `html-to-image`; `{ pixelRatio: 2, cacheBust: true, width: 1200, height: 630 }`
 
-**Milestone I — Tests + docs**
+**Milestone I — Integration + E2E + docs** (Session G)
 
-- [ ] **I1**: E2E Playwright: onboarding → assessment → solve one finding → earn badge → add badge PR (seeded fixture repo)
+- [ ] **I0**: Replace DI seam defaults — `get_assessment_engine` returns Session A's real engine; `get_repo_workspace_spawner` returns Session C's shim on `WorkspaceDirManager.create_repo_workspace`. Two-line body swap; no route/protocol changes. Validate the three gaps in `docs/known-issues/session-b-handoff-gaps.md`
+- [ ] **I1**: E2E Playwright: onboarding → assessment → solve one finding → reach completion → download summary image → verify PNG + `completion.share_actions_used` contains `download`
 - [ ] **I2**: Contributor guide `docs/guides/assessment-engine.md` — how to add a parser or posture check
+- [ ] **I3**: Remove MSW handlers for the eight real routes; keep everything else mocked
+- [ ] **I4**: Cross-browser (Chromium/Firefox/WebKit) smoke for `imageExport.ts`
+- [ ] **I5**: `OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED` feature flag in `backend/opensec/config.py` (default `false`); guard the onboarding-wizard redirect
 
 ### Priority 1: Simplification (tech debt from architecture review, 2026-04-06)
 
