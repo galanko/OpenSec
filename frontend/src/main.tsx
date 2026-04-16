@@ -7,14 +7,18 @@ import { router } from '@/router'
 import './index.css'
 
 /**
- * In dev, stand up the MSW service worker so the onboarding wizard works
- * without a backend. Production skips this entirely and renders synchronously.
- * Set `VITE_USE_REAL_API=1` in dev to bypass MSW and hit the FastAPI proxy.
+ * In dev, stand up the MSW service worker so the onboarding wizard, dashboard,
+ * and findings pages work without a backend. Production skips this entirely.
+ * Set `VITE_USE_REAL_API=1` (or `VITE_MSW=off`) in dev to bypass MSW and hit
+ * the FastAPI proxy. Session G removes the dev-time MSW once the eight real
+ * routes are fully wired.
  */
 async function startMockApi(): Promise<void> {
-  if (!import.meta.env.DEV || import.meta.env.VITE_USE_REAL_API) return
+  if (!import.meta.env.DEV) return
+  if (import.meta.env.VITE_USE_REAL_API) return
+  if (import.meta.env.VITE_MSW === 'off') return
   try {
-    const { worker } = await import('@/test/msw/browser')
+    const { worker } = await import('@/mocks/browser')
     await worker.start({
       onUnhandledRequest: 'bypass',
       serviceWorker: { url: '/mockServiceWorker.js' },
@@ -35,8 +39,4 @@ function renderApp() {
   )
 }
 
-if (import.meta.env.DEV && !import.meta.env.VITE_USE_REAL_API) {
-  startMockApi().then(renderApp)
-} else {
-  renderApp()
-}
+void startMockApi().finally(renderApp)

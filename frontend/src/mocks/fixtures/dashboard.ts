@@ -38,6 +38,11 @@ const runningAssessment: Assessment = {
   criteria_snapshot: null,
 }
 
+// The 7 posture checks here are the "other" governance checks (branch
+// protection, signed commits, code scanning, etc.) — disjoint from
+// security_md_present + dependabot_present, which are separate completion
+// criteria. This disjointness is what makes "3 of 5 criteria met" + "7 of 7
+// posture checks passing" + "2 failing items to fix" internally consistent.
 const completedAssessmentC: Assessment = {
   id: 'asmt_c_001',
   repo_url: 'https://github.com/acme/fast-markdown',
@@ -49,7 +54,7 @@ const completedAssessmentC: Assessment = {
     security_md_present: false,
     dependabot_present: false,
     no_critical_vulns: true,
-    posture_checks_passing: 5,
+    posture_checks_passing: 7,
     posture_checks_total: 7,
   },
 }
@@ -97,7 +102,7 @@ export const gradeCWithIssuesPayload: DashboardPayload = {
     security_md_present: false,
     dependabot_present: false,
     no_critical_vulns: true,
-    posture_checks_passing: 5,
+    posture_checks_passing: 7,
     posture_checks_total: 7,
   },
   findings_count_by_priority: {
@@ -107,7 +112,7 @@ export const gradeCWithIssuesPayload: DashboardPayload = {
     low: 1,
   },
   grade: 'C',
-  posture_pass_count: 5,
+  posture_pass_count: 7,
   posture_total_count: 7,
 }
 

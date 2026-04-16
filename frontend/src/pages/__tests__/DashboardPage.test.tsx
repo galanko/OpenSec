@@ -38,6 +38,11 @@ describe('<DashboardPage />', () => {
     expect(screen.getByTestId('CompletionStatusCard')).toBeInTheDocument()
     expect(screen.getByText('Vulnerabilities')).toBeInTheDocument()
     expect(screen.getByText('Repo posture')).toBeInTheDocument()
+    // Fixture is shaped to tell the "3 of 5 criteria met" story (UX Story 2).
+    expect(
+      screen.getByText(/3 criteria met · 2 remaining/i),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/3 of 5/i)).toBeInTheDocument()
   })
 
   it('renders grade A hero when grade-A-completion-holding fixture is active', async () => {

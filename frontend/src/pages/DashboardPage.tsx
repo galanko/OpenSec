@@ -276,6 +276,19 @@ function PostureCard({
   )
 }
 
+/**
+ * Counts how many of the five completion criteria are met.
+ *
+ * The five criteria, in order of the pill meter:
+ *   1. SECURITY.md is committed
+ *   2. Dependabot is configured
+ *   3. No critical vulnerabilities remain open
+ *   4. At least 80% of posture checks pass (health threshold)
+ *   5. 100% of posture checks pass (completion threshold)
+ *
+ * Criteria 4 and 5 are intentionally overlapping: hitting 100% implies 80%,
+ * so perfect posture counts for both. A repo at 80–99% earns only criterion 4.
+ */
 function countCriteriaMet(c: DashboardPayload['criteria']): number {
   return [
     c.security_md_present,
