@@ -627,4 +627,17 @@ export const api = {
       `/api/workspaces/${workspaceId}/chat/permission`,
       { method: 'POST', body: JSON.stringify({ permission_id: permissionId, session_id: sessionId, approved }) },
     ),
+
+  // Completion share-action recording (EXEC-0002 / IMPL-0002 H5).
+  // Frozen contract: POST /api/completion/{id}/share-action returns HTTP 200
+  // with { completion_id, share_actions_used }. Frontend treats it as
+  // fire-and-forget (the response body is ignored).
+  recordShareAction: (
+    completionId: string,
+    action: 'download' | 'copy_text' | 'copy_markdown',
+  ) =>
+    requestVoid(`/api/completion/${completionId}/share-action`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
 };

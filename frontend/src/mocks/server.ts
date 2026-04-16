@@ -1,7 +1,8 @@
 /**
  * MSW server for vitest + Node environment. Registers handlers from every
- * Session that ships its own MSW slice (dashboard from Session E, onboarding
- * from Session D). Session G consolidates these once the real backend lands.
+ * Session that ships its own MSW slice (dashboard + completion from Sessions
+ * E + F, onboarding from Session D). Session G consolidates these once the
+ * real backend lands.
  *
  * Browser counterpart lives in `browser.ts` (started from main.tsx in dev only).
  */

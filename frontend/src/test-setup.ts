@@ -11,6 +11,9 @@ import { fetch as undiciFetch } from 'undici'
 ;(globalThis as any).fetch = undiciFetch
 
 // Start MSW once for the whole test run.
+// `onUnhandledRequest: 'error'` surfaces missing mocks immediately instead of
+// creating flaky tests. If a test needs a different handler it can call
+// `server.use(...)`; we reset between tests so overrides don't leak.
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 
 // Reset between tests so fixture choice and handler overrides don't leak.
