@@ -44,6 +44,8 @@ export interface Finding {
   source_id: string;
   title: string;
   description: string | null;
+  /** Plain-language description written for a non-security reader (IMPL-0002 Milestone A). */
+  plain_description?: string | null;
   raw_severity: string | null;
   normalized_priority: string | null;
   asset_id: string | null;
@@ -346,7 +348,7 @@ export interface IngestJobProgress {
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {

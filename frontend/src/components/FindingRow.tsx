@@ -3,7 +3,18 @@ import ActionButton from './ActionButton'
 import ListCard from './ListCard'
 import SeverityBadge, { SeverityIcon } from './SeverityBadge'
 
-const statusDisplay: Record<string, { label: string; dot: string; icon?: string }> = {
+/**
+ * FindingRow — plain-language row used on FindingsPage (frame 3.1).
+ *
+ * IMPL-0002 Milestone G3. Lead with the natural-language title, follow with
+ * a practical description sentence, and keep technical metadata in a
+ * monospace tech line below. The right rail keeps severity + status + Solve.
+ */
+
+const statusDisplay: Record<
+  string,
+  { label: string; dot: string; icon?: string }
+> = {
   new: { label: 'Needs attention', dot: 'bg-error' },
   triaged: { label: 'Investigating', dot: 'bg-secondary' },
   in_progress: { label: 'In progress', dot: 'bg-primary' },
@@ -19,17 +30,33 @@ interface FindingRowProps {
   disabled?: boolean
 }
 
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const hours = Math.floor(diff / 3_600_000)
-  if (hours < 1) return 'Just now'
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return days === 1 ? 'Yesterday' : `${days}d ago`
+function buildTechLine(finding: Finding): string {
+  const parts: string[] = [finding.source_id]
+  const raw = finding.raw_payload ?? null
+  const cvss =
+    raw && typeof raw === 'object' && 'cvss_score' in raw
+      ? (raw as { cvss_score?: number | string | null }).cvss_score
+      : null
+  if (cvss != null && cvss !== '') {
+    parts.push(`CVSS ${cvss}`)
+  }
+  if (finding.raw_severity) parts.push(finding.raw_severity.toLowerCase())
+  const attack =
+    raw && typeof raw === 'object' && 'attack_vector' in raw
+      ? (raw as { attack_vector?: string | null }).attack_vector
+      : null
+  if (attack) parts.push(String(attack))
+  return parts.join(' · ')
 }
 
-export default function FindingRow({ finding, onSolve, disabled }: FindingRowProps) {
+export default function FindingRow({
+  finding,
+  onSolve,
+  disabled,
+}: FindingRowProps) {
   const status = statusDisplay[finding.status] ?? statusDisplay.new
+  const description = finding.plain_description ?? finding.description ?? ''
+  const techLine = buildTechLine(finding)
 
   return (
     <ListCard>
@@ -38,39 +65,28 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
       </div>
 
       <div className="flex-grow min-w-0">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
           <SeverityBadge severity={finding.raw_severity} />
-          <span className="text-xs font-medium text-on-surface-variant">
-            {finding.source_id}
-          </span>
-          <span className="text-xs text-outline-variant">&bull;</span>
-          <span className="text-xs font-medium text-on-surface-variant">
-            {timeAgo(finding.updated_at)}
-          </span>
-        </div>
-        <h3 className="text-base font-bold text-on-surface truncate mb-1">
-          {finding.title}
-        </h3>
-        <div className="flex flex-wrap items-center gap-x-4 text-sm text-on-surface-variant">
           {finding.asset_label && (
-            <span className="flex items-center gap-x-1">
-              <span className="material-symbols-outlined text-xs">dns</span>
+            <span className="text-xs font-medium text-on-surface-variant">
               {finding.asset_label}
             </span>
           )}
-          {finding.source_type && (
-            <span className="flex items-center gap-x-1">
-              <span className="material-symbols-outlined text-xs">hub</span>
-              {finding.source_type}
-            </span>
-          )}
-          {finding.likely_owner && (
-            <span className="flex items-center gap-x-1">
-              <span className="material-symbols-outlined text-xs">groups</span>
-              {finding.likely_owner}
-            </span>
-          )}
         </div>
+        <h3 className="text-base font-bold text-on-surface mb-1">
+          {finding.title}
+        </h3>
+        {description && (
+          <p className="text-sm text-on-surface-variant mb-2 leading-relaxed">
+            {description}
+          </p>
+        )}
+        <p
+          data-testid="finding-tech-line"
+          className="font-mono text-xs text-on-surface-variant/80"
+        >
+          {techLine}
+        </p>
       </div>
 
       <div className="flex items-center gap-x-4 flex-shrink-0">
@@ -82,7 +98,10 @@ export default function FindingRow({ finding, onSolve, disabled }: FindingRowPro
             <span className={`w-2 h-2 rounded-full ${status.dot}`} />
             {status.label}
             {status.icon && (
-              <span className="material-symbols-outlined text-xs text-outline-variant" title={status.label}>
+              <span
+                className="material-symbols-outlined text-xs text-outline-variant"
+                title={status.label}
+              >
                 {status.icon}
               </span>
             )}
