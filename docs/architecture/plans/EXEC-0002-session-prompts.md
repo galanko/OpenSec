@@ -166,19 +166,22 @@ Every prompt assumes:
 >
 > **Do NOT touch:** onboarding (Session D), completion-ceremony components (Session F), any backend. Do NOT create a `FreshnessCard` — it was cut in UX Rev 4.
 >
-> **Import from Session F (Storybook stubs exist from Session 0):** `CompletionStatusCard` (the aside card that replaces the old freshness card). Your dashboard uses it; Session F builds its internals.
+> **Import from Session F:** `CompletionStatusCard` (the aside card that replaces the old freshness card). Session 0 shipped it as a type-only placeholder at `frontend/src/components/completion/CompletionStatusCard.tsx` — you import the stub, Session F builds the real internals.
 >
-> **Mocks:** MSW handler for `GET /api/dashboard` returns a seeded payload covering three states: assessment-running, grade-C-with-issues, grade-A-completion-holding. All Storybook stories key off one of these fixtures.
+> **Mocks:** extend `frontend/src/test/msw/server.ts` (scaffolded by Session D) with a `dashboardHandlers` module — do NOT create a parallel MSW setup. Handler for `GET /api/dashboard` returns a seeded payload covering three states: assessment-running, grade-C-with-issues, grade-A-completion-holding.
 >
 > **Design-system rules:** same as Session D. Non-negotiable.
 >
+> **Tooling note (updated from Session D):** Session 0 did not scaffold Storybook; Session D used vitest + RTL instead. Match that — colocate component tests under `__tests__/` and skip Storybook for v1.1. If you want Storybook, it's a follow-up PR.
+>
 > **TDD order:**
-> 1. Storybook story for `CompletionProgressCard` in the "3 of 5 met" state. Build the component.
-> 2. Storybook story for `ScorecardInfoLine`. Build it. External link MUST have `target="_blank" rel="noopener noreferrer"`.
-> 3. `GradeRing`, `CriteriaMeter`.
-> 4. `DashboardPage` layout wiring the above + `CompletionStatusCard` import (stub) + vulns card + posture card.
-> 5. `AssessmentProgressList` consuming the SSE status endpoint.
-> 6. `FindingRow` + `FindingDetailPage` + `PostureCheckItem` updates.
+> 1. Vitest+RTL happy-path test for `DashboardPage` against the seeded MSW fixture. Watch it fail.
+> 2. `CompletionProgressCard` (component + test) in the "3 of 5 met" state.
+> 3. `ScorecardInfoLine`. External link MUST have `target="_blank" rel="noopener noreferrer"`.
+> 4. `GradeRing`, `CriteriaMeter`.
+> 5. `DashboardPage` layout wiring the above + `CompletionStatusCard` import (stub) + vulns card + posture card.
+> 6. `AssessmentProgressList` consuming the SSE status endpoint.
+> 7. `FindingRow` + `FindingDetailPage` + `PostureCheckItem` updates.
 >
 > **Copy rule:** any user-visible string referencing "badge" must say "completion" instead, except in the Scorecard info line (which may reference external security badges generically). "Needed for badge" → "Needed for completion". "Earn the badge" → "Reach security completion". Full vocabulary in UX spec.
 >
@@ -213,11 +216,13 @@ Every prompt assumes:
 >
 > **PNG export:** `imageExport.ts` uses `html-to-image`'s `toPng` with `{ pixelRatio: 2, cacheBust: true, width: 1200, height: 630 }`. Dynamic import the library only when the user clicks Download so it doesn't inflate first-paint bundle. Cross-browser Playwright smoke (Chromium, Firefox, WebKit) runs in Session G — you just need the jsdom unit test.
 >
-> **Mocks:** MSW handler for `POST /api/completion/:id/share-action` returns 204.
+> **Mocks:** extend `frontend/src/test/msw/server.ts` (scaffolded by Session D) with a `completionHandlers` module. Handler for `POST /api/completion/:id/share-action` returns 204.
+>
+> **Tooling note (updated from Session D):** Session 0 did not scaffold Storybook; Session D used vitest + RTL instead. Match that — colocate component tests under `__tests__/` and skip Storybook for v1.1. `TokenHowToDialog` already lives at `frontend/src/components/completion/TokenHowToDialog.tsx` — do not touch it.
 >
 > **TDD order:**
 > 1. React-Testing-Library test of `ShareableSummaryCard` asserting all six props render and the `rgba` contrast values appear in the rendered inline styles. Build the component.
-> 2. `ShieldSVG`. Storybook stories at three sizes.
+> 2. `ShieldSVG` — vitest snapshot at three sizes.
 > 3. `CompletionCelebration` overlay with `ConfettiLayer`. Assert `role="status" aria-live="assertive"`. Respect `prefers-reduced-motion`.
 > 4. `SummaryActionPanel` three tiles. Test click-through wiring to MSW.
 > 5. `imageExport.ts` with jsdom test asserting the library is called with the right options. Dynamic-import under the hood.
@@ -241,13 +246,15 @@ Every prompt assumes:
 >
 > **Steps:**
 >
-> 1. Delete the MSW mocks in the frontend for routes that now have real backend implementations. Routes: `POST /api/onboarding/repo`, `POST /api/onboarding/complete`, `POST /api/assessment/run`, `GET /api/assessment/status/:id`, `GET /api/assessment/latest`, `GET /api/dashboard`, `POST /api/posture/fix/:check`, `POST /api/completion/:id/share-action`. Leave any others mocked if they exist.
+> 1. Delete the MSW mocks in the frontend for routes that now have real backend implementations. Routes: `POST /api/onboarding/repo`, `POST /api/onboarding/complete`, `POST /api/assessment/run`, `GET /api/assessment/status/:id`, `GET /api/assessment/latest`, `GET /api/dashboard`, `POST /api/posture/fix/:check`, `POST /api/completion/:id/share-action`. Leave any others mocked if they exist. Specifically: strip `startMockApi()` from `frontend/src/main.tsx` (or flip its default so the `VITE_USE_REAL_API` gate becomes the fall-through), remove `frontend/src/test/msw/browser.ts`, and delete `frontend/public/mockServiceWorker.js`. The Vitest server at `frontend/src/test/msw/server.ts` stays for unit-test isolation.
 > 2. Wire the real engine into the DI seam. Edit `backend/opensec/api/_engine_dep.py::get_assessment_engine` so its body returns Session A's engine (`from opensec.assessment.engine import AssessmentEngine; return AssessmentEngine(...)`). Same for `get_repo_workspace_spawner` — its body should construct and return the spawner shim built on top of Session C's `WorkspaceDirManager.create_repo_workspace`. Do NOT touch the protocol definitions or route code; the DI seam is designed so integration is a two-line body swap. Then resolve the three contract gaps in `docs/known-issues/session-b-handoff-gaps.md` (posture-check dict shape, findings persistence path, DAO-write ownership) — each is either a "Session A already did it this way, good" confirmation or a small adapter in `_background.run_and_persist_assessment`. Re-run `uv run pytest -v` — route tests still use `app.dependency_overrides` with the fake and must stay green.
-> 3. Write the end-to-end Playwright test at `frontend/tests/e2e/from_zero_to_secure.spec.ts`: start from empty DB, complete onboarding against a seeded fixture repo, run assessment, solve one finding, reach completion, click Download, verify a non-empty PNG lands in the Playwright download directory. Verify via backend check that `completions.share_actions_used` contains `download`.
-> 4. Run the cross-browser PNG-export smoke across Chromium, Firefox, and WebKit (`playwright test --project=chromium --project=firefox --project=webkit`).
-> 5. Write `docs/guides/assessment-engine.md` — a contributor guide for adding a new lockfile parser or posture check. 1–2 pages.
-> 6. Add a `OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED` feature flag to `backend/opensec/config.py` defaulting to `false`. Guard the new onboarding-wizard redirect behind it.
-> 7. Smoke-test the full flow manually against a throwaway repo. Screenshot the celebration + summary card for the PR description.
+> 3. **Contract gap from Session D — close it here.** The `OnboardingRepoResponse` Session-0 stub is `{ assessment_id, repo_url }`. Session D's `ConnectionResultCard` reads `response.verified` (visibility, default branch, permissions) from the MSW payload. Either (a) extend `backend/opensec/api/routes/onboarding.py::OnboardingRepoResponse` to return a `verified: VerifiedRepoSummary` subobject populated by Session B's real repo check, or (b) make `ConnectionResultCard` render a derived-from-URL fallback when `verified` is absent. Prefer (a) — it's two fields and the backend already hits the GitHub API. Update `frontend/src/api/types.ts` via `npm run generate:types`.
+> 4. In `backend/tests/api/`, replace the `FakeAssessmentEngine` from Session B with the real engine from Session A (the route DI override; the production wiring is step 2). Re-run the full backend test suite — `uv run pytest -v`. Fix any integration breakage by reopening the owning session's PR as a hot-fix.
+> 5. Write the end-to-end Playwright test at `frontend/tests/e2e/from_zero_to_secure.spec.ts`: start from empty DB, complete onboarding against a seeded fixture repo, run assessment, solve one finding, reach completion, click Download, verify a non-empty PNG lands in the Playwright download directory. Verify via backend check that `completions.share_actions_used` contains `download`.
+> 6. Run the cross-browser PNG-export smoke across Chromium, Firefox, and WebKit (`playwright test --project=chromium --project=firefox --project=webkit`). Note: Session D and Session F shipped without Playwright CT — this is the first Playwright install in the repo. `npm install --save-dev @playwright/test` + `npx playwright install` + a minimal `playwright.config.ts` is part of this session's setup.
+> 7. Write `docs/guides/assessment-engine.md` — a contributor guide for adding a new lockfile parser or posture check. 1–2 pages.
+> 8. Add a `OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED` feature flag to `backend/opensec/config.py` defaulting to `false`. Guard the new onboarding-wizard redirect behind it.
+> 9. Smoke-test the full flow manually against a throwaway repo. Screenshot the celebration + summary card for the PR description.
 >
 > **Branch:** `feat/from-zero-to-secure-integration`. This is the final PR.
 >
