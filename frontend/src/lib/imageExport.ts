@@ -21,7 +21,7 @@
  * fallback toast if anything goes wrong.
  */
 
-export type ExportErrorReason = 'ref-null' | 'blob-null' | 'render-failed'
+type ExportErrorReason = 'ref-null' | 'blob-null' | 'render-failed'
 
 export class ExportError extends Error {
   readonly reason: ExportErrorReason
