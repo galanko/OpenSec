@@ -7,11 +7,14 @@ import { router } from '@/router'
 import './index.css'
 
 /**
- * In dev, stand up the MSW service worker so the onboarding wizard, dashboard,
- * and findings pages work without a backend. Production skips this entirely.
- * Set `VITE_USE_REAL_API=1` (or `VITE_MSW=off`) in dev to bypass MSW and hit
- * the FastAPI proxy. Session G removes the dev-time MSW once the eight real
- * routes are fully wired.
+ * In dev, stand up the MSW service worker for the handful of routes that don't
+ * yet have a real backend (Findings list + detail, pending a follow-up PR).
+ * Session G removed the dev-time mocks for onboarding / dashboard / assessment
+ * status / posture-fix / completion share-action — those now talk to FastAPI
+ * via the Vite proxy. Production skips this entirely.
+ *
+ * Set `VITE_USE_REAL_API=1` (or `VITE_MSW=off`) to bypass the worker and let
+ * every request through to the backend.
  */
 async function startMockApi(): Promise<void> {
   if (!import.meta.env.DEV) return

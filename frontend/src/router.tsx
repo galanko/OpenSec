@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import AppLayout from '@/layouts/AppLayout'
+import FeatureFlagGate from '@/components/FeatureFlagGate'
 import DashboardPage from '@/pages/DashboardPage'
 import FindingDetailPage from '@/pages/FindingDetailPage'
 import FindingsPage from '@/pages/FindingsPage'
@@ -12,13 +13,20 @@ import ConnectRepo from '@/pages/onboarding/ConnectRepo'
 import ConfigureAI from '@/pages/onboarding/ConfigureAI'
 import StartAssessment from '@/pages/onboarding/StartAssessment'
 
+// EXEC-0002 Session G: onboarding is gated behind
+// ``v1_1_from_zero_to_secure_enabled``. When the flag is off, the wizard
+// is unreachable — any direct navigation redirects to /findings.
+const gated = (page: React.ReactElement) => (
+  <FeatureFlagGate flag="v1_1_from_zero_to_secure_enabled">{page}</FeatureFlagGate>
+)
+
 export const router = createBrowserRouter([
   // Onboarding wizard — full-bleed, lives outside AppLayout per UX spec.
   { path: '/onboarding', element: <Navigate to="/onboarding/welcome" replace /> },
-  { path: '/onboarding/welcome', element: <Welcome /> },
-  { path: '/onboarding/connect', element: <ConnectRepo /> },
-  { path: '/onboarding/ai', element: <ConfigureAI /> },
-  { path: '/onboarding/start', element: <StartAssessment /> },
+  { path: '/onboarding/welcome', element: gated(<Welcome />) },
+  { path: '/onboarding/connect', element: gated(<ConnectRepo />) },
+  { path: '/onboarding/ai', element: gated(<ConfigureAI />) },
+  { path: '/onboarding/start', element: gated(<StartAssessment />) },
 
   {
     path: '/',

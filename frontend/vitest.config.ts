@@ -17,5 +17,8 @@ export default defineConfig({
     },
     setupFiles: './src/test-setup.ts',
     globals: true,
+    // Playwright specs live under tests/e2e/ and must NOT be loaded by vitest.
+    // Keep the default include but carve the E2E tree out explicitly.
+    exclude: ['node_modules', 'dist', 'tests/e2e/**'],
   },
 })

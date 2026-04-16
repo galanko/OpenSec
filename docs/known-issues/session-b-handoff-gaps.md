@@ -12,7 +12,7 @@ After all seven Sessions 0/A–F PRs landed on `main`, each gap was validated ag
 |-----|--------|----------|
 | **#1 — DAO-write ownership** | ✅ **clean** | `git grep 'from opensec.db.dao' backend/opensec/assessment/` returns zero matches. Session A's orchestrator never calls a DAO. |
 | **#2 — Posture-check dict shape** | ✅ **clean** | `backend/opensec/assessment/engine.py` returns `[pc.model_dump() for pc in posture_checks]` where `PostureCheck.check_name` and `PostureCheck.status` are `Literal` types matching exactly what `_background.py::run_and_persist_assessment` reads via `check["check_name"]` / `check["status"]`. |
-| **#3 — Findings persistence path** | ❌ **real bug, deferred to Session G I0** | Session A's `engine.py::_build_findings` populates `result.findings` with non-empty `FindingCreate.model_dump()` payloads. Session B's `_background.py` only iterates `result.posture_checks`; `result.findings` is never touched. After A+B merged: every vulnerability detected by the engine is silently dropped on the floor. Five-line fix is documented in Gap 3 below. |
+| **#3 — Findings persistence path** | ✅ **resolved in Session G** | The Gap #3 loop landed in `backend/opensec/api/_background.py::run_and_persist_assessment` on branch `feat/from-zero-to-secure-integration`. Regression covered by `tests/api/test_assessment_routes.py::test_run_assessment_persists_findings_emitted_by_engine`. Engine-emitted findings are tagged `source_type='opensec-assessment'` so the dashboard can distinguish them from vendor imports. |
 
 Session G's first action item (I0) closes Gap #3 by adding the loop in `_background.py::run_and_persist_assessment`.
 
@@ -101,7 +101,7 @@ If a future multi-session execution plan surfaces the same class of ambiguity ag
 ## Checklist for Session G
 
 - [x] Grep Session A's tree for `from opensec.db.dao` imports — must be empty. _(Validated 2026-04-16 post-merge — clean.)_
-- [ ] Apply the Gap #3 fix-path: add the `for finding_data in result.findings` loop in `_background.py::run_and_persist_assessment` immediately after the posture-check loop. Pass `source_type="opensec-assessment"` so dashboard filters can distinguish engine-emitted findings from vendor-imported ones.
-- [ ] Run a real end-to-end assessment against a fixture repo with known posture gaps and planted vulns.
-- [ ] Assert exactly one `assessment` row, one row per unique `check_name` in `posture_check`, and the expected number of `finding` rows with `source_type='opensec-assessment'`.
-- [ ] Update this doc with "Resolved by PR #NN (Session G)" once green.
+- [x] Apply the Gap #3 fix-path: add the `for finding_data in result.findings` loop in `_background.py::run_and_persist_assessment` immediately after the posture-check loop. Pass `source_type="opensec-assessment"` so dashboard filters can distinguish engine-emitted findings from vendor-imported ones. _(Landed in Session G PR against `feat/from-zero-to-secure-integration`.)_
+- [x] Run a real end-to-end assessment against a fixture repo with known posture gaps and planted vulns. _(Covered by `tests/api/test_integration_engine.py` using `ProductionAssessmentEngine` with the planted-repo `clone_strategy` seam.)_
+- [x] Assert exactly one `assessment` row, one row per unique `check_name` in `posture_check`, and the expected number of `finding` rows with `source_type='opensec-assessment'`.
+- [x] Resolved by Session G PR on branch `feat/from-zero-to-secure-integration`.

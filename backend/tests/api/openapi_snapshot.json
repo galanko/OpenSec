@@ -528,6 +528,52 @@
         "title": "ChatSendResponse",
         "type": "object"
       },
+      "Completion": {
+        "properties": {
+          "assessment_id": {
+            "title": "Assessment Id",
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "criteria_snapshot": {
+            "$ref": "#/components/schemas/CriteriaSnapshot"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "repo_url": {
+            "title": "Repo Url",
+            "type": "string"
+          },
+          "share_actions_used": {
+            "default": [],
+            "items": {
+              "enum": [
+                "download",
+                "copy_text",
+                "copy_markdown"
+              ],
+              "type": "string"
+            },
+            "title": "Share Actions Used",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "assessment_id",
+          "repo_url",
+          "completed_at",
+          "criteria_snapshot"
+        ],
+        "title": "Completion",
+        "type": "object"
+      },
       "CredentialCreate": {
         "properties": {
           "key_name": {
@@ -750,6 +796,20 @@
           "status"
         ],
         "title": "ExecuteResponse",
+        "type": "object"
+      },
+      "FeatureFlags": {
+        "description": "Snapshot of server-side feature flags visible to the UI.",
+        "properties": {
+          "v1_1_from_zero_to_secure_enabled": {
+            "title": "V1 1 From Zero To Secure Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "v1_1_from_zero_to_secure_enabled"
+        ],
+        "title": "FeatureFlags",
         "type": "object"
       },
       "Finding": {
@@ -3054,6 +3114,49 @@
         ]
       }
     },
+    "/api/completion/{completion_id}": {
+      "get": {
+        "description": "Read-only fetch \u2014 used by the E2E suite to verify share-action recording.",
+        "operationId": "get_completion_api_completion__completion_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "completion_id",
+            "required": true,
+            "schema": {
+              "title": "Completion Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Completion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Completion",
+        "tags": [
+          "completion"
+        ]
+      }
+    },
     "/api/completion/{completion_id}/share-action": {
       "post": {
         "description": "Append the share action to the completion's audit row (idempotent).",
@@ -3104,6 +3207,28 @@
         "summary": "Record Share Action",
         "tags": [
           "completion"
+        ]
+      }
+    },
+    "/api/config/feature-flags": {
+      "get": {
+        "description": "Return the current feature-flag values. Static; no auth gating required.",
+        "operationId": "get_feature_flags_api_config_feature_flags_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeatureFlags"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Feature Flags",
+        "tags": [
+          "config"
         ]
       }
     },

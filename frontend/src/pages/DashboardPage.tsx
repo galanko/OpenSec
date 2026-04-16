@@ -7,6 +7,7 @@
  * internals land in Session F).
  */
 
+import type React from 'react'
 import { useNavigate } from 'react-router'
 import { useDashboard, useFixPostureCheck } from '@/api/dashboard'
 import type { DashboardPayload, PostureFixableCheck } from '@/api/dashboard'
@@ -15,7 +16,9 @@ import CompletionProgressCard from '@/components/dashboard/CompletionProgressCar
 import GradeRing from '@/components/dashboard/GradeRing'
 import PostureCheckItem from '@/components/dashboard/PostureCheckItem'
 import ScorecardInfoLine from '@/components/dashboard/ScorecardInfoLine'
+import CompletionCelebration from '@/components/completion/CompletionCelebration'
 import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
+import SummaryActionPanel from '@/components/completion/SummaryActionPanel'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import ErrorState from '@/components/ErrorState'
 import PageShell from '@/components/PageShell'
@@ -96,8 +99,18 @@ function ReportCard({ data }: { data: DashboardPayload }) {
     })
   }
 
+  // Session G: when the backend has recorded a completion, render the
+  // celebration overlay + summary-action panel above the report card. The
+  // dashboard is still the home; completion is an additive state, not a
+  // separate page.
+  const completionBlock =
+    data.completion_id && data.grade
+      ? renderCompletionBlock(data, repoName)
+      : null
+
   return (
     <PageShell title="Overview" subtitle={repoName}>
+      {completionBlock}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
         <div className="flex flex-col gap-6">
           <section className="flex flex-col items-start gap-6 rounded-3xl bg-surface-container-low p-8 md:flex-row md:items-center">
@@ -337,4 +350,86 @@ function repoNameFromUrl(url: string | null | undefined): string {
   } catch {
     return url
   }
+}
+
+/**
+ * Render the completion celebration overlay + summary-action panel. Both are
+ * Session F components that have lived in the tree un-wired; Session G puts
+ * them on the user-visible path so the E2E (and the real user) can reach
+ * Download / Copy text / Copy markdown.
+ *
+ * Kept inline rather than extracted because the only caller is ReportCard and
+ * the inputs are fully derived from its ``data`` param. A dedicated wrapper
+ * component would mean more props threading for zero reuse.
+ */
+function renderCompletionBlock(
+  data: DashboardPayload,
+  repoName: string,
+): React.ReactNode {
+  // grade is guaranteed non-null by the caller's guard.
+  const grade = data.grade as 'A' | 'B' | 'C' | 'D' | 'F'
+  const completionId = data.completion_id ?? ''
+  const completedAtIso = data.assessment?.completed_at ?? null
+  const completedDate = formatCompletedDate(completedAtIso)
+  const vulnsFixed = Object.values(data.findings_count_by_priority ?? {}).reduce(
+    (a, b) => a + b,
+    0,
+  )
+  const posturePassing = data.posture_pass_count ?? 0
+  const filename = buildSummaryFilename(repoName, completedAtIso)
+
+  const summaryText = `I secured ${repoName} with OpenSec — ${vulnsFixed} vulnerabilities reviewed, ${posturePassing} posture checks passing, grade ${grade}. opensec.dev`
+  const summaryMarkdown = `![Secured by OpenSec](opensec-summary.png)\n<!-- ${repoName} · completed ${completedDate} · grade ${grade} -->`
+
+  const scrollToPanel = () => {
+    document
+      .getElementById('summary-panel')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <div className="mb-8" data-testid="completion-block">
+      <CompletionCelebration
+        repoName={repoName}
+        completedDate={completedDate}
+        grade={grade}
+        criteriaCount={CRITERIA_TOTAL}
+        onDownloadClick={scrollToPanel}
+        onCopyTextClick={() => {
+          void navigator.clipboard?.writeText(summaryText)
+        }}
+        onCopyMarkdownClick={() => {
+          void navigator.clipboard?.writeText(summaryMarkdown)
+        }}
+      />
+      <div className="mt-10">
+        <SummaryActionPanel
+          completionId={completionId}
+          summaryText={summaryText}
+          summaryMarkdown={summaryMarkdown}
+          filename={filename}
+          cardProps={{
+            repoName,
+            completedAt: completedDate,
+            vulnsFixed,
+            postureChecksPassing: posturePassing,
+            prsMerged: 0,
+            grade,
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function formatCompletedDate(iso: string | null): string {
+  if (!iso) return 'today'
+  // Defensive: backend emits full ISO; take the date part for display.
+  return iso.slice(0, 10)
+}
+
+function buildSummaryFilename(repoName: string, iso: string | null): string {
+  const safe = repoName.replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()
+  const date = (iso ?? new Date().toISOString()).slice(0, 10)
+  return `${safe}_opensec-summary_${date}.png`
 }

@@ -1,14 +1,11 @@
 /**
- * MSW server for vitest + Node environment. Registers handlers from every
- * Session that ships its own MSW slice (dashboard + completion from Sessions
- * E + F, onboarding from Session D). Session G consolidates these once the
- * real backend lands.
- *
- * Browser counterpart lives in `browser.ts` (started from main.tsx in dev only).
+ * MSW server for vitest + Node environment. Loads only the findings handlers
+ * that remain in the global set; component tests install the session-specific
+ * handlers (onboarding, dashboard, posture-fix, completion share-action) via
+ * ``sessionHandlers`` + ``server.use(...)`` in ``src/test-setup.ts``.
  */
 
 import { setupServer } from 'msw/node'
-import { onboardingHandlers } from '@/test/msw/onboardingHandlers'
 import { handlers } from './handlers'
 
-export const server = setupServer(...handlers, ...onboardingHandlers)
+export const server = setupServer(...handlers)

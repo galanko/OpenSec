@@ -11,8 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from opensec.db.connection import get_db
-from opensec.db.dao.completion import record_share_action as dao_record_share_action
-from opensec.models import ShareAction
+from opensec.db.dao.completion import (
+    get_completion as dao_get_completion,
+)
+from opensec.db.dao.completion import (
+    record_share_action as dao_record_share_action,
+)
+from opensec.models import Completion, ShareAction
 
 router = APIRouter(prefix="/completion", tags=["completion"])
 
@@ -24,6 +29,18 @@ class ShareActionRequest(BaseModel):
 class ShareActionResponse(BaseModel):
     completion_id: str
     share_actions_used: list[ShareAction]
+
+
+@router.get("/{completion_id}", response_model=Completion)
+async def get_completion(
+    completion_id: str,
+    db=Depends(get_db),
+) -> Completion:
+    """Read-only fetch — used by the E2E suite to verify share-action recording."""
+    completion = await dao_get_completion(db, completion_id)
+    if completion is None:
+        raise HTTPException(status_code=404, detail="Completion not found")
+    return completion
 
 
 @router.post("/{completion_id}/share-action", response_model=ShareActionResponse)

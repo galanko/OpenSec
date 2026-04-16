@@ -48,16 +48,29 @@ export async function exportCardAsPng(
 
   const { toBlob } = await import('html-to-image')
 
-  let blob: Blob | null
+  // First pass: try a full render with embedded fonts. If the browser refuses
+  // to read cross-origin CSS rules from Google Fonts (Firefox is strict here,
+  // Chromium + WebKit degrade gracefully), fall back to a font-skipped render.
+  // The fallback uses system fonts and still produces a valid, non-empty PNG
+  // — slightly off-brand but the download never silently fails.
+  let blob: Blob | null = null
+  const baseOpts = {
+    width: 1200,
+    height: 630,
+    pixelRatio: 2,
+    cacheBust: true,
+  }
   try {
-    blob = await toBlob(node, {
-      width: 1200,
-      height: 630,
-      pixelRatio: 2,
-      cacheBust: true,
-    })
-  } catch (err) {
-    throw new ExportError('render-failed', (err as Error).message)
+    blob = await toBlob(node, baseOpts)
+  } catch {
+    // Proceed to the skipFonts retry below.
+  }
+  if (!blob) {
+    try {
+      blob = await toBlob(node, { ...baseOpts, skipFonts: true })
+    } catch (err) {
+      throw new ExportError('render-failed', (err as Error).message)
+    }
   }
   if (!blob) {
     throw new ExportError('blob-null', 'toBlob returned null')
