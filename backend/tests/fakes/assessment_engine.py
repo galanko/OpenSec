@@ -7,9 +7,12 @@ ships. Session G replaces this with the real engine through the same DI seam.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from opensec.models import AssessmentResult, CriteriaSnapshot, Grade
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
 class FakeAssessmentEngine:
