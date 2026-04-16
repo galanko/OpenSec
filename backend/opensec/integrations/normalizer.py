@@ -49,6 +49,7 @@ Each finding must match this JSON schema exactly:
   "status": "new",
   "likely_owner": "string or null (team or person if identifiable)",
   "why_this_matters": "string or null (one sentence on business impact)",
+  "plain_description": "string or null (2-4 sentences, plain language, ends with a fix hint)",
   "raw_payload": "object or null (the original raw finding object, preserved as-is)"
 }
 ```
@@ -62,6 +63,29 @@ Each finding must match this JSON schema exactly:
 - If a field is not present in the raw data, set it to null.
 - Preserve the original `source_id` from the scanner (e.g. Wiz issue ID, Snyk issue ID).
 - Include the entire original raw finding object in `raw_payload` for reference.
+
+## `plain_description` rules
+
+Write this field as if for a developer who has never seen this class of
+vulnerability before. It is the text the dashboard shows in the finding row —
+the user decides whether to care based on this sentence alone.
+
+- **Length: 2 to 4 sentences.** Never 1. Never 5+.
+- **No jargon, no acronyms, no identifier strings.** Do NOT include:
+  `CWE-...`, `CVSS:...`, bare acronyms like `RCE`, `DoS`, `ReDoS`, `JNDI`,
+  `SOCKS5`, `XSS` without an explanation in the same sentence.
+- **No raw CVE IDs inside prose.** `CVE-YYYY-NNNN` belongs in structured
+  fields, not the human sentence.
+- **Name the affected thing in plain terms** — the package, the bucket, the
+  user, the file. Quote the version if you have it.
+- **The last sentence MUST be a fix hint** — an imperative phrase that starts
+  with a verb like "Upgrade", "Update", "Bump", "Remove", "Restrict",
+  "Disable", "Replace". Include the fix version or the action if the raw
+  data provides it.
+- If the raw data is too sparse to write four useful sentences, write two
+  honest ones. Do not pad.
+- If no meaningful fix is possible from the raw data, set the field to null.
+  Do not fabricate a fix.
 
 ## Examples
 
@@ -92,6 +116,7 @@ Output:
   "status": "new",
   "likely_owner": null,
   "why_this_matters": "Public S3 buckets can expose sensitive data.",
+  "plain_description": "The S3 bucket named my-bucket is readable by anyone on the internet. Anyone who learns the name can list and download every object inside. Remove public read on the bucket and block public access at the account level.",
   "raw_payload": {
     "id": "wiz-123",
     "name": "S3 bucket publicly accessible",
@@ -129,6 +154,7 @@ Output:
   "status": "new",
   "likely_owner": null,
   "why_this_matters": "Prototype pollution can cause DoS or RCE.",
+  "plain_description": "Your app depends on lodash 4.17.15, a popular JavaScript utility library. This version lets an attacker inject properties into shared objects, which can change how unrelated code behaves. Upgrade lodash to a version Snyk lists as fixed.",
   "raw_payload": {
     "id": "SNYK-JS-LODASH-590103",
     "title": "Prototype Pollution in lodash",
@@ -174,6 +200,7 @@ Output:
   "status": "new",
   "likely_owner": null,
   "why_this_matters": "Prototype pollution with a known CVE and public exploit can lead to RCE.",
+  "plain_description": "Your app uses lodash 4.17.20, a JavaScript helper library. Attackers can abuse the set function to inject values into internal objects and trick your code into running logic it shouldn't. A fix exists and public exploit proofs are available. Upgrade lodash to 4.17.21.",
   "raw_payload": {
     "id": "SNYK-JS-LODASH-1018905",
     "title": "Prototype Pollution in lodash",

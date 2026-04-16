@@ -1,0 +1,184 @@
+[
+  {
+    "id": "snyk-lodash-prototype-pollution",
+    "source": "snyk",
+    "raw_finding": {
+      "id": "SNYK-JS-LODASH-1018905",
+      "title": "Prototype Pollution in lodash",
+      "severity": "CRITICAL",
+      "packageName": "lodash",
+      "version": "4.17.20",
+      "fixedIn": ["4.17.21"],
+      "cvssScore": 9.8,
+      "description": "The lodash package is vulnerable to Prototype Pollution via the set function.",
+      "identifiers": {"CVE": ["CVE-2021-23337"], "CWE": ["CWE-1321"]}
+    },
+    "must_contain_any": ["lodash", "4.17.21"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "\\bRCE\\b"],
+    "fix_hint_keywords": ["upgrade", "update", "bump", "4.17.21"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "snyk-log4shell",
+    "source": "snyk",
+    "raw_finding": {
+      "id": "SNYK-JAVA-ORGAPACHELOGGINGLOG4J-2314720",
+      "title": "Remote Code Execution (RCE) in log4j-core",
+      "severity": "CRITICAL",
+      "packageName": "org.apache.logging.log4j:log4j-core",
+      "version": "2.14.1",
+      "fixedIn": ["2.15.0", "2.16.0", "2.17.0"],
+      "cvssScore": 10.0,
+      "description": "JNDI lookup in log4j-core allows attacker-controlled LDAP URLs to load remote classes.",
+      "identifiers": {"CVE": ["CVE-2021-44228"], "CWE": ["CWE-502"]}
+    },
+    "must_contain_any": ["log4j", "2.17"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "JNDI(?! [a-z])"],
+    "fix_hint_keywords": ["upgrade", "update", "bump", "2.17"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "snyk-jinja2-sandbox-escape",
+    "source": "snyk",
+    "raw_finding": {
+      "id": "SNYK-PYTHON-JINJA2-6150717",
+      "title": "Sandbox escape in Jinja2",
+      "severity": "HIGH",
+      "packageName": "Jinja2",
+      "version": "3.1.0",
+      "fixedIn": ["3.1.6"],
+      "cvssScore": 7.3,
+      "description": "The |attr filter bypass allows sandbox escape via Python attribute access.",
+      "identifiers": {"CVE": ["CVE-2025-27516"], "CWE": ["CWE-693"]}
+    },
+    "must_contain_any": ["Jinja2", "3.1.6", "jinja"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d"],
+    "fix_hint_keywords": ["upgrade", "update", "bump", "3.1.6"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "trivy-openssl-heap-overflow",
+    "source": "trivy",
+    "raw_finding": {
+      "VulnerabilityID": "CVE-2022-3602",
+      "PkgName": "openssl",
+      "InstalledVersion": "3.0.6",
+      "FixedVersion": "3.0.7",
+      "Severity": "HIGH",
+      "Title": "X.509 Email Address Buffer Overflow",
+      "Description": "A buffer overflow in the X.509 email address parser can be triggered by a crafted certificate.",
+      "CweIDs": ["CWE-787"],
+      "CVSS": {"nvd": {"V3Score": 7.5}}
+    },
+    "must_contain_any": ["openssl", "3.0.7", "certificate"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "\\bCVE-\\d{4}-\\d+\\b(?! )"],
+    "fix_hint_keywords": ["upgrade", "update", "3.0.7"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "trivy-go-stdlib-path-traversal",
+    "source": "trivy",
+    "raw_finding": {
+      "VulnerabilityID": "CVE-2022-41723",
+      "PkgName": "golang.org/x/net",
+      "InstalledVersion": "0.5.0",
+      "FixedVersion": "0.7.0",
+      "Severity": "HIGH",
+      "Title": "Denial of service in HTTP/2 handler",
+      "Description": "Malformed HTTP/2 headers can cause excessive CPU usage in the Go net/http library.",
+      "CweIDs": ["CWE-400"]
+    },
+    "must_contain_any": ["net", "0.7", "go"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "\\bDoS\\b"],
+    "fix_hint_keywords": ["upgrade", "update", "0.7"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "snyk-express-open-redirect",
+    "source": "snyk",
+    "raw_finding": {
+      "id": "SNYK-JS-EXPRESS-6474509",
+      "title": "Open Redirect in express",
+      "severity": "MEDIUM",
+      "packageName": "express",
+      "version": "4.18.2",
+      "fixedIn": ["4.19.2"],
+      "cvssScore": 6.1,
+      "description": "The response.redirect() function does not properly encode URLs, allowing open redirect attacks.",
+      "identifiers": {"CVE": ["CVE-2024-29041"], "CWE": ["CWE-601"]}
+    },
+    "must_contain_any": ["express", "4.19", "redirect"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d"],
+    "fix_hint_keywords": ["upgrade", "update", "4.19"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "wiz-s3-public",
+    "source": "wiz",
+    "raw_finding": {
+      "id": "wiz-s3-001",
+      "name": "S3 bucket publicly accessible",
+      "severity": "CRITICAL",
+      "resource": {"id": "arn:aws:s3:::acme-public-data", "name": "acme-public-data"},
+      "description": "The S3 bucket acme-public-data allows anonymous read access. Public ACL detected.",
+      "ruleName": "S3.PublicReadACL"
+    },
+    "must_contain_any": ["S3", "bucket", "public"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "ACL(?! (configuration|setting|policy))"],
+    "fix_hint_keywords": ["remove", "disable", "restrict", "block", "private"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "wiz-iam-admin",
+    "source": "wiz",
+    "raw_finding": {
+      "id": "wiz-iam-042",
+      "name": "IAM user has AdministratorAccess policy attached",
+      "severity": "HIGH",
+      "resource": {"id": "arn:aws:iam::123456789012:user/ci-deploy", "name": "ci-deploy"},
+      "description": "The IAM user ci-deploy has the AWS-managed AdministratorAccess policy, granting full privileges.",
+      "ruleName": "IAM.OverPrivilegedUser"
+    },
+    "must_contain_any": ["ci-deploy", "admin", "IAM"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d"],
+    "fix_hint_keywords": ["replace", "scoped", "least", "narrow", "remove", "attach a"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "snyk-python-setuptools-rce",
+    "source": "snyk",
+    "raw_finding": {
+      "id": "SNYK-PYTHON-SETUPTOOLS-7448482",
+      "title": "Regular Expression Denial of Service (ReDoS) in setuptools",
+      "severity": "HIGH",
+      "packageName": "setuptools",
+      "version": "65.5.0",
+      "fixedIn": ["70.0.0"],
+      "cvssScore": 7.5,
+      "description": "setuptools is vulnerable to ReDoS via package_index.PackageIndex crafted URL parsing.",
+      "identifiers": {"CVE": ["CVE-2024-6345"], "CWE": ["CWE-1333"]}
+    },
+    "must_contain_any": ["setuptools", "70.0", "python"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "\\bReDoS\\b(?! \\(|—)"],
+    "fix_hint_keywords": ["upgrade", "update", "70.0"],
+    "sentence_count_range": [2, 4]
+  },
+  {
+    "id": "trivy-curl-heap-buffer-overflow",
+    "source": "trivy",
+    "raw_finding": {
+      "VulnerabilityID": "CVE-2023-38545",
+      "PkgName": "curl",
+      "InstalledVersion": "7.88.0",
+      "FixedVersion": "8.4.0",
+      "Severity": "CRITICAL",
+      "Title": "SOCKS5 heap buffer overflow",
+      "Description": "A heap-based buffer overflow exists in curl's SOCKS5 proxy handshake when the hostname exceeds 255 bytes.",
+      "CweIDs": ["CWE-122"]
+    },
+    "must_contain_any": ["curl", "8.4", "proxy"],
+    "must_not_contain_regex": ["CWE-\\d+", "CVSS:\\d", "SOCKS5(?! proxy)"],
+    "fix_hint_keywords": ["upgrade", "update", "8.4"],
+    "sentence_count_range": [2, 4]
+  }
+]

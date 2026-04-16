@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
+import tarfile
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -272,6 +274,48 @@ class WorkspaceProcessPool:
         workspace_ids = list(self._processes.keys())
         for ws_id in workspace_ids:
             await self.stop(ws_id)
+
+    async def stop_on_completion(self, workspace_id: str) -> Path | None:
+        """Stop a repo-action workspace and archive its directory.
+
+        This is the cleanup trigger invoked by the posture-fix API route
+        (Session B) once the generator agent's draft PR has been verified.
+        It is the pool-side companion to
+        ``WorkspaceDirManager.create_repo_workspace`` (IMPL-0002 E4).
+
+        Semantics:
+          1. Terminate the subprocess and release its port (``stop``).
+          2. Archive the workspace directory as ``<ws>.tar.gz`` next to it
+             so it can be inspected post-hoc without leaving a live
+             workspace lying around.
+          3. Remove the original directory.
+
+        If no such workspace is tracked, this is a no-op and returns ``None``
+        so the caller can safely invoke it idempotently.
+
+        Returns:
+            Path to the archive, or ``None`` if the workspace was unknown
+            or no longer on disk.
+        """
+        wp = self._processes.get(workspace_id)
+        workspace_dir: Path | None = wp.workspace_dir if wp else None
+
+        await self.stop(workspace_id)
+
+        if workspace_dir is None or not workspace_dir.exists():
+            return None
+
+        archive_path = workspace_dir.parent / f"{workspace_id}.tar.gz"
+        with tarfile.open(archive_path, "w:gz") as tar:
+            tar.add(workspace_dir, arcname=workspace_id)
+
+        shutil.rmtree(workspace_dir)
+        logger.info(
+            "Archived repo-action workspace %s to %s",
+            workspace_id,
+            archive_path,
+        )
+        return archive_path
 
     async def stop_idle(self, max_idle: timedelta) -> list[str]:
         """Stop processes idle longer than max_idle.

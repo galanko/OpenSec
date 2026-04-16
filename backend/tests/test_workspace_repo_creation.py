@@ -1,0 +1,157 @@
+"""Unit tests for create_repo_workspace (IMPL-0002 Milestone E4).
+
+The `WorkspaceDirManager.create_repo_workspace()` helper lays down an
+ephemeral workspace directory for one of the two repo-scoped posture
+actions (SECURITY.md generator, dependabot config generator). Unlike the
+finding-scoped workspaces built by `create()`, these directories are
+lighter: no finding JSON, no CONTEXT.md, no per-section context stubs — just
+the rendered agent prompt, an `opencode.json` with the ADR-0024 permission
+model, and a `REPO_ACTION.md` summary of what the agent is doing.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING
+
+import pytest
+
+from opensec.workspace.workspace_dir_manager import WorkspaceDirManager, WorkspaceKind
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+@pytest.fixture
+def manager(tmp_path: Path) -> WorkspaceDirManager:
+    return WorkspaceDirManager(base_dir=tmp_path / "workspaces")
+
+
+class TestSecurityMdRepoWorkspace:
+    def test_creates_directory_with_expected_layout(
+        self, manager: WorkspaceDirManager
+    ) -> None:
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_security_md,
+            repo_url="https://github.com/acme/widget",
+            params={"contact_email": "security@acme.example"},
+        )
+
+        assert workspace_id.startswith("repo-repo_action_security_md-"), (
+            f"workspace_id should embed the kind for debuggability, got {workspace_id!r}"
+        )
+
+        ws_dir = manager.base_dir / workspace_id
+        assert ws_dir.is_dir()
+        assert (ws_dir / ".opencode" / "agents").is_dir()
+        assert (ws_dir / "history").is_dir()
+        assert (ws_dir / "opencode.json").is_file()
+
+        # No finding-scoped files on a repo workspace.
+        assert not (ws_dir / "finding.json").exists()
+        assert not (ws_dir / "finding.md").exists()
+        assert not (ws_dir / "CONTEXT.md").exists()
+
+        # REPO_ACTION.md summary exists and mentions the action + URL.
+        action_md = (ws_dir / "REPO_ACTION.md").read_text()
+        assert "repo_action_security_md" in action_md
+        assert "https://github.com/acme/widget" in action_md
+
+    def test_writes_rendered_agent_file(self, manager: WorkspaceDirManager) -> None:
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_security_md,
+            repo_url="https://github.com/acme/widget",
+            params={"contact_email": "ciso@example.org"},
+        )
+
+        agent_file = (
+            manager.base_dir
+            / workspace_id
+            / ".opencode"
+            / "agents"
+            / "security_md_generator.md"
+        )
+        assert agent_file.is_file()
+        content = agent_file.read_text()
+
+        # Template substitutions landed.
+        assert "https://github.com/acme/widget" in content
+        assert "ciso@example.org" in content
+        assert "opensec/posture/security-md" in content
+        assert "gh pr create --draft" in content
+
+    def test_opencode_json_has_ask_perms(
+        self, manager: WorkspaceDirManager
+    ) -> None:
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_security_md,
+            repo_url="https://github.com/acme/widget",
+            params={},
+        )
+        cfg = json.loads(
+            (manager.base_dir / workspace_id / "opencode.json").read_text()
+        )
+        assert cfg["permission"]["bash"] == "ask"
+        assert cfg["permission"]["edit"] == "ask"
+        assert cfg["permission"]["webfetch"] == "allow"
+
+
+class TestDependabotRepoWorkspace:
+    def test_selects_dependabot_template(
+        self, manager: WorkspaceDirManager
+    ) -> None:
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://github.com/acme/widget",
+            params={},
+        )
+
+        agent_file = (
+            manager.base_dir
+            / workspace_id
+            / ".opencode"
+            / "agents"
+            / "dependabot_config_generator.md"
+        )
+        assert agent_file.is_file()
+        content = agent_file.read_text()
+        assert ".github/dependabot.yml" in content
+        assert "opensec/posture/dependabot" in content
+        assert "https://github.com/acme/widget" in content
+
+        # The SECURITY.md template must NOT be written for a dependabot workspace.
+        assert not (
+            manager.base_dir
+            / workspace_id
+            / ".opencode"
+            / "agents"
+            / "security_md_generator.md"
+        ).exists()
+
+    def test_unique_workspace_ids(self, manager: WorkspaceDirManager) -> None:
+        """Two back-to-back calls must get distinct workspace_ids."""
+        w1 = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://github.com/acme/widget",
+            params={},
+        )
+        w2 = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://github.com/acme/widget",
+            params={},
+        )
+        assert w1 != w2
+
+    def test_rejects_finding_scoped_workspace_id_path_traversal(
+        self, manager: WorkspaceDirManager
+    ) -> None:
+        """The method must not allow attacker-controlled repo URLs to break
+        out of the base dir via the workspace_id."""
+        workspace_id = manager.create_repo_workspace(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://github.com/../../../evil",
+            params={},
+        )
+        # The id must be a single path component — no slashes.
+        assert "/" not in workspace_id
+        assert ".." not in workspace_id

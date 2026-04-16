@@ -1,0 +1,134 @@
+"""Unit tests for repo-action agent templates (IMPL-0002 E1, E2).
+
+These are template-rendering tests — no LLM calls, no OpenCode binary, no
+subprocess. They verify the Jinja2 templates for ``security_md_generator``
+and ``dependabot_config_generator`` render the expected prompt shape so
+the downstream single-shot agent (ADR-0024) knows what to do.
+"""
+
+from __future__ import annotations
+
+import re
+
+import pytest
+
+from opensec.agents.template_engine import AgentTemplateEngine
+from opensec.workspace.workspace_dir_manager import WorkspaceKind
+
+
+@pytest.fixture
+def engine() -> AgentTemplateEngine:
+    return AgentTemplateEngine()
+
+
+class TestSecurityMdGenerator:
+    """Rendering contract for the SECURITY.md generator template."""
+
+    def test_renders_template_with_repo_url(self, engine: AgentTemplateEngine) -> None:
+        rendered = engine.render_repo_action(
+            WorkspaceKind.repo_action_security_md,
+            repo_url="https://github.com/acme/widget",
+            params={"contact_email": "security@acme.example"},
+            gh_token="ghp_fake_token_for_render_test",
+        )
+
+        assert rendered.name == "security_md_generator"
+        assert rendered.filename == "security_md_generator.md"
+        content = rendered.content
+
+        # Repo URL is substituted so the agent knows what to clone.
+        assert "https://github.com/acme/widget" in content
+
+        # Branch name convention for zero-to-secure posture PRs.
+        assert "opensec/posture/security-md" in content
+
+        # Draft-PR-only per ADR-0024.
+        assert "gh pr create --draft" in content
+
+        # Token export for private repos.
+        assert "ghp_fake_token_for_render_test" in content
+
+        # Must include the SECURITY.md target path instruction.
+        assert "SECURITY.md" in content
+
+        # Must tell the agent how to handle an existing SECURITY.md.
+        assert re.search(r"already\s+exists|if\s+SECURITY\.md", content, re.IGNORECASE), (
+            "Template must instruct agent on handling an existing SECURITY.md"
+        )
+
+        # The structured JSON output contract is present.
+        assert "structured_output" in content
+        assert '"pr_url"' in content
+        assert '"status"' in content
+
+    def test_contact_email_substituted(self, engine: AgentTemplateEngine) -> None:
+        rendered = engine.render_repo_action(
+            WorkspaceKind.repo_action_security_md,
+            repo_url="https://github.com/acme/widget",
+            params={"contact_email": "ciso@example.org"},
+        )
+        assert "ciso@example.org" in rendered.content
+
+    def test_renders_without_gh_token(self, engine: AgentTemplateEngine) -> None:
+        """When no token is supplied, token-export lines are elided."""
+        rendered = engine.render_repo_action(
+            WorkspaceKind.repo_action_security_md,
+            repo_url="https://github.com/acme/widget",
+            params={},
+        )
+        assert "GH_TOKEN" not in rendered.content or "$GH_TOKEN" in rendered.content
+        assert "ghp_" not in rendered.content
+
+
+class TestDependabotConfigGenerator:
+    """Rendering contract for the dependabot.yml generator template."""
+
+    def test_renders_template_with_repo_url(self, engine: AgentTemplateEngine) -> None:
+        rendered = engine.render_repo_action(
+            WorkspaceKind.repo_action_dependabot,
+            repo_url="https://github.com/acme/widget",
+            params={},
+            gh_token="ghp_dependabot_token",
+        )
+
+        assert rendered.name == "dependabot_config_generator"
+        content = rendered.content
+
+        assert "https://github.com/acme/widget" in content
+        assert "opensec/posture/dependabot" in content
+        assert "gh pr create --draft" in content
+        assert ".github/dependabot.yml" in content
+
+        # Ecosystem detection instruction is the distinctive part of this template.
+        for manifest in [
+            "package-lock.json",
+            "requirements.txt",
+            "go.mod",
+            "Gemfile.lock",
+            "Cargo.toml",
+            "pom.xml",
+            "composer.json",
+        ]:
+            assert manifest in content, f"Ecosystem manifest {manifest} missing"
+
+        # Weekly schedule + PR limit are part of the rendered config shape.
+        assert re.search(r"schedule.*weekly", content, re.IGNORECASE | re.DOTALL)
+        assert re.search(r"open-pull-requests-limit", content)
+
+        # Handle existing config gracefully.
+        assert re.search(
+            r"already\s+exists|if\s+\.github/dependabot\.yml|existing\s+dependabot",
+            content,
+            re.IGNORECASE,
+        ), "Template must instruct agent on handling an existing dependabot.yml"
+
+        assert "structured_output" in content
+
+    def test_invalid_kind_raises(self, engine: AgentTemplateEngine) -> None:
+        """Unknown or finding-pipeline kinds cannot be rendered as repo actions."""
+        with pytest.raises(ValueError, match="not a repo-action"):
+            engine.render_repo_action(  # type: ignore[arg-type]
+                "orchestrator",
+                repo_url="https://github.com/acme/widget",
+                params={},
+            )

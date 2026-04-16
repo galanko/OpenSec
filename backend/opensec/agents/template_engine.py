@@ -10,6 +10,8 @@ import jinja2
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from opensec.workspace.workspace_dir_manager import WorkspaceKind
+
 # The 6 agent filenames (stem only) in pipeline order.
 AGENT_NAMES: list[str] = [
     "orchestrator",
@@ -21,6 +23,14 @@ AGENT_NAMES: list[str] = [
     "remediation_executor",
     "validation_checker",
 ]
+
+# Repo-scoped single-shot template agents (IMPL-0002 E1, E2; ADR-0024).
+# Maps WorkspaceKind values to the Jinja template stem under templates/.
+# Kept as string keys to avoid an import cycle with workspace_dir_manager.
+REPO_ACTION_TEMPLATES: dict[str, str] = {
+    "repo_action_security_md": "security_md_generator",
+    "repo_action_dependabot": "dependabot_config_generator",
+}
 
 _DEFAULT_TEMPLATES_DIR = None  # Resolved lazily to avoid import-time Path I/O
 
@@ -120,6 +130,54 @@ class AgentTemplateEngine:
 
         content = template.render(**context)
         return RenderedAgent(name=name, filename=f"{name}.md", content=content)
+
+    def render_repo_action(
+        self,
+        kind: WorkspaceKind | str,
+        *,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
+        gh_token: str | None = None,
+    ) -> RenderedAgent:
+        """Render a single-shot repo-action agent template (ADR-0024).
+
+        Args:
+            kind: One of ``WorkspaceKind.repo_action_*`` values (or the string
+                form). Finding-pipeline agent names are rejected.
+            repo_url: The target GitHub repo URL the agent will clone.
+            params: Extra template variables (e.g. ``contact_email``).
+            gh_token: Optional GitHub personal access token. When provided, the
+                rendered prompt includes the token-export lines so the agent
+                can clone and push against private repos.
+
+        Returns:
+            RenderedAgent with the template stem as ``name`` (e.g.
+            ``"security_md_generator"``) and a matching ``.md`` filename.
+
+        Raises:
+            ValueError: If ``kind`` is not a repo-action kind.
+        """
+        kind_value = kind.value if hasattr(kind, "value") else str(kind)
+        template_stem = REPO_ACTION_TEMPLATES.get(kind_value)
+        if template_stem is None:
+            raise ValueError(
+                f"{kind_value!r} is not a repo-action kind. "
+                f"Valid kinds: {sorted(REPO_ACTION_TEMPLATES)}"
+            )
+
+        template = self._env.get_template(f"{template_stem}.md.j2")
+        context: dict[str, Any] = {
+            "repo_url": repo_url,
+            "params": params or {},
+            "gh_token": gh_token,
+            **(params or {}),
+        }
+        content = template.render(**context)
+        return RenderedAgent(
+            name=template_stem,
+            filename=f"{template_stem}.md",
+            content=content,
+        )
 
     def render_all(
         self,

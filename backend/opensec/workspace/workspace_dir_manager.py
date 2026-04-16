@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import secrets
 import shutil
 import tarfile
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
+from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import CONTEXT_SECTIONS, WorkspaceDir
 
@@ -241,17 +243,94 @@ class WorkspaceDirManager:
         kind: WorkspaceKind,
         repo_url: str,
         params: dict[str, Any] | None = None,
+        *,
+        gh_token: str | None = None,
+        template_engine: AgentTemplateEngine | None = None,
     ) -> str:
         """Create an ephemeral repo-scoped workspace for a generator agent.
 
-        Returns the workspace_id that V2 can poll for sidebar state (PR url,
-        status). Implemented in Session C; this is the Session-0 contract stub
-        so that downstream sessions can import ``WorkspaceKind`` and wire the
-        signature into API routes without waiting on the real implementation.
+        Unlike ``create()``, this does **not** produce finding-scoped files
+        (no ``finding.json``, no ``finding.md``, no ``CONTEXT.md``). The
+        directory carries just enough scaffolding for an OpenCode process:
+
+        - ``.opencode/agents/<template_stem>.md`` — the rendered single-shot
+          agent prompt for the selected kind.
+        - ``opencode.json`` — ADR-0024 permission model (``"ask"`` for bash
+          and edit, ``"allow"`` for webfetch).
+        - ``REPO_ACTION.md`` — human-readable summary of the action.
+        - ``history/`` — for agent-run logs written later.
+
+        Args:
+            kind: Which repo action to run.
+            repo_url: Target repo URL.
+            params: Action-specific params (e.g. ``contact_email`` for the
+                SECURITY.md generator).
+            gh_token: Optional GitHub PAT baked into the rendered prompt so
+                the agent can clone and push against private repos.
+            template_engine: Dependency-injection hook for tests; defaults to
+                the shared templates directory.
+
+        Returns:
+            The generated workspace_id (a safe single-path-component string).
         """
-        raise NotImplementedError(
-            "Session 0 stub — implemented in Session C (IMPL-0002 Milestone E)"
+        engine = template_engine or AgentTemplateEngine()
+        rendered = engine.render_repo_action(
+            kind, repo_url=repo_url, params=params or {}, gh_token=gh_token
         )
+
+        # Generate a fresh, unique workspace_id. Using secrets keeps it
+        # collision-safe under concurrent calls without pulling in uuid.
+        workspace_id = f"repo-{kind.value}-{secrets.token_hex(4)}"
+        _validate_workspace_id(workspace_id)
+
+        self._base_dir.mkdir(parents=True, exist_ok=True)
+        workspace_root = self._base_dir / workspace_id
+        if workspace_root.exists():
+            # Astronomically unlikely but keep the semantics consistent with create().
+            raise FileExistsError(
+                f"Workspace directory already exists: {workspace_root}"
+            )
+
+        workspace_root.mkdir()
+        (workspace_root / ".opencode" / "agents").mkdir(parents=True)
+        (workspace_root / "history").mkdir()
+
+        # Write opencode.json — ADR-0024 permission model for repo actions.
+        opencode_config: dict = {
+            "$schema": "https://opencode.ai/config.json",
+            "permission": {
+                "bash": "ask",
+                "edit": "ask",
+                "webfetch": "allow",
+            },
+        }
+        (workspace_root / "opencode.json").write_text(
+            json.dumps(opencode_config, indent=2) + "\n"
+        )
+
+        # Write the rendered agent prompt.
+        agent_path = workspace_root / ".opencode" / "agents" / rendered.filename
+        agent_path.write_text(rendered.content)
+
+        # Empty agent-runs log mirrors finding workspaces for downstream tools.
+        (workspace_root / "history" / "agent-runs.jsonl").touch()
+
+        # Human-readable summary of what this workspace is for.
+        summary_lines = [
+            "# Repo action workspace",
+            "",
+            f"- **Kind:** `{kind.value}`",
+            f"- **Repo:** {repo_url}",
+            f"- **Agent:** `{rendered.name}`",
+        ]
+        if params:
+            summary_lines.append("- **Params:**")
+            for key, value in sorted(params.items()):
+                summary_lines.append(f"  - `{key}`: `{value}`")
+        summary_lines.append("")
+        (workspace_root / "REPO_ACTION.md").write_text("\n".join(summary_lines))
+
+        return workspace_id
 
 
 def _validate_workspace_id(workspace_id: str) -> None:

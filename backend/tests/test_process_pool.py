@@ -403,3 +403,61 @@ async def test_status(pool: WorkspaceProcessPool):
     assert status["available_ports"] == 9
     assert "ws-1" in status["workspaces"]
     assert status["workspaces"]["ws-1"]["port"] == 5100
+
+
+# ---------------------------------------------------------------------------
+# stop_on_completion — repo-action cleanup trigger (IMPL-0002 E4)
+# ---------------------------------------------------------------------------
+
+
+async def test_stop_on_completion_archives_and_releases_port(
+    pool: WorkspaceProcessPool, tmp_path: Path
+):
+    """After a repo-action agent finishes, the pool should terminate the
+    subprocess, release the port, and archive the workspace directory so a
+    follow-up posture run can be correlated with a previous one.
+    """
+    # Build a minimal on-disk workspace so the archive call has something to tar.
+    ws_id = "repo-security-md-abcd1234"
+    ws_dir = tmp_path / ws_id
+    (ws_dir / ".opencode" / "agents").mkdir(parents=True)
+    (ws_dir / "opencode.json").write_text("{}")
+    (ws_dir / "REPO_ACTION.md").write_text("stub")
+
+    mock_proc = _make_mock_subprocess()
+    mock_httpx = _make_mock_httpx_healthy()
+
+    with (
+        patch(
+            "opensec.engine.pool.asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=mock_proc),
+        ),
+        patch("opensec.engine.pool.httpx.AsyncClient", return_value=mock_httpx),
+    ):
+        await pool.start(ws_id, ws_dir)
+
+    assert pool._ports.available == 9
+    mock_proc.returncode = None  # still running until we call stop
+
+    archive_path = await pool.stop_on_completion(ws_id)
+
+    # Process terminated + port freed.
+    mock_proc.terminate.assert_called_once()
+    assert pool._ports.available == 10
+    assert await pool.get(ws_id) is None
+
+    # Archive was written next to the workspace dir.
+    assert archive_path is not None
+    assert archive_path.exists()
+    assert archive_path.name == f"{ws_id}.tar.gz"
+    # And the original workspace dir is gone (cleaned up).
+    assert not ws_dir.exists()
+
+
+async def test_stop_on_completion_unknown_workspace_is_noop(
+    pool: WorkspaceProcessPool,
+):
+    """Calling stop_on_completion on a workspace we never started must not raise."""
+    result = await pool.stop_on_completion("never-started")
+    assert result is None
+    assert pool._ports.available == 10
