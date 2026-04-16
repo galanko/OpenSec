@@ -1,15 +1,8 @@
-/**
- * CompletionProgressCard — dashboard aside showing five-criteria progress.
- *
- * IMPL-0002 Milestone G2. Replaces the earlier "BadgePreviewCard" concept.
- * Uses "completion" vocabulary exclusively (no "badge"). Renders an inline
- * five-pill meter so the card is self-contained.
- */
+import CriteriaMeter from './CriteriaMeter'
 
 export interface CompletionProgressCardProps {
   criteriaMet: number
   criteriaTotal: number
-  grade: 'A' | 'B' | 'C' | 'D' | 'F' | null
   repoName: string
 }
 
@@ -41,23 +34,8 @@ export default function CompletionProgressCard({
           <span className="font-semibold text-on-surface">{repoName}</span>.
         </p>
 
-        <div className="mt-5 flex items-center gap-2" role="list">
-          {Array.from({ length: criteriaTotal }).map((_, idx) => {
-            const state = idx < criteriaMet ? 'met' : 'empty'
-            return (
-              <span
-                key={idx}
-                role="listitem"
-                data-testid="criteria-pill"
-                data-state={state}
-                className={
-                  state === 'met'
-                    ? 'h-2 flex-1 rounded-full bg-primary'
-                    : 'h-2 flex-1 rounded-full bg-surface-container-high'
-                }
-              />
-            )
-          })}
+        <div className="mt-5">
+          <CriteriaMeter met={criteriaMet} total={criteriaTotal} />
         </div>
 
         <p className="mt-3 text-sm font-medium text-on-surface-variant">

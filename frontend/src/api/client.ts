@@ -348,7 +348,7 @@ export interface IngestJobProgress {
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {

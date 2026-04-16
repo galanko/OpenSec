@@ -7,6 +7,7 @@
  */
 
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { request } from './client'
 import type { components } from './types'
 
 export type DashboardPayload = components['schemas']['DashboardPayload']
@@ -17,32 +18,20 @@ export type AssessmentLatestResponse =
 export type PostureFixResponse = components['schemas']['PostureFixResponse']
 export type PostureFixableCheck = 'security_md' | 'dependabot_config'
 
-const BASE = ''
-
-async function getJson<T>(path: string): Promise<T> {
-  const resp = await fetch(`${BASE}${path}`)
-  if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`)
-  return (await resp.json()) as T
-}
-
-async function postJson<T>(path: string): Promise<T> {
-  const resp = await fetch(`${BASE}${path}`, { method: 'POST' })
-  if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`)
-  return (await resp.json()) as T
-}
-
 // ---------------------------------------------------------------------------
 // Fetchers
 // ---------------------------------------------------------------------------
 
 export const dashboardApi = {
-  getDashboard: () => getJson<DashboardPayload>('/api/dashboard'),
+  getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
-    getJson<AssessmentLatestResponse>('/api/assessment/latest'),
+    request<AssessmentLatestResponse>('/api/assessment/latest'),
   getAssessmentStatus: (id: string) =>
-    getJson<AssessmentStatusResponse>(`/api/assessment/status/${id}`),
+    request<AssessmentStatusResponse>(`/api/assessment/status/${id}`),
   fixPostureCheck: (checkName: PostureFixableCheck) =>
-    postJson<PostureFixResponse>(`/api/posture/fix/${checkName}`),
+    request<PostureFixResponse>(`/api/posture/fix/${checkName}`, {
+      method: 'POST',
+    }),
 }
 
 // ---------------------------------------------------------------------------

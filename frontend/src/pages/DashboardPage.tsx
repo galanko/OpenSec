@@ -19,6 +19,9 @@ import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import ErrorState from '@/components/ErrorState'
 import PageShell from '@/components/PageShell'
+import PageSpinner from '@/components/PageSpinner'
+
+const CRITERIA_TOTAL = 5
 
 const SEVERITY_ORDER: Array<{
   key: 'critical' | 'high' | 'medium' | 'low'
@@ -60,9 +63,7 @@ function DashboardContent() {
   if (isLoading || !data) {
     return (
       <PageShell title="Overview">
-        <div className="flex justify-center py-24">
-          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary/30 border-t-primary" />
-        </div>
+        <PageSpinner />
       </PageShell>
     )
   }
@@ -85,7 +86,7 @@ function ReportCard({ data }: { data: DashboardPayload }) {
   const repoName = repoNameFromUrl(data.assessment?.repo_url)
   const criteria = data.criteria
   const criteriaMet = countCriteriaMet(criteria)
-  const remaining = Math.max(0, 5 - criteriaMet)
+  const remaining = Math.max(0, CRITERIA_TOTAL - criteriaMet)
 
   const heroCopy = buildHeroCopy(data.grade, remaining)
 
@@ -98,13 +99,12 @@ function ReportCard({ data }: { data: DashboardPayload }) {
   return (
     <PageShell title="Overview" subtitle={repoName}>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
-        {/* Main column */}
         <div className="flex flex-col gap-6">
           <section className="flex flex-col items-start gap-6 rounded-3xl bg-surface-container-low p-8 md:flex-row md:items-center">
             <GradeRing
               grade={data.grade}
               criteriaMet={criteriaMet}
-              criteriaTotal={5}
+              criteriaTotal={CRITERIA_TOTAL}
             />
             <div className="flex-1">
               <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">
@@ -121,8 +121,7 @@ function ReportCard({ data }: { data: DashboardPayload }) {
 
           <CompletionProgressCard
             criteriaMet={criteriaMet}
-            criteriaTotal={5}
-            grade={data.grade}
+            criteriaTotal={CRITERIA_TOTAL}
             repoName={repoName}
           />
 
@@ -138,7 +137,6 @@ function ReportCard({ data }: { data: DashboardPayload }) {
           <ScorecardInfoLine />
         </div>
 
-        {/* Aside */}
         <aside>
           <CompletionStatusCard
             completionId={data.completion_id ?? null}

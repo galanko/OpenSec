@@ -25,8 +25,11 @@ const STEPS: Step[] = [
 type StepState = 'done' | 'running' | 'pending'
 
 function stateFor(step: Step, activeIdx: number, status?: string): StepState {
-  const idx = STEPS.findIndex((s) => s.key === step.key)
   if (status === 'complete') return 'done'
+  // activeIdx === -1 signals "step unknown" — keep every row pending rather
+  // than falsely highlighting the first step.
+  if (activeIdx < 0) return 'pending'
+  const idx = STEPS.findIndex((s) => s.key === step.key)
   if (idx < activeIdx) return 'done'
   if (idx === activeIdx) return 'running'
   return 'pending'
@@ -40,10 +43,7 @@ export default function AssessmentProgressList({
   assessmentId,
 }: AssessmentProgressListProps) {
   const { data } = useAssessmentStatus(assessmentId)
-  const activeIdx = Math.max(
-    0,
-    STEPS.findIndex((s) => s.key === data?.step),
-  )
+  const activeIdx = STEPS.findIndex((s) => s.key === data?.step)
 
   return (
     <section

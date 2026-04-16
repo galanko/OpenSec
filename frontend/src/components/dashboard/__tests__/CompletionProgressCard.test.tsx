@@ -8,7 +8,6 @@ describe('<CompletionProgressCard />', () => {
       <CompletionProgressCard
         criteriaMet={3}
         criteriaTotal={5}
-        grade="C"
         repoName="acme/fast-markdown"
       />,
     )
@@ -23,11 +22,10 @@ describe('<CompletionProgressCard />', () => {
       <CompletionProgressCard
         criteriaMet={3}
         criteriaTotal={5}
-        grade="C"
         repoName="acme/fast-markdown"
       />,
     )
-    const pills = screen.getAllByTestId('criteria-pill')
+    const pills = screen.getAllByTestId('criteria-meter-pill')
     expect(pills).toHaveLength(5)
     expect(pills.filter((p) => p.dataset.state === 'met')).toHaveLength(3)
     expect(pills.filter((p) => p.dataset.state === 'empty')).toHaveLength(2)
@@ -38,7 +36,6 @@ describe('<CompletionProgressCard />', () => {
       <CompletionProgressCard
         criteriaMet={3}
         criteriaTotal={5}
-        grade="C"
         repoName="acme/fast-markdown"
       />,
     )
@@ -50,7 +47,6 @@ describe('<CompletionProgressCard />', () => {
       <CompletionProgressCard
         criteriaMet={5}
         criteriaTotal={5}
-        grade="A"
         repoName="acme/fast-markdown"
       />,
     )

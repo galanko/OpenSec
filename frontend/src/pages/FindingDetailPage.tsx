@@ -12,6 +12,7 @@ import { useFinding } from '@/api/hooks'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import ErrorState from '@/components/ErrorState'
 import PageShell from '@/components/PageShell'
+import PageSpinner from '@/components/PageSpinner'
 import SeverityBadge from '@/components/SeverityBadge'
 import TechnicalDetailsPanel from '@/components/TechnicalDetailsPanel'
 
@@ -46,9 +47,7 @@ function FindingDetailContent() {
   if (isLoading || !finding) {
     return (
       <PageShell title="Finding">
-        <div className="flex justify-center py-24">
-          <div className="h-8 w-8 animate-spin rounded-full border-[3px] border-primary/30 border-t-primary" />
-        </div>
+        <PageSpinner />
       </PageShell>
     )
   }
