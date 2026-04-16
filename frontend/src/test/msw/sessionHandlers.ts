@@ -19,7 +19,6 @@ import { http, HttpResponse } from 'msw'
 import {
   assessmentStatusSteps,
   getDashboardFixture,
-  sampleFindings,
   type DashboardFixtureName,
 } from '../../mocks/fixtures/dashboard'
 

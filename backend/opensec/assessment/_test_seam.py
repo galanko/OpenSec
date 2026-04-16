@@ -119,10 +119,10 @@ def build_fixture_engine(
         return httpx.Response(404, json={"message": "E2E seam — unhandled gh path"})
 
     def _handle(request: httpx.Request) -> httpx.Response:
-        url = str(request.url)
-        if "api.osv.dev" in url:
+        host = request.url.host
+        if host == "api.osv.dev":
             return _handle_osv(request)
-        if "api.github.com" in url:
+        if host == "api.github.com":
             return _handle_github(request)
         return httpx.Response(404, json={"message": "E2E seam — unhandled host"})
 

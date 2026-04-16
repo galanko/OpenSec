@@ -92,14 +92,14 @@ def _build_real_engine(planted: Path, tmp_root: Path) -> ProductionAssessmentEng
     osv_payload = json.loads((FIXTURES / "osv" / "braces_3_0_2.json").read_text())
 
     def _handle(request: httpx.Request) -> httpx.Response:
-        url = str(request.url)
-        if "api.osv.dev" in url:
+        host = request.url.host
+        if host == "api.osv.dev":
             body = json.loads(request.content)
             name = (body.get("package") or {}).get("name")
             if name == "braces":
                 return httpx.Response(200, json=osv_payload)
             return httpx.Response(200, json={"vulns": []})
-        if "api.github.com" in url:
+        if host == "api.github.com":
             return httpx.Response(403, json={"message": "integration test"})
         return httpx.Response(404, json={"message": "unhandled"})
 
@@ -197,8 +197,8 @@ async def test_real_engine_http_mock_surface(
         shutil.copytree(planted_repo, target)
 
     def _handle(request: httpx.Request) -> httpx.Response:
-        calls.append(str(request.url))
-        if "api.osv.dev" in str(request.url):
+        calls.append(request.url.host)
+        if request.url.host == "api.osv.dev":
             return httpx.Response(200, json={"vulns": []})
         return httpx.Response(403, json={"message": "integration test"})
 
@@ -222,7 +222,7 @@ async def test_real_engine_http_mock_surface(
         assert resp.status_code == 200
         await _drain_background_tasks()
 
-        assert any("api.osv.dev" in url for url in calls), (
+        assert "api.osv.dev" in calls, (
             f"expected MockTransport to see an OSV call; saw {calls}"
         )
     finally:
