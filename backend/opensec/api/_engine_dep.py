@@ -78,8 +78,11 @@ async def _github_token_from_integration() -> str | None:
     if vault is None:
         return None
 
+    # Canonical credential key, matched by the GitHub registry entry and the
+    # remediation workspace's env setup. Onboarding writes under this exact
+    # name; the engine/posture-fix spawner read from the same place.
     try:
-        return await vault.retrieve(github.id, "token")
+        return await vault.retrieve(github.id, "github_personal_access_token")
     except Exception:
         return None
 

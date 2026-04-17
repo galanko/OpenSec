@@ -80,7 +80,11 @@ def _parse_owner_repo(repo_url: str) -> tuple[str, str] | None:
 
 GITHUB_ADAPTER_TYPE = "github"
 GITHUB_PROVIDER_NAME = "GitHub"
-GITHUB_TOKEN_KEY = "token"
+# Canonical credential key name, matched by the GitHub registry entry
+# (backend/opensec/integrations/registry/github.json) and read by the
+# remediation executor's workspace setup + the connection tester. Writing
+# under any other name silently breaks "open a PR" remediation.
+GITHUB_TOKEN_KEY = "github_personal_access_token"
 
 
 async def _upsert_github_integration(
