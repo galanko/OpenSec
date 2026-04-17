@@ -1,26 +1,30 @@
 /**
- * Read-only feature-flag snapshot from the backend.
+ * Read-only bootstrap state from the backend.
  *
- * Default on the server is ``false`` for every flag; consumers treat "no data
- * yet" as flag-off so the gate is fail-closed during fetch + on error.
+ * The SPA fetches this once on load to decide whether to redirect to the
+ * onboarding wizard (first-run signal: nothing in the DB) or to the
+ * dashboard (returning user: already onboarded).
  */
 
 import { useQuery } from '@tanstack/react-query'
 import { request } from './client'
 
-export interface FeatureFlags {
-  v1_1_from_zero_to_secure_enabled: boolean
+export interface BootstrapState {
   onboarding_completed: boolean
   has_any_assessment: boolean
 }
 
-export function useFeatureFlags() {
+export function useBootstrap() {
   return useQuery({
-    queryKey: ['feature-flags'],
-    queryFn: () => request<FeatureFlags>('/api/config/feature-flags'),
+    queryKey: ['bootstrap'],
+    queryFn: () => request<BootstrapState>('/api/config/bootstrap'),
     staleTime: 60_000,
-    // Skip retries — a flag endpoint should fail fast so the gate redirects
-    // instead of flashing a blank screen through backoff.
+    // Fail fast so guards can render their redirect state without a flicker.
     retry: false,
   })
 }
+
+// Backward-compat alias — older callsites imported ``useFeatureFlags``. The
+// shape is identical; the flag-only field is gone.
+export const useFeatureFlags = useBootstrap
+export type FeatureFlags = BootstrapState

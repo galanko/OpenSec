@@ -61,7 +61,6 @@ export default defineConfig({
       stderr: 'pipe',
       env: {
         OPENSEC_DATA_DIR: E2E_DATA_DIR,
-        OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED: 'true',
         OPENSEC_TEST_FIXTURE_REPO_DIR: FIXTURE_REPO_DIR,
         OPENSEC_TEST_FIXTURE_OSV_DIR: FIXTURE_OSV_DIR,
         // Inherit PATH so ``uv`` resolves. This mirrors playwright docs.

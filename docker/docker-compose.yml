@@ -17,9 +17,6 @@ services:
       - OPENSEC_CREDENTIAL_KEY=${OPENSEC_CREDENTIAL_KEY:-}
       # Data
       - OPENSEC_DATA_DIR=/data
-      # v1.1 onboarding/assessment gate — off by default. Set to ``true`` in
-      # the shell env (or a compose override) to flip the canary on.
-      - OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED=${OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED:-false}
       # Demo mode — seed sample findings on first run
       # - OPENSEC_DEMO=true
     restart: unless-stopped

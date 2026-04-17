@@ -51,9 +51,8 @@ export const sessionHandlers = [
   // Default the flag ON so gated routes render normally in component tests.
   // FeatureFlagGate tests override this per-case via ``server.use(...)`` to
   // cover the redirect paths.
-  http.get('/api/config/feature-flags', () =>
+  http.get('/api/config/bootstrap', () =>
     HttpResponse.json({
-      v1_1_from_zero_to_secure_enabled: true,
       onboarding_completed: true,
       has_any_assessment: true,
     }),

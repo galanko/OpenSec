@@ -13,23 +13,11 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Protocol
 
-from fastapi import HTTPException
-
 from opensec.config import settings
 
 if TYPE_CHECKING:
     from opensec.models import AssessmentResult
     from opensec.workspace.workspace_dir_manager import WorkspaceKind
-
-
-def require_from_zero_to_secure_flag() -> None:
-    """Fail-closed gate for the v1.1 onboarding + assessment write endpoints.
-
-    Returns 404 (not 403) so direct URL probing can't distinguish "route does
-    not exist" from "route exists but is gated".
-    """
-    if not settings.v1_1_from_zero_to_secure_enabled:
-        raise HTTPException(status_code=404, detail="Not Found")
 
 
 StepCallback = Callable[[str], Awaitable[None]]

@@ -244,12 +244,14 @@ function ReportCard({ data }: { data: DashboardPayload }) {
               {heroCopy.body}
             </p>
           </div>
-          <div className="w-full md:w-auto md:max-w-xs md:flex-shrink-0">
-            <CompletionStatusCard
-              completionId={data.completion_id ?? null}
-              completedAt={data.assessment?.completed_at ?? null}
-            />
-          </div>
+          {data.completion_id && (
+            <div className="w-full md:w-auto md:max-w-xs md:flex-shrink-0">
+              <CompletionStatusCard
+                completionId={data.completion_id}
+                completedAt={data.assessment?.completed_at ?? null}
+              />
+            </div>
+          )}
         </section>
 
         <CompletionProgressCard
@@ -545,6 +547,12 @@ function buildHeroCopy(
     return {
       headline: 'Security completion reached',
       body: 'All five criteria are met. Keep it up.',
+    }
+  }
+  if (grade === 'F' || grade === 'D') {
+    return {
+      headline: 'Work to do',
+      body: `Start with any failing check below. Fix ${remaining} item${remaining === 1 ? '' : 's'} to reach security completion.`,
     }
   }
   if (remaining === 0) {

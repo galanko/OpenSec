@@ -146,13 +146,6 @@ async def db_client():
     app.state.audit_logger = None
     app.state.assessment_tasks = set()
 
-    # Default the v1.1 feature flag ON for API tests — the gated routes
-    # (onboarding, assessment/run) must be reachable in the fixture-backed
-    # test setup. Individual tests can flip it off via monkeypatch.
-    from opensec.config import settings
-
-    settings.v1_1_from_zero_to_secure_enabled = True
-
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac

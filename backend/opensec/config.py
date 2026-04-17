@@ -49,12 +49,6 @@ class Settings(BaseSettings):
     data_dir: Path = Path(os.getenv("OPENSEC_DATA_DIR", ""))
     static_dir: str = ""  # Path to built frontend assets (set in Docker)
 
-    # Feature flags (EXEC-0002 Session G)
-    # Env var: OPENSEC_V1_1_FROM_ZERO_TO_SECURE_ENABLED
-    # Gates the onboarding wizard redirect and the new dashboard entry points.
-    # Defaults off so main is shippable; @galanko flips on for canary after merge.
-    v1_1_from_zero_to_secure_enabled: bool = False
-
     # Playwright E2E test seam — when both are set the assessment engine is
     # constructed with a ``clone_strategy`` that copies from a fixture dir
     # and an ``httpx.MockTransport`` that replays canned OSV responses. Not

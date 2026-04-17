@@ -474,6 +474,25 @@
         "title": "AssessmentStatusResponse",
         "type": "object"
       },
+      "BootstrapState": {
+        "description": "Read-only state the SPA fetches before rendering the first page.",
+        "properties": {
+          "has_any_assessment": {
+            "title": "Has Any Assessment",
+            "type": "boolean"
+          },
+          "onboarding_completed": {
+            "title": "Onboarding Completed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "onboarding_completed",
+          "has_any_assessment"
+        ],
+        "title": "BootstrapState",
+        "type": "object"
+      },
       "ChatPermissionDecision": {
         "properties": {
           "approved": {
@@ -796,30 +815,6 @@
           "status"
         ],
         "title": "ExecuteResponse",
-        "type": "object"
-      },
-      "FeatureFlags": {
-        "description": "Snapshot of server-side feature flags visible to the UI.",
-        "properties": {
-          "has_any_assessment": {
-            "title": "Has Any Assessment",
-            "type": "boolean"
-          },
-          "onboarding_completed": {
-            "title": "Onboarding Completed",
-            "type": "boolean"
-          },
-          "v1_1_from_zero_to_secure_enabled": {
-            "title": "V1 1 From Zero To Secure Enabled",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "v1_1_from_zero_to_secure_enabled",
-          "onboarding_completed",
-          "has_any_assessment"
-        ],
-        "title": "FeatureFlags",
         "type": "object"
       },
       "Finding": {
@@ -3262,23 +3257,23 @@
         ]
       }
     },
-    "/api/config/feature-flags": {
+    "/api/config/bootstrap": {
       "get": {
-        "description": "Return feature flags + bootstrap hints for SPA redirect decisions.",
-        "operationId": "get_feature_flags_api_config_feature_flags_get",
+        "description": "Bootstrap hints for SPA redirect decisions.",
+        "operationId": "get_bootstrap_api_config_bootstrap_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FeatureFlags"
+                  "$ref": "#/components/schemas/BootstrapState"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
-        "summary": "Get Feature Flags",
+        "summary": "Get Bootstrap",
         "tags": [
           "config"
         ]

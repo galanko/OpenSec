@@ -20,7 +20,6 @@ from opensec.api._background import schedule_assessment_run
 from opensec.api._engine_dep import (
     AssessmentEngineProtocol,
     get_assessment_engine,
-    require_from_zero_to_secure_flag,
 )
 from opensec.assessment.posture.github_client import GithubClient, UnableToVerify
 from opensec.db.connection import get_db
@@ -182,11 +181,7 @@ class OnboardingCompleteResponse(BaseModel):
     onboarding_completed: bool
 
 
-@router.post(
-    "/repo",
-    response_model=OnboardingRepoResponse,
-    dependencies=[Depends(require_from_zero_to_secure_flag)],
-)
+@router.post("/repo", response_model=OnboardingRepoResponse)
 async def connect_repo(
     request: OnboardingRepoRequest,
     http_request: FastAPIRequest,
@@ -214,11 +209,7 @@ async def connect_repo(
     )
 
 
-@router.post(
-    "/complete",
-    response_model=OnboardingCompleteResponse,
-    dependencies=[Depends(require_from_zero_to_secure_flag)],
-)
+@router.post("/complete", response_model=OnboardingCompleteResponse)
 async def complete_onboarding(
     request: OnboardingCompleteRequest,
     db=Depends(get_db),
