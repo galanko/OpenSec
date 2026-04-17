@@ -13,9 +13,12 @@ from pydantic import BaseModel
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import get_latest_assessment
 from opensec.db.dao.completion import get_completion_for_assessment
-from opensec.db.dao.posture_check import count_posture_pass_total
+from opensec.db.dao.posture_check import (
+    count_posture_pass_total,
+    list_posture_checks_for_assessment,
+)
 from opensec.db.repo_finding import count_findings_by_priority
-from opensec.models import Assessment, CriteriaSnapshot, Grade
+from opensec.models import Assessment, CriteriaSnapshot, Grade, PostureCheck
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -27,6 +30,9 @@ class DashboardPayload(BaseModel):
     findings_count_by_priority: dict[str, int]
     posture_pass_count: int
     posture_total_count: int
+    # Per-check status for the dashboard PostureCard. Empty when no assessment
+    # has run yet. Ordered as the assessment produced them.
+    posture_checks: list[PostureCheck] = []
     completion_id: str | None = None
 
 
@@ -48,15 +54,22 @@ async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
             findings_count_by_priority={},
             posture_pass_count=0,
             posture_total_count=0,
+            posture_checks=[],
             completion_id=None,
         )
 
+    # `latest.started_at` is a ``datetime``; SQLite compares timestamps
+    # lexicographically, and ``str(datetime)`` uses a space separator while
+    # stored ``created_at`` values use ISO-8601 with ``T``. Space < T in
+    # ASCII, so the naive coercion silently includes findings from prior
+    # assessments. Force ``isoformat()`` to keep the separators aligned.
     counts = await count_findings_by_priority(
         db,
         source_type="opensec-assessment",
-        created_since_iso=latest.started_at,
+        created_since_iso=latest.started_at.isoformat(),
     )
     pass_count, total_count = await count_posture_pass_total(db, latest.id)
+    posture_checks = await list_posture_checks_for_assessment(db, latest.id)
     completion = await get_completion_for_assessment(db, latest.id)
 
     # A completion row can outlive the state that created it (new vuln lands
@@ -78,5 +91,6 @@ async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
         findings_count_by_priority=counts,
         posture_pass_count=pass_count,
         posture_total_count=total_count,
+        posture_checks=posture_checks,
         completion_id=completion_id,
     )

@@ -184,6 +184,25 @@ async def _build_findings(
     return [finding for batch in per_dep for finding in batch]
 
 
+# Deterministic severity -> normalized_priority mapping. The LLM normalizer
+# is bypassed for OSV/GHSA findings because the severity is already reliable
+# upstream; leaving normalized_priority NULL hides findings from the
+# dashboard (it GROUPs BY normalized_priority WHERE IS NOT NULL).
+_PRIORITY_BY_SEVERITY: dict[str, str] = {
+    "CRITICAL": "critical",
+    "HIGH": "high",
+    "MODERATE": "medium",
+    "MEDIUM": "medium",
+    "LOW": "low",
+}
+
+
+def _priority_from_severity(raw_severity: str | None) -> str | None:
+    if not isinstance(raw_severity, str):
+        return None
+    return _PRIORITY_BY_SEVERITY.get(raw_severity.upper())
+
+
 def _finding_from_advisory(advisory: Advisory, dep: ParsedDependency) -> dict[str, Any]:
     title = advisory.summary or f"{dep.name}@{dep.version} vulnerable"
     return FindingCreate(
@@ -192,6 +211,7 @@ def _finding_from_advisory(advisory: Advisory, dep: ParsedDependency) -> dict[st
         title=title,
         description=advisory.summary or None,
         raw_severity=advisory.severity,
+        normalized_priority=_priority_from_severity(advisory.severity),
         asset_label=f"{dep.name}@{dep.version}",
         raw_payload={
             "advisory_id": advisory.id,
