@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import OnboardingShell from '@/components/onboarding/OnboardingShell'
 import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
 import WizardNav from '@/components/onboarding/WizardNav'
-import { onboardingApi, OnboardingApiError } from '@/api/onboarding'
+import { OnboardingApiError } from '@/api/onboarding'
 import { onboardingStorage } from './storage'
 
 interface PreviewStep {
@@ -42,7 +42,7 @@ export default function StartAssessment() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<OnboardingApiError | null>(null)
 
-  async function handleStart() {
+  function handleStart() {
     const assessmentId = onboardingStorage.get('assessmentId')
     if (!assessmentId) {
       // Defensive: ConnectRepo always stashes this on success. If it's
@@ -51,23 +51,14 @@ export default function StartAssessment() {
       return
     }
 
-    setSubmitting(true)
+    // Don't block on ``/onboarding/complete`` — that endpoint returns 409 until
+    // the assessment actually finishes, and keeping the user on this screen
+    // defeats the progress-list UX. Navigate to the dashboard immediately; the
+    // dashboard itself fires ``/complete`` when it sees status=complete.
     setError(null)
-    try {
-      await onboardingApi.complete({ assessment_id: assessmentId })
-      onboardingStorage.clear()
-      navigate('/dashboard?assessment=running')
-    } catch (err) {
-      setSubmitting(false)
-      setError(
-        err instanceof OnboardingApiError
-          ? err
-          : new OnboardingApiError(
-              err instanceof Error ? err.message : 'Unknown error',
-              0,
-            ),
-      )
-    }
+    setSubmitting(true)
+    onboardingStorage.clear()
+    navigate('/dashboard')
   }
 
   return (

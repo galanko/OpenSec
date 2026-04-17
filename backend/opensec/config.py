@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     data_dir: Path = Path(os.getenv("OPENSEC_DATA_DIR", ""))
     static_dir: str = ""  # Path to built frontend assets (set in Docker)
 
+    # Playwright E2E test seam — when both are set the assessment engine is
+    # constructed with a ``clone_strategy`` that copies from a fixture dir
+    # and an ``httpx.MockTransport`` that replays canned OSV responses. Not
+    # intended for end-user deployments; used only by ``frontend/tests/e2e``.
+    # Env vars: OPENSEC_TEST_FIXTURE_REPO_DIR / OPENSEC_TEST_FIXTURE_OSV_DIR
+    test_fixture_repo_dir: str = ""
+    test_fixture_osv_dir: str = ""
+
     model_config = {"env_prefix": "OPENSEC_"}
 
     @property

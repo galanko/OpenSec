@@ -24,19 +24,11 @@ describe('<AssessmentProgressList />', () => {
         screen.getByRole('list', { name: /assessment progress/i }),
       ).toBeInTheDocument(),
     )
-    expect(
-      screen.getByText(/clone/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/parse lockfiles/i),
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(/cross-reference cves/i),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/posture check/i)).toBeInTheDocument()
-    expect(
-      screen.getByText(/plain-language descriptions/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/clone repository/i)).toBeInTheDocument()
+    expect(screen.getByText(/parse lockfiles/i)).toBeInTheDocument()
+    expect(screen.getByText(/cross-reference cves/i)).toBeInTheDocument()
+    expect(screen.getByText(/posture checks/i)).toBeInTheDocument()
+    expect(screen.getByText(/compute grade/i)).toBeInTheDocument()
   })
 
   it('marks the active step as running and earlier steps as done', async () => {
@@ -45,11 +37,9 @@ describe('<AssessmentProgressList />', () => {
         <AssessmentProgressList assessmentId="asmt_running_001" />
       </Wrapper>,
     )
-    // First poll returns step=clone, progress_pct=10 → active step = clone,
-    // subsequent steps pending.
+    // First poll returns step=cloning → the Clone row is "running".
     await waitFor(() => {
       const items = screen.getAllByTestId('assessment-step')
-      // state attr must reflect clone running, rest pending
       const cloneItem = items.find((el) =>
         el.textContent?.toLowerCase().includes('clone'),
       )!

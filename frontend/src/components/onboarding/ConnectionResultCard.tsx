@@ -15,7 +15,7 @@ export default function ConnectionResultCard({
   onChange,
 }: ConnectionResultCardProps) {
   return (
-    <div className="rounded-lg bg-surface-container-lowest shadow-sm px-5 py-4">
+    <div className="w-full rounded-2xl bg-surface-container-lowest shadow-sm px-6 py-6">
       <div className="flex items-start gap-3">
         <span
           className="material-symbols-outlined text-tertiary mt-0.5"
@@ -46,7 +46,7 @@ export default function ConnectionResultCard({
         <DetailCell label="Default branch" value={verified.default_branch} />
         <DetailCell
           label="Permissions"
-          value={verified.permissions.join(', ') || '—'}
+          value={verified.permissions?.join(', ') || '—'}
         />
       </div>
     </div>

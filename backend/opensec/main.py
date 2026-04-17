@@ -36,6 +36,9 @@ from opensec.api.routes import (
     workspaces,
 )
 from opensec.api.routes import (
+    config as config_routes,
+)
+from opensec.api.routes import (
     settings as settings_routes,
 )
 from opensec.config import settings
@@ -216,6 +219,7 @@ app.include_router(assessment.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(posture.router, prefix="/api")
 app.include_router(completion.router, prefix="/api")
+app.include_router(config_routes.router, prefix="/api")
 
 # Serve built frontend in production (when OPENSEC_STATIC_DIR is set)
 _static_dir = Path(settings.static_dir) if settings.static_dir else None

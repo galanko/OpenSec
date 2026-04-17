@@ -474,6 +474,25 @@
         "title": "AssessmentStatusResponse",
         "type": "object"
       },
+      "BootstrapState": {
+        "description": "Read-only state the SPA fetches before rendering the first page.",
+        "properties": {
+          "has_any_assessment": {
+            "title": "Has Any Assessment",
+            "type": "boolean"
+          },
+          "onboarding_completed": {
+            "title": "Onboarding Completed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "onboarding_completed",
+          "has_any_assessment"
+        ],
+        "title": "BootstrapState",
+        "type": "object"
+      },
       "ChatPermissionDecision": {
         "properties": {
           "approved": {
@@ -526,6 +545,52 @@
           "session_id"
         ],
         "title": "ChatSendResponse",
+        "type": "object"
+      },
+      "Completion": {
+        "properties": {
+          "assessment_id": {
+            "title": "Assessment Id",
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "title": "Completed At",
+            "type": "string"
+          },
+          "criteria_snapshot": {
+            "$ref": "#/components/schemas/CriteriaSnapshot"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "repo_url": {
+            "title": "Repo Url",
+            "type": "string"
+          },
+          "share_actions_used": {
+            "default": [],
+            "items": {
+              "enum": [
+                "download",
+                "copy_text",
+                "copy_markdown"
+              ],
+              "type": "string"
+            },
+            "title": "Share Actions Used",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "assessment_id",
+          "repo_url",
+          "completed_at",
+          "criteria_snapshot"
+        ],
+        "title": "Completion",
         "type": "object"
       },
       "CredentialCreate": {
@@ -1792,6 +1857,16 @@
           "repo_url": {
             "title": "Repo Url",
             "type": "string"
+          },
+          "verified": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerifiedRepo"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2440,6 +2515,38 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerifiedRepo": {
+        "description": "Display-only metadata the SPA shows on the connect-success card.",
+        "properties": {
+          "default_branch": {
+            "title": "Default Branch",
+            "type": "string"
+          },
+          "permissions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "repo_name": {
+            "title": "Repo Name",
+            "type": "string"
+          },
+          "visibility": {
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo_name",
+          "visibility",
+          "default_branch"
+        ],
+        "title": "VerifiedRepo",
+        "type": "object"
+      },
       "Workspace": {
         "properties": {
           "active_plan_version": {
@@ -2760,7 +2867,7 @@
     },
     "/api/assessment/status/{assessment_id}": {
       "get": {
-        "description": "Poll assessment progress. Session B will upgrade this to SSE.",
+        "description": "Poll assessment progress.\n\nWhen the assessment is ``running``, ``step`` is the live phase from\n:func:`opensec.api._background.get_assessment_step` (e.g. ``cloning`` or\n``looking_up_cves``); otherwise it mirrors ``status``.",
         "operationId": "get_assessment_status_api_assessment_status__assessment_id__get",
         "parameters": [
           {
@@ -3054,6 +3161,49 @@
         ]
       }
     },
+    "/api/completion/{completion_id}": {
+      "get": {
+        "description": "Read-only fetch \u2014 used by the E2E suite to verify share-action recording.",
+        "operationId": "get_completion_api_completion__completion_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "completion_id",
+            "required": true,
+            "schema": {
+              "title": "Completion Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Completion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Completion",
+        "tags": [
+          "completion"
+        ]
+      }
+    },
     "/api/completion/{completion_id}/share-action": {
       "post": {
         "description": "Append the share action to the completion's audit row (idempotent).",
@@ -3107,9 +3257,31 @@
         ]
       }
     },
+    "/api/config/bootstrap": {
+      "get": {
+        "description": "Bootstrap hints for SPA redirect decisions.",
+        "operationId": "get_bootstrap_api_config_bootstrap_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Bootstrap",
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/dashboard": {
       "get": {
-        "description": "Aggregate dashboard payload: latest assessment + findings + posture.",
+        "description": "Aggregate dashboard payload: latest assessment + findings + posture.\n\nThe findings count is scoped to the current assessment window (source\n``opensec-assessment``, created at or after the latest assessment's start)\nso the Vulnerabilities tile always matches what the Findings page shows.",
         "operationId": "get_dashboard_api_dashboard_get",
         "responses": {
           "200": {
@@ -3131,6 +3303,7 @@
     },
     "/api/findings": {
       "get": {
+        "description": "List findings.\n\nWhen ``scope=current`` the list is scoped to the latest assessment's\nwindow (``source_type='opensec-assessment'`` + ``created_at`` at or after\nthe latest assessment's ``started_at``) so the Findings page matches the\ndashboard's Vulnerabilities tile.",
         "operationId": "list_findings_endpoint_api_findings_get",
         "parameters": [
           {
@@ -3163,6 +3336,22 @@
                 }
               ],
               "title": "Has Workspace"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Scope"
             }
           },
           {

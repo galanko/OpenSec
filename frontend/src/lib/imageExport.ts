@@ -4,8 +4,7 @@
  * Why toBlob and not toPng:
  *  - `toPng` produces a data URL which hits a ~2MB ceiling in some Safari
  *    versions; a 1200×630 @ 2x PNG can exceed that.
- *  - `toBlob` + `URL.createObjectURL` is more memory-efficient and matches
- *    IMPL-0002 H5's explicit Safari mitigation guidance.
+ *  - `toBlob` + `URL.createObjectURL` is more memory-efficient for Safari.
  *
  * Why the dynamic import:
  *  - `html-to-image` is ~80KB gzipped. It only runs when the user clicks
@@ -33,6 +32,19 @@ export class ExportError extends Error {
   }
 }
 
+function isCrossOriginFontError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  // Firefox: DOMException 'SecurityError' accessing CSSStyleSheet.cssRules
+  // on a cross-origin stylesheet (Google Fonts).
+  if (err.name === 'SecurityError') return true
+  const msg = err.message.toLowerCase()
+  return (
+    msg.includes('cssrules') ||
+    msg.includes('cross-origin') ||
+    msg.includes('stylesheet')
+  )
+}
+
 export async function exportCardAsPng(
   node: HTMLElement | null,
   filename: string,
@@ -48,16 +60,30 @@ export async function exportCardAsPng(
 
   const { toBlob } = await import('html-to-image')
 
-  let blob: Blob | null
+  const baseOpts = {
+    width: 1200,
+    height: 630,
+    pixelRatio: 2,
+    cacheBust: true,
+  }
+
+  // First pass: try a full render with embedded fonts. Firefox throws a
+  // SecurityError when reading cross-origin CSS rules from Google Fonts; fall
+  // back to a font-skipped render in that specific case. Any other error is
+  // surfaced immediately so genuine failures (OOM, tainted canvas, DOM-
+  // serialization bugs) aren't masked by the retry.
+  let blob: Blob | null = null
   try {
-    blob = await toBlob(node, {
-      width: 1200,
-      height: 630,
-      pixelRatio: 2,
-      cacheBust: true,
-    })
+    blob = await toBlob(node, baseOpts)
   } catch (err) {
-    throw new ExportError('render-failed', (err as Error).message)
+    if (!isCrossOriginFontError(err)) {
+      throw new ExportError('render-failed', (err as Error).message)
+    }
+    try {
+      blob = await toBlob(node, { ...baseOpts, skipFonts: true })
+    } catch (retryErr) {
+      throw new ExportError('render-failed', (retryErr as Error).message)
+    }
   }
   if (!blob) {
     throw new ExportError('blob-null', 'toBlob returned null')

@@ -42,6 +42,25 @@ class GithubClient:
             headers["Authorization"] = f"Bearer {self._token}"
         return headers
 
+    async def get_repo_info(
+        self, owner: str, repo: str
+    ) -> dict[str, Any] | UnableToVerify:
+        """Fetch minimal repo metadata — used by the onboarding connect step."""
+        url = f"{GITHUB_API}/repos/{owner}/{repo}"
+        try:
+            response = await self._http.get(
+                url, headers=self._headers(), timeout=self._timeout
+            )
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            return UnableToVerify(reason=f"network: {exc.__class__.__name__}")
+
+        if response.status_code == 200:
+            data = response.json()
+            return data if isinstance(data, dict) else UnableToVerify(
+                reason="unexpected_body"
+            )
+        return UnableToVerify(reason=f"http_{response.status_code}")
+
     async def get_branch_protection(
         self, owner: str, repo: str, branch: str
     ) -> dict[str, Any] | UnableToVerify | None:

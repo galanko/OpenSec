@@ -51,7 +51,11 @@ function FindingsPageContent() {
   const githubHealth = healthStatuses?.find(h => h.integration_id === githubInt?.id)
   const repoConfigured = !!githubInt?.config?.repo_url && githubHealth?.credential_status === 'ok'
 
-  const params: { status?: string; has_workspace: boolean } = { has_workspace: false }
+  const params: {
+    status?: string
+    has_workspace: boolean
+    scope: 'current'
+  } = { has_workspace: false, scope: 'current' }
   if (statusFilter) params.status = statusFilter
 
   const { data: findings, isLoading, isError, refetch } = useFindings(params)

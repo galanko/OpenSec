@@ -15,8 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
 
-from opensec.api._background import schedule_assessment_run
-from opensec.api._engine_dep import AssessmentEngineProtocol, get_assessment_engine
+from opensec.api._background import get_assessment_step, schedule_assessment_run
+from opensec.api._engine_dep import (
+    AssessmentEngineProtocol,
+    get_assessment_engine,
+)
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import create_assessment, get_assessment
 from opensec.db.dao.assessment import (
@@ -63,6 +66,16 @@ _STATUS_TO_PROGRESS: dict[AssessmentStatus, int] = {
     "failed": 0,
 }
 
+# Progress percentage per phase — used when the assessment is running and we
+# have a live step. Ordered to match the user-visible sequence.
+_STEP_PROGRESS: dict[str, int] = {
+    "cloning": 10,
+    "parsing_lockfiles": 25,
+    "looking_up_cves": 50,
+    "checking_posture": 75,
+    "grading": 90,
+}
+
 
 @router.post("/run", response_model=AssessmentRunResponse)
 async def run_assessment(
@@ -86,15 +99,29 @@ async def run_assessment(
 async def get_assessment_status(
     assessment_id: str, db=Depends(get_db)
 ) -> AssessmentStatusResponse:
-    """Poll assessment progress. Session B will upgrade this to SSE."""
+    """Poll assessment progress.
+
+    When the assessment is ``running``, ``step`` is the live phase from
+    :func:`opensec.api._background.get_assessment_step` (e.g. ``cloning`` or
+    ``looking_up_cves``); otherwise it mirrors ``status``.
+    """
     a = await get_assessment(db, assessment_id)
     if a is None:
         raise HTTPException(status_code=404, detail="Assessment not found")
+
+    step = a.status
+    progress = _STATUS_TO_PROGRESS.get(a.status, 0)
+    if a.status == "running":
+        live_step = get_assessment_step(assessment_id)
+        if live_step is not None:
+            step = live_step
+            progress = _STEP_PROGRESS.get(live_step, progress)
+
     return AssessmentStatusResponse(
         assessment_id=a.id,
         status=a.status,
-        progress_pct=_STATUS_TO_PROGRESS.get(a.status, 0),
-        step=a.status,
+        progress_pct=progress,
+        step=step,
     )
 
 

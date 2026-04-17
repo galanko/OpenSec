@@ -35,7 +35,12 @@ describe('<DashboardPage />', () => {
     expect(screen.getByTestId('grade-letter')).toHaveTextContent('C')
     expect(screen.getByTestId('CompletionProgressCard')).toBeInTheDocument()
     expect(screen.getByTestId('ScorecardInfoLine')).toBeInTheDocument()
-    expect(screen.getByTestId('CompletionStatusCard')).toBeInTheDocument()
+    // At grade C the completion status card is suppressed — celebrating a
+    // not-yet-complete repo would be misleading. The completion block only
+    // renders at grade A with a live completion row.
+    expect(
+      screen.queryByTestId('CompletionStatusCard'),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Vulnerabilities')).toBeInTheDocument()
     expect(screen.getByText('Repo posture')).toBeInTheDocument()
     // Fixture is shaped to tell the "3 of 5 criteria met" story (UX Story 2).

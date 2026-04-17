@@ -7,7 +7,12 @@ ships. Session G replaces this with the real engine through the same DI seam.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from opensec.models import AssessmentResult, CriteriaSnapshot, Grade
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 
 class FakeAssessmentEngine:
@@ -38,8 +43,24 @@ class FakeAssessmentEngine:
         self.raise_on_run = raise_on_run
         self.call_count = 0
 
-    async def run_assessment(self, repo_url: str, *, assessment_id: str) -> AssessmentResult:
+    async def run_assessment(
+        self,
+        repo_url: str,
+        *,
+        assessment_id: str,
+        on_step: Callable[[str], Awaitable[None]] | None = None,
+    ) -> AssessmentResult:
         self.call_count += 1
+        if on_step is not None:
+            # Mirror the real engine's phase sequence so route tests that
+            # poll ``GET /assessment/status`` get meaningful step values.
+            for step in (
+                "parsing_lockfiles",
+                "looking_up_cves",
+                "checking_posture",
+                "grading",
+            ):
+                await on_step(step)
         if self.raise_on_run is not None:
             raise self.raise_on_run
         return AssessmentResult(

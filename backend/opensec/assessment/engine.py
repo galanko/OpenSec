@@ -24,6 +24,7 @@ from opensec.models.assessment import AssessmentResult, CriteriaSnapshot
 from opensec.models.finding import FindingCreate
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
     from pathlib import Path
 
     from opensec.assessment.osv_client import Advisory, AdvisoryLookup
@@ -55,14 +56,33 @@ async def run_assessment_on_path(
     osv: AdvisoryLookup,
     ghsa: AdvisoryLookup | None = None,
     branch: str = "main",
+    on_step: Callable[[str], Awaitable[None]] | None = None,
 ) -> AssessmentResult:
+    """Run a full assessment on a checked-out repo.
+
+    ``on_step`` is an optional async callback invoked at the start of each
+    visible phase — ``parsing_lockfiles``, ``looking_up_cves``,
+    ``checking_posture``, ``grading`` — so the API layer can expose progress
+    to the status endpoint. No-op when ``None``.
+    """
     assessment_id = str(uuid.uuid4())
     coords = _coords_from_repo_url(repo_url, branch=branch)
 
+    async def _emit(step: str) -> None:
+        if on_step is not None:
+            try:
+                await on_step(step)
+            except Exception:  # noqa: BLE001
+                logger.debug("on_step callback raised for step=%s", step, exc_info=True)
+
+    await _emit("parsing_lockfiles")
     lockfiles = detect_lockfiles(repo_path)
     deps = _collect_dependencies(lockfiles)
+
+    await _emit("looking_up_cves")
     findings = await _build_findings(deps, osv=osv, ghsa=ghsa)
 
+    await _emit("checking_posture")
     posture_checks = await run_all_posture_checks(
         repo_path,
         gh_client=gh_client,
@@ -74,6 +94,7 @@ async def run_assessment_on_path(
         pc.check_name: pc.status for pc in posture_checks
     }
 
+    await _emit("grading")
     snapshot = _build_snapshot(findings, posture_statuses)
     grade = derive_grade(snapshot, findings, posture_statuses)
 

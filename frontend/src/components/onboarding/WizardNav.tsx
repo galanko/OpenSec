@@ -6,6 +6,8 @@ export interface WizardNavProps {
   nextDisabled?: boolean
   /** Hide the Back link when the wizard is on its first real step. */
   hideBack?: boolean
+  /** Override the back-button text; defaults to "← Back". */
+  backLabel?: string
   /** Override the form-submit behavior; defaults to `button`. */
   nextType?: 'button' | 'submit'
 }
@@ -21,6 +23,7 @@ export default function WizardNav({
   nextIcon = 'arrow_forward',
   nextDisabled,
   hideBack,
+  backLabel,
   nextType = 'button',
 }: WizardNavProps) {
   return (
@@ -33,7 +36,7 @@ export default function WizardNav({
           onClick={onBack}
           className="text-sm font-semibold text-on-surface-variant hover:text-on-surface px-2 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
-          ← Back
+          {backLabel ?? '← Back'}
         </button>
       )}
       <button

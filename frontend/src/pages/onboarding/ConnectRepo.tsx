@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import OnboardingShell from '@/components/onboarding/OnboardingShell'
 import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
@@ -13,7 +13,6 @@ import {
 import { onboardingStorage } from './storage'
 
 const MISSING_REPO_SCOPE_CODE = 'missing_repo_scope'
-const VERIFIED_AUTO_ADVANCE_MS = 1200
 
 type ConnectState =
   | { kind: 'idle' }
@@ -23,9 +22,9 @@ type ConnectState =
 
 /**
  * Onboarding frames 1.1 / 1.2 / 1.3 — "Connect your project".
- * On success the verified card renders for ~1.2s then auto-advances to
- * step 2. If the user clicks Change (or navigates away) during that
- * window the effect cleanup cancels the timer — no forced nav.
+ * On success the verified card stays on screen until the user clicks
+ * "Continue to AI config" — no auto-advance. Gives the moment space to
+ * register and mirrors the celebratory rhythm of the mockup (frame 1.3).
  */
 export default function ConnectRepo() {
   const navigate = useNavigate()
@@ -36,15 +35,6 @@ export default function ConnectRepo() {
 
   const missingScope =
     state.kind === 'error' && state.error.code === MISSING_REPO_SCOPE_CODE
-
-  useEffect(() => {
-    if (state.kind !== 'verified') return
-    const timer = window.setTimeout(
-      () => navigate('/onboarding/ai'),
-      VERIFIED_AUTO_ADVANCE_MS,
-    )
-    return () => window.clearTimeout(timer)
-  }, [state.kind, navigate])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -83,23 +73,52 @@ export default function ConnectRepo() {
         access token so every change lands as a draft pull request you review.
       </p>
 
-      {state.kind === 'verified' && state.response.verified ? (
-        <>
-          <ConnectionResultCard
-            verified={state.response.verified}
-            onChange={() => setState({ kind: 'idle' })}
-          />
-          <div
-            className="mt-6 flex items-center gap-2 text-sm text-on-surface-variant"
-            role="status"
-          >
-            <span
-              className="inline-block w-4 h-4 rounded-full border-2 border-primary/30 border-t-primary motion-safe:animate-spin"
-              aria-hidden="true"
+      {state.kind === 'verified' ? (
+        <div
+          className="motion-safe:animate-[fadeIn_220ms_ease-out]"
+          data-testid="connected-confirmation"
+        >
+          {state.response.verified ? (
+            <ConnectionResultCard
+              verified={state.response.verified}
+              onChange={() => setState({ kind: 'idle' })}
             />
-            Loading Step 2 · AI configuration
-          </div>
-        </>
+          ) : (
+            <div className="w-full rounded-2xl bg-surface-container-lowest shadow-sm px-6 py-6">
+              <div className="flex items-start gap-3">
+                <span
+                  className="material-symbols-outlined text-tertiary mt-0.5"
+                  aria-hidden="true"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  check_circle
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-sm font-semibold text-on-surface truncate">
+                    {state.response.repo_url}
+                  </p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">
+                    Connected — ready to continue
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setState({ kind: 'idle' })}
+                  className="text-xs font-semibold text-on-surface-variant hover:text-on-surface px-2 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          )}
+          <WizardNav
+            onBack={() => setState({ kind: 'idle' })}
+            hideBack
+            onNext={() => navigate('/onboarding/ai')}
+            nextLabel="Continue to AI config"
+            nextDisabled={false}
+          />
+        </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>
           <label className="block mb-5">

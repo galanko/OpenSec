@@ -102,7 +102,7 @@ export default function PostureCheckItem({
           onClick={() =>
             onGenerate?.(checkName as 'security_md' | 'dependabot_config')
           }
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
+          className="inline-flex flex-shrink-0 self-start items-center gap-1.5 whitespace-nowrap rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
         >
           <span className="material-symbols-outlined text-sm" aria-hidden>
             play_arrow

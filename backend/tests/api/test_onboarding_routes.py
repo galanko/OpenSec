@@ -45,14 +45,22 @@ async def test_connect_repo_creates_assessment(db_client, fake_engine):
     await _drain()
     assert fake_engine.call_count == 1
 
-    # Token persisted to the app_setting store (ad-hoc MVP storage — Session G
-    # swaps in the credential vault; the test just confirms the route wires it).
+    # PAT lands in a GitHub Integrations row — single source of truth for the
+    # assessment engine, posture-fix spawner, and "solve a finding" flow.
     from opensec.db.connection import _db
+    from opensec.db.repo_integration import list_integrations
     from opensec.db.repo_setting import get_setting
 
-    setting = await get_setting(_db, "onboarding.github_token")
-    assert setting is not None
-    assert setting.value == {"token": "ghp_xxx"}
+    integrations = await list_integrations(_db)
+    github = next((i for i in integrations if i.adapter_type == "github"), None)
+    assert github is not None, "onboarding must create a GitHub integration row"
+    assert github.enabled is True
+    assert github.config is not None
+    assert github.config.get("repo_url") == "https://github.com/a/b"
+
+    # Legacy app_setting location must not be written to any more.
+    legacy = await get_setting(_db, "onboarding.github_token")
+    assert legacy is None
 
 
 async def test_connect_repo_empty_url_returns_422(db_client, fake_engine):

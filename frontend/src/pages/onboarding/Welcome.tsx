@@ -1,6 +1,4 @@
-import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { onboardingStorage } from './storage'
 
 /**
  * Onboarding frame 1.0 — "Welcome · first launch".
@@ -9,13 +7,6 @@ import { onboardingStorage } from './storage'
  */
 export default function Welcome() {
   const navigate = useNavigate()
-
-  // Landing on Welcome means the user is starting fresh. Wipe any stale
-  // assessment id / repo url left over from an abandoned run so later
-  // pages never pick up the wrong context.
-  useEffect(() => {
-    onboardingStorage.clear()
-  }, [])
 
   return (
     <div className="min-h-screen bg-surface relative overflow-hidden flex flex-col items-center justify-center px-6 py-20">

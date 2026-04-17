@@ -94,6 +94,61 @@ async def test_run_assessment_persists_result_and_posture(db_client, fake_engine
     assert completion.repo_url == "https://github.com/a/b"
 
 
+async def test_run_assessment_persists_findings_emitted_by_engine(db_client):
+    """Gap #3 regression test — engine-emitted findings must land in the DB.
+
+    See docs/known-issues/session-b-handoff-gaps.md. Before Session G's fix the
+    background task never iterated ``result.findings``, silently dropping every
+    vulnerability the engine surfaced.
+    """
+    engine_findings = [
+        {
+            "source_type": "osv",
+            "source_id": "GHSA-grv7-fg5c-xmjg",
+            "title": "braces@3.0.2 vulnerable to DoS via crafted patterns",
+            "description": None,
+            "raw_severity": "HIGH",
+            "asset_label": "braces@3.0.2",
+            "raw_payload": {"advisory_id": "GHSA-grv7-fg5c-xmjg"},
+        },
+        {
+            "source_type": "osv",
+            "source_id": "GHSA-example-2",
+            "title": "lodash@4.17.19 prototype pollution",
+            "description": None,
+            "raw_severity": "MEDIUM",
+            "asset_label": "lodash@4.17.19",
+            "raw_payload": {"advisory_id": "GHSA-example-2"},
+        },
+    ]
+    engine = FakeAssessmentEngine(
+        grade="B",
+        criteria=_partial_criteria(),
+        posture_checks=[],
+        findings=engine_findings,
+    )
+    app.dependency_overrides[get_assessment_engine] = lambda: engine
+    try:
+        resp = await db_client.post(
+            "/api/assessment/run", json={"repo_url": "https://github.com/a/e"}
+        )
+        assert resp.status_code == 200
+        await _drain_background_tasks()
+
+        from opensec.db.connection import _db
+        from opensec.db.repo_finding import list_findings
+
+        persisted = await list_findings(_db)
+        engine_persisted = [
+            f for f in persisted if f.source_type == "opensec-assessment"
+        ]
+        assert len(engine_persisted) == 2
+        source_ids = {f.source_id for f in engine_persisted}
+        assert source_ids == {"GHSA-grv7-fg5c-xmjg", "GHSA-example-2"}
+    finally:
+        app.dependency_overrides.pop(get_assessment_engine, None)
+
+
 async def test_run_assessment_no_completion_when_criteria_unmet(db_client):
     engine = FakeAssessmentEngine(grade="D", criteria=_partial_criteria(), posture_checks=[])
     app.dependency_overrides[get_assessment_engine] = lambda: engine
