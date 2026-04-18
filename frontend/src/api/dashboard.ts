@@ -49,6 +49,18 @@ export type PostureFixableCheck = 'security_md' | 'dependabot_config'
 // Fetchers
 // ---------------------------------------------------------------------------
 
+export interface PostureFixStatus {
+  workspace_id: string
+  kind: string
+  status: 'queued' | 'running' | 'pr_created' | 'already_present' | 'failed'
+  pr_url?: string | null
+  branch_name?: string | null
+  error?: string | null
+  started_at: string
+  finished_at?: string | null
+  structured_output?: Record<string, unknown> | null
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
@@ -59,6 +71,8 @@ export const dashboardApi = {
     request<PostureFixResponse>(`/api/posture/fix/${checkName}`, {
       method: 'POST',
     }),
+  getPostureFixStatus: (workspaceId: string) =>
+    request<PostureFixStatus>(`/api/posture/fix/status/${workspaceId}`),
 }
 
 // ---------------------------------------------------------------------------
@@ -98,5 +112,32 @@ export function useFixPostureCheck() {
   return useMutation({
     mutationFn: (checkName: PostureFixableCheck) =>
       dashboardApi.fixPostureCheck(checkName),
+  })
+}
+
+/**
+ * Polls the posture-fix status file while the agent is still running.
+ * Terminal statuses (pr_created / already_present / failed) stop the poll.
+ */
+export function usePostureFixStatus(
+  workspaceId: string | null | undefined,
+  options?: { pollIntervalMs?: number },
+) {
+  const pollInterval = options?.pollIntervalMs ?? 2500
+  return useQuery({
+    queryKey: ['posture-fix-status', workspaceId],
+    queryFn: () => dashboardApi.getPostureFixStatus(workspaceId!),
+    enabled: Boolean(workspaceId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (
+        status === 'pr_created'
+        || status === 'already_present'
+        || status === 'failed'
+      ) {
+        return false
+      }
+      return pollInterval
+    },
   })
 }
