@@ -61,15 +61,32 @@ export interface PostureFixStatus {
   structured_output?: Record<string, unknown> | null
 }
 
+/**
+ * Optional per-check parameters the UI can send with the fix call.
+ * All fields are optional — omitting them renders the template with its
+ * clearly-labelled placeholders that the maintainer edits before merging.
+ */
+export interface PostureFixParams {
+  contact_email?: string
+  contact_url?: string
+  supported_versions?: string
+  disclosure_window_days?: number
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
     request<AssessmentLatestResponse>('/api/assessment/latest'),
   getAssessmentStatus: (id: string) =>
     request<AssessmentStatusResponse>(`/api/assessment/status/${id}`),
-  fixPostureCheck: (checkName: PostureFixableCheck) =>
+  fixPostureCheck: (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) =>
     request<PostureFixResponse>(`/api/posture/fix/${checkName}`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: params ? JSON.stringify(params) : undefined,
     }),
   getPostureFixStatus: (workspaceId: string) =>
     request<PostureFixStatus>(`/api/posture/fix/status/${workspaceId}`),
@@ -110,8 +127,13 @@ export function useAssessmentStatus(
 
 export function useFixPostureCheck() {
   return useMutation({
-    mutationFn: (checkName: PostureFixableCheck) =>
-      dashboardApi.fixPostureCheck(checkName),
+    mutationFn: ({
+      checkName,
+      params,
+    }: {
+      checkName: PostureFixableCheck
+      params?: PostureFixParams
+    }) => dashboardApi.fixPostureCheck(checkName, params),
   })
 }
 

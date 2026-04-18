@@ -42,7 +42,7 @@ describe('useFixPostureCheck', () => {
     const { result } = renderHook(() => useFixPostureCheck(), {
       wrapper: wrapper(),
     })
-    result.current.mutate('security_md')
+    result.current.mutate({ checkName: 'security_md' })
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data?.check_name).toBe('security_md')
     expect(result.current.data?.workspace_id).toMatch(/^ws_/)

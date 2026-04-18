@@ -21,6 +21,7 @@ import type {
   PostureCheckResult,
   PostureCheckStatus,
   PostureFixableCheck,
+  PostureFixParams,
 } from '@/api/dashboard'
 import { onboardingApi } from '@/api/onboarding'
 import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
@@ -184,9 +185,12 @@ function ReportCard({ data }: { data: DashboardPayload }) {
 
   const heroCopy = buildHeroCopy(data.grade, remaining)
 
-  const handleGenerate = (checkName: PostureFixableCheck) => {
+  const handleGenerate = (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) => {
     setPostureFeedback(null)
-    fixMutation.mutate(checkName, {
+    fixMutation.mutate({ checkName, params }, {
       onSuccess: (resp) => {
         setActiveWorkspaceIds((prev) => ({
           ...prev,
@@ -501,7 +505,10 @@ function PostureCard({
   activeWorkspaceIds,
 }: {
   data: DashboardPayload
-  onGenerate: (checkName: PostureFixableCheck) => void
+  onGenerate: (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) => void
   pending: boolean
   feedback: PostureFeedback | null
   activeWorkspaceIds: Partial<Record<PostureFixableCheck, string>>
@@ -618,12 +625,16 @@ function PostureCheckRow({
   activeWorkspaceId,
 }: {
   check: PostureCheckResult
-  onGenerate: (name: PostureFixableCheck) => void
+  onGenerate: (name: PostureFixableCheck, params?: PostureFixParams) => void
   pending: boolean
   activeWorkspaceId?: string
 }) {
   const meta = POSTURE_META[check.check_name]
   const [open, setOpen] = useState(check.status === 'fail')
+  // security_md is the only auto-fix that benefits from a user-supplied
+  // parameter today (the contact email on the generated SECURITY.md).
+  // Kept local to the row so it doesn't pollute the card-level state.
+  const [contactEmail, setContactEmail] = useState('')
 
   const tone = statusTone(check.status)
   const label =
@@ -701,14 +712,43 @@ function PostureCheckRow({
 
           {check.status !== 'pass' && isFixable(check.check_name) && (
             <div className="mt-4 flex flex-col gap-3 border-t border-outline-variant/30 pt-3">
+              {check.check_name === 'security_md' && !activeWorkspaceId && (
+                <label
+                  className="flex flex-col gap-1 text-xs font-medium text-on-surface-variant"
+                  htmlFor={`contact-email-${check.check_name}`}
+                >
+                  Contact email for vulnerability reports
+                  <span className="font-normal text-on-surface-variant/80">
+                    Optional. If you leave this blank the generated
+                    SECURITY.md ships with a clearly-labelled placeholder
+                    you can edit before merging.
+                  </span>
+                  <input
+                    id={`contact-email-${check.check_name}`}
+                    type="email"
+                    inputMode="email"
+                    placeholder="security@your-project.org"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </label>
+              )}
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    if (isFixable(check.check_name)) {
-                      onGenerate(check.check_name)
+                    if (!isFixable(check.check_name)) return
+                    const params: PostureFixParams = {}
+                    if (check.check_name === 'security_md' && contactEmail.trim()) {
+                      params.contact_email = contactEmail.trim()
                     }
+                    onGenerate(
+                      check.check_name,
+                      Object.keys(params).length > 0 ? params : undefined,
+                    )
                   }}
                   disabled={pending || Boolean(activeWorkspaceId)}
                   className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:opacity-50"

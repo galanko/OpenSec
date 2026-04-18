@@ -39,93 +39,150 @@ container filesystem root.
 **Your primary goal is a draft PR that adds or updates `SECURITY.md`. Prioritise
 finishing the full workflow (clone → write → commit → push → PR) over polish.**
 
-1. **Clone and set up:**
-   ```bash
+### 1. Clone and set up
+
+```bash
 {% if gh_token %}
-   # GH_TOKEN is already set in this workspace's environment — do NOT re-assign it.
-   git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+# GH_TOKEN is already set in this workspace's environment — do NOT re-assign it.
+git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
 {% endif %}
-   # Identity for the commit — containers start without one. Run this once
-   # before the clone so every subsequent `git commit` has a valid author.
-   git config --global user.email "opensec-bot@users.noreply.github.com"
-   git config --global user.name "OpenSec Posture Bot"
-   git clone --depth 50 "{{ repo_url }}" repo/
-   cd repo/
-   git checkout -b opensec/posture/security-md
-   ```
+# Identity for the commit — containers start without one. Run this once
+# before the clone so every subsequent `git commit` has a valid author.
+git config --global user.email "opensec-bot@users.noreply.github.com"
+git config --global user.name "OpenSec Posture Bot"
+git clone --depth 50 "{{ repo_url }}" repo/
+cd repo/
+git checkout -b opensec/posture/security-md
+```
 
-2. **Detect whether `SECURITY.md` already exists** at the repo root or inside
-   `.github/`. If it already exists:
-   - Read it. If it already declares a security contact and disclosure policy,
-     emit an `already_present` status in the JSON output (below) and **do not
-     open a PR**. Skip the commit/push/PR steps. Still respond with the JSON
-     contract so the caller sees the no-op.
-   - If it exists but is a short stub (no contact, no policy), replace it with
-     the template below and continue to commit/push/PR.
+### 2. Detect whether `SECURITY.md` already exists
 
-3. **Write `SECURITY.md`** at the repository root with the content below.
-   Substitute the contact and policy values the caller supplied (above).
-   Fall back to sensible defaults when values are missing, and clearly label
-   them as placeholders the maintainer should edit.
+Check the repo root and `.github/` for an existing file. If it already
+declares a security contact **and** a disclosure policy, emit an
+`already_present` status in the JSON output (below) and **do not open a
+PR**. Skip the commit/push/PR steps. If it exists but is a short stub
+(no contact, no policy), replace it with the template below and continue
+to commit/push/PR.
 
-   ```markdown
-   # Security policy
+### 3. Write `SECURITY.md`
 
-   Thank you for helping keep this project and its users safe.
+Write the file at `$WS/repo/SECURITY.md` with the content below.
+Substitute the contact and policy values the caller supplied (above).
+Fall back to the documented placeholders when values are missing — the
+maintainer will edit them before merging.
 
-   ## Reporting a vulnerability
+**Copy the markdown verbatim, including every blank line between sections.**
+Do not reflow the paragraphs, do not merge the bullet list with the paragraph
+that follows it, do not "clean up" the table. Blank lines are load-bearing in
+markdown — without them, the `We acknowledge…` paragraph renders as part of
+the `- **Email:**` list item instead of as its own paragraph.
 
-   Please report suspected security vulnerabilities privately. Do not open a
-   public GitHub issue for security reports.
+```markdown
+# Security policy
 
-   - **Email:** {% if params.contact_email %}`{{ params.contact_email }}`{% else %}`security@<please-edit>`{% endif %}
-   {% if params.contact_url %}- **Form:** {{ params.contact_url }}
-   {% endif %}
+Thank you for helping keep this project and its users safe. This document
+describes how to report a suspected vulnerability, which versions we
+support, and how we coordinate disclosure.
 
-   We acknowledge new reports within 3 business days. We aim to assess impact
-   and share a remediation plan within {% if params.disclosure_window_days %}{{ params.disclosure_window_days }}{% else %}14{% endif %} days.
+## Reporting a vulnerability
 
-   ## Supported versions
+Please report suspected security vulnerabilities privately. Do not open
+a public GitHub issue for security reports.
 
-   {% if params.supported_versions %}{{ params.supported_versions }}{% else %}We support the latest minor release. Older releases receive fixes only for
-   high-severity issues on a best-effort basis.{% endif %}
+- **Email:** {% if params.contact_email %}`{{ params.contact_email }}`{% else %}`security@<please-edit>` *(placeholder — edit before merging)*{% endif %}
+{% if params.contact_url %}- **Form:** {{ params.contact_url }}
+{% endif %}
+We acknowledge new reports within 3 business days. We aim to triage and
+share a remediation plan within {% if params.disclosure_window_days %}{{ params.disclosure_window_days }}{% else %}14{% endif %} days.
 
-   ## Disclosure
+## Supported versions
 
-   We prefer coordinated disclosure. Once a fix is available we will publish a
-   GitHub Security Advisory and release notes describing the impact and the
-   upgrade path. Reporters are credited when they wish to be.
+Security fixes are backported to the branches below. Older branches receive
+fixes only for high-severity issues on a best-effort basis.
 
-   ---
+| Version         | Supported          |
+|-----------------|--------------------|
+| `main` (latest) | Yes                |
+| Older revisions | Best-effort only   |
 
-   _Generated by OpenSec. Edit this file to match your actual process._
-   ```
+{% if params.supported_versions %}_Maintainer note: {{ params.supported_versions }}_
+{% endif %}
 
-4. **Commit, push, and open a draft PR:**
-   ```bash
-   git add SECURITY.md
-   git commit -m "docs: add SECURITY.md (OpenSec posture PR)"
-   git push -u origin HEAD
-   gh pr create --draft \
-     --title "docs: add SECURITY.md" \
-     --body "## Summary
+## Scope
 
-   Adds a \`SECURITY.md\` to document how to report vulnerabilities, which
-   versions are supported, and how disclosure works.
+Security reports are welcome for anything shipped by this repository, including:
 
-   This PR was generated by OpenSec as part of the zero-to-secure posture
-   checks. Please review the placeholder values and update them to match your
-   actual process before merging.
+- The application source code committed to `main`.
+- Packaging, containers, and deployment manifests under this repo.
+- Default configuration and bundled credentials/secrets in repo artifacts.
 
-   ## Checklist
+Out of scope:
 
-   - [ ] Replace placeholder contact email if not correct
-   - [ ] Confirm the supported-versions statement
-   - [ ] Confirm the disclosure timeline is realistic
+- Findings about third-party dependencies that do not require a change
+  here — please file those with the upstream project first.
+- Denial-of-service that requires an attacker to already hold
+  administrator access to the host running this software.
 
-   ---
-   Generated by OpenSec posture generator"
-   ```
+## Disclosure
+
+We prefer coordinated disclosure. Once a fix is available we publish a
+GitHub Security Advisory and release notes describing the impact and the
+upgrade path. Reporters are credited unless they request otherwise.
+
+## Safe harbour
+
+We will not pursue legal action against good-faith researchers who:
+
+- Follow this policy.
+- Stop at the proof-of-concept stage — do not exfiltrate data, degrade
+  services, or pivot beyond the minimum needed to demonstrate the issue.
+- Avoid data that is not their own.
+
+---
+
+_Generated by OpenSec. Edit this file to match your actual process._
+```
+
+### 4. Commit, push, and open a draft PR
+
+**Important:** write the PR body to a file first and pass it with
+`--body-file`. A PR body contains backticks and other shell
+meta-characters; using `--body "…"` with inline backticks causes bash
+to run whatever sits between them as a command. Heredoc with a
+single-quoted delimiter (`<<'MD'`) disables every expansion.
+
+```bash
+cat > /tmp/opensec-pr-body.md <<'MD'
+## Summary
+
+Adds a `SECURITY.md` so researchers know how to report a vulnerability
+privately, which versions you back-port fixes to, what's in scope, and
+how you expect disclosure to work.
+
+This PR was generated by OpenSec as part of the zero-to-secure posture
+checks. Everything below is a starting point — edit before merging.
+
+## Review checklist
+
+- [ ] Replace the placeholder contact email with a real one you actually
+      monitor.
+- [ ] Confirm the "Supported versions" table matches how you back-port fixes.
+- [ ] Tighten or loosen the disclosure timeline (default: 3 business days
+      acknowledgement, 14 days to remediation).
+- [ ] Tighten the "Scope" section if your out-of-scope list is different.
+- [ ] Keep or drop the "Safe harbour" paragraph to match your legal posture.
+
+---
+Generated by OpenSec posture generator.
+MD
+
+git add SECURITY.md
+git commit -m "docs: add SECURITY.md (OpenSec posture PR)"
+git push -u origin HEAD
+gh pr create --draft \
+  --title "docs: add SECURITY.md" \
+  --body-file /tmp/opensec-pr-body.md
+```
 
 ## Rules
 
@@ -134,6 +191,7 @@ finishing the full workflow (clone → write → commit → push → PR) over po
 - **Minimal changes.** Only add or update `SECURITY.md`. Do not touch other files.
 - **Be fast.** `--depth 50` for clone. No unrelated exploration.
 - **No secrets in the PR.** Never write a live token, private key, or credential.
+- **Use `--body-file`, never `--body`, for the PR body.** See step 4.
 
 ## Output contract
 

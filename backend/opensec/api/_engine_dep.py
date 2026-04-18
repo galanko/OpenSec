@@ -11,7 +11,7 @@ Tests override via ``app.dependency_overrides[get_assessment_engine] = lambda: f
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 import asyncio
 import logging
@@ -121,10 +121,19 @@ def get_assessment_engine() -> AssessmentEngineProtocol:
 
 
 class RepoWorkspaceSpawnerProtocol(Protocol):
-    """Minimal contract for spawning a posture-fix repo workspace (Session C)."""
+    """Minimal contract for spawning a posture-fix repo workspace (Session C).
+
+    ``params`` are passed through to the generator template (e.g.
+    ``contact_email`` for SECURITY.md). ``None`` keeps the pre-params
+    call shape for existing callers/tests.
+    """
 
     async def spawn_repo_workspace(
-        self, *, kind: WorkspaceKind, repo_url: str
+        self,
+        *,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
     ) -> str:  # returns workspace_id
         ...
 
@@ -149,7 +158,11 @@ class _DefaultRepoWorkspaceSpawner:
         self._pool = pool
 
     async def spawn_repo_workspace(
-        self, *, kind: WorkspaceKind, repo_url: str
+        self,
+        *,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
     ) -> str:
         from opensec.workspace.repo_workspace_runner import RepoAgentRunner
         from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
@@ -164,7 +177,11 @@ class _DefaultRepoWorkspaceSpawner:
         # to copy it into each repo-workspace config.
         model = settings.opencode_model or None
         workspace_id = manager.create_repo_workspace(
-            kind, repo_url=repo_url, gh_token=token, model=model
+            kind,
+            repo_url=repo_url,
+            params=params,
+            gh_token=token,
+            model=model,
         )
 
         if self._pool is None:
@@ -187,6 +204,7 @@ class _DefaultRepoWorkspaceSpawner:
                     kind=kind,
                     repo_url=repo_url,
                     gh_token=token,
+                    params=params,
                 )
             except Exception:  # noqa: BLE001 — runner is supposed to swallow
                 logger.exception(

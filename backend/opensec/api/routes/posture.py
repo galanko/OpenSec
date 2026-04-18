@@ -31,6 +31,21 @@ router = APIRouter(prefix="/posture", tags=["posture"])
 PostureFixCheckName = Literal["security_md", "dependabot_config"]
 
 
+class PostureFixRequest(BaseModel):
+    """Optional per-check parameters the UI can send with the fix call.
+
+    All fields are optional — the template falls back to clearly-labelled
+    placeholders when a value is missing. We accept the full set up-front so
+    adding a new field (e.g. ``contact_url``) later doesn't require a new
+    request model.
+    """
+
+    contact_email: str | None = None
+    contact_url: str | None = None
+    supported_versions: str | None = None
+    disclosure_window_days: int | None = None
+
+
 class PostureFixResponse(BaseModel):
     workspace_id: str
     check_name: PostureFixCheckName
@@ -45,18 +60,29 @@ _CHECK_TO_WORKSPACE_KIND: dict[PostureFixCheckName, WorkspaceKind] = {
 @router.post("/fix/{check_name}", response_model=PostureFixResponse)
 async def fix_posture_check(
     check_name: PostureFixCheckName,
+    body: PostureFixRequest | None = None,
     db=Depends(get_db),
     spawner: RepoWorkspaceSpawnerProtocol = Depends(get_repo_workspace_spawner),
 ) -> PostureFixResponse:
-    """Spawn a repo-workspace with the appropriate generator agent."""
+    """Spawn a repo-workspace with the appropriate generator agent.
+
+    ``body`` is optional: existing callers that POST an empty body still work
+    and the generator templates fall back to placeholders. When the UI sends
+    ``contact_email`` (or other template params), we thread them through the
+    spawner so the rendered prompt substitutes them verbatim and the
+    maintainer gets a PR that needs fewer edits.
+    """
     latest = await get_latest_assessment(db)
     if latest is None:
         raise HTTPException(
             status_code=409, detail="No repo registered — run an assessment first"
         )
 
+    params = body.model_dump(exclude_none=True) if body else {}
     workspace_id = await spawner.spawn_repo_workspace(
-        kind=_CHECK_TO_WORKSPACE_KIND[check_name], repo_url=latest.repo_url
+        kind=_CHECK_TO_WORKSPACE_KIND[check_name],
+        repo_url=latest.repo_url,
+        params=params or None,
     )
     return PostureFixResponse(workspace_id=workspace_id, check_name=check_name)
 
