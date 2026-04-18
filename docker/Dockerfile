@@ -23,7 +23,7 @@ RUN npm run build
 # ---------------------------------------------------------------------------
 # Stage 2: Production runtime
 # ---------------------------------------------------------------------------
-FROM python:3.11-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 # System dependencies: supervisor, curl, git for health checks, cloning, and OpenCode download
 RUN apt-get update && \
