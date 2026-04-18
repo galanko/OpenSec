@@ -24,12 +24,20 @@ from opensec.db.dao.completion import (
 )
 from opensec.db.dao.posture_check import upsert_posture_check
 from opensec.db.repo_finding import create_finding
+from opensec.integrations.normalizer import normalize_findings
 from opensec.models import (
     AssessmentUpdate,
     CompletionCreate,
     FindingCreate,
     PostureCheckCreate,
 )
+
+# Batch size for the LLM normalizer pass. The normalizer's hard cap is 50
+# (see ``integrations.normalizer.MAX_BATCH_SIZE``); we pick a smaller number
+# to keep each LLM round-trip short — a dogfooded assessment on a mid-size
+# repo lands ~50-100 findings, and splitting that into six ~10-item calls
+# finishes faster end-to-end than one 50-item call with an LLM retry budget.
+_NORMALIZER_CHUNK_SIZE = 10
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -92,17 +100,79 @@ async def run_and_persist_assessment(
                 assessment_id,
             )
 
-    # Persist each finding independently. A single malformed advisory must not
-    # abort the whole assessment and leave the row stuck in ``running``.
-    for finding_data in result.findings:
+    # Findings land via the same ETL the /findings/ingest endpoint uses:
+    # engine emits deterministic FindingCreate-shaped dicts → LLM normalizer
+    # enriches them with ``plain_description`` (and re-confirms
+    # ``normalized_priority``) → DB. Before B7 this path skipped the
+    # normalizer, leaving every assessment finding with a null
+    # ``plain_description`` and breaking PRD-0002 Story 3 ("Plain-language
+    # finding descriptions"). Chunked through the normalizer's batch budget
+    # so a large repo doesn't blow the LLM round-trip on one call.
+    #
+    # Fallback: if the LLM is unavailable, rate-limited, or returns a bad
+    # shape, we persist the engine's deterministic output verbatim so
+    # findings never silently disappear from the dashboard. The
+    # ``plain_description`` stays null on the fallback rows — the dashboard
+    # degrades gracefully and a later /findings/ingest-style backfill can
+    # top them up.
+    findings_to_persist: list[FindingCreate] = []
+
+    if result.findings:
+        raw_data = [
+            {**f, "source_type": "opensec-assessment"} for f in result.findings
+        ]
+        normalized: list[FindingCreate] = []
+        normalizer_errors: list[str] = []
         try:
-            payload = {**finding_data, "source_type": "opensec-assessment"}
-            await create_finding(db, FindingCreate(**payload))
+            for chunk_start in range(0, len(raw_data), _NORMALIZER_CHUNK_SIZE):
+                chunk = raw_data[chunk_start : chunk_start + _NORMALIZER_CHUNK_SIZE]
+                valid, errors = await normalize_findings(
+                    "opensec-assessment", chunk
+                )
+                normalized.extend(valid)
+                normalizer_errors.extend(errors)
+            if normalizer_errors:
+                logger.warning(
+                    "normalizer returned %d errors for assessment %s",
+                    len(normalizer_errors),
+                    assessment_id,
+                )
+        except Exception:
+            logger.warning(
+                "normalizer pass failed for assessment %s — falling back to "
+                "deterministic engine output",
+                assessment_id,
+                exc_info=True,
+            )
+            normalized = []
+
+        if normalized:
+            findings_to_persist.extend(normalized)
+        else:
+            # Fallback — rebuild FindingCreate directly from the engine's
+            # dicts. We never drop a finding just because the LLM was down.
+            for finding_data in result.findings:
+                try:
+                    payload = {
+                        **finding_data,
+                        "source_type": "opensec-assessment",
+                    }
+                    findings_to_persist.append(FindingCreate(**payload))
+                except Exception:
+                    logger.exception(
+                        "failed to build fallback FindingCreate for %r",
+                        finding_data.get("source_id")
+                        or finding_data.get("title"),
+                    )
+
+    for fc in findings_to_persist:
+        try:
+            await create_finding(db, fc)
         except Exception:
             logger.exception(
                 "failed to persist finding for assessment %s: %r",
                 assessment_id,
-                finding_data.get("cve_id") or finding_data.get("title"),
+                fc.source_id or fc.title,
             )
 
     await set_assessment_result(
