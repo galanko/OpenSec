@@ -18,8 +18,14 @@ class FakeSpawner:
     fixed_workspace_id: str = "ws-123"
     calls: list[dict] = field(default_factory=list)
 
-    async def spawn_repo_workspace(self, *, kind: WorkspaceKind, repo_url: str) -> str:
-        self.calls.append({"kind": kind, "repo_url": repo_url})
+    async def spawn_repo_workspace(
+        self,
+        *,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict | None = None,
+    ) -> str:
+        self.calls.append({"kind": kind, "repo_url": repo_url, "params": params})
         return self.fixed_workspace_id
 
 
@@ -55,6 +61,7 @@ async def test_fix_security_md(db_client, fake_spawner):
         {
             "kind": WorkspaceKind.repo_action_security_md,
             "repo_url": "https://github.com/a/b",
+            "params": None,
         }
     ]
 

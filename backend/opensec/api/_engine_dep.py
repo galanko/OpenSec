@@ -10,14 +10,26 @@ Tests override via ``app.dependency_overrides[get_assessment_engine] = lambda: f
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+# Request stays in runtime imports on purpose. FastAPI resolves the
+# get_repo_workspace_spawner(request: Request) annotation via
+# typing.get_type_hints at OpenAPI schema build time; pydantic's
+# TypeAdapter raises class-not-fully-defined if Request only lives in a
+# TYPE_CHECKING block. Do not move.
+from fastapi import Request  # noqa: TCH002
 
 from opensec.config import settings
 
 if TYPE_CHECKING:
+    from opensec.engine.pool import WorkspaceProcessPool
     from opensec.models import AssessmentResult
     from opensec.workspace.workspace_dir_manager import WorkspaceKind
+
+logger = logging.getLogger(__name__)
 
 
 StepCallback = Callable[[str], Awaitable[None]]
@@ -113,10 +125,19 @@ def get_assessment_engine() -> AssessmentEngineProtocol:
 
 
 class RepoWorkspaceSpawnerProtocol(Protocol):
-    """Minimal contract for spawning a posture-fix repo workspace (Session C)."""
+    """Minimal contract for spawning a posture-fix repo workspace (Session C).
+
+    ``params`` are passed through to the generator template (e.g.
+    ``contact_email`` for SECURITY.md). ``None`` keeps the pre-params
+    call shape for existing callers/tests.
+    """
 
     async def spawn_repo_workspace(
-        self, *, kind: WorkspaceKind, repo_url: str
+        self,
+        *,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
     ) -> str:  # returns workspace_id
         ...
 
@@ -124,30 +145,87 @@ class RepoWorkspaceSpawnerProtocol(Protocol):
 class _DefaultRepoWorkspaceSpawner:
     """Production spawner backed by ``WorkspaceDirManager.create_repo_workspace``.
 
-    Creates the on-disk workspace scaffolding and returns the workspace id. The
-    posture-fix route relays the id to the SPA so the user can track agent
-    progress. DB workspace rows (which require ``finding_id``) are not created
-    here — repo-action workspaces are finding-less by design.
+    Before IMPL-0002 B6 this class only scaffolded a directory — the generator
+    agent never actually ran. Now the spawner also kicks off a background
+    ``RepoAgentRunner.run`` task against the shared ``WorkspaceProcessPool``
+    so ``POST /api/posture/fix/...`` produces a real draft PR.
+
+    DB workspace rows (which require ``finding_id``) are still not created —
+    repo-action workspaces are finding-less by design and persist their state
+    in ``history/status.json`` instead.
     """
 
+    def __init__(self, pool: WorkspaceProcessPool | None) -> None:
+        # ``pool=None`` keeps the old stub behaviour for tests that haven't
+        # provided one; in production ``get_repo_workspace_spawner`` always
+        # supplies the app's pool.
+        self._pool = pool
+
     async def spawn_repo_workspace(
-        self, *, kind: WorkspaceKind, repo_url: str
+        self,
+        *,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
     ) -> str:
+        from opensec.workspace.repo_workspace_runner import RepoAgentRunner
         from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
 
         token = await _github_token_from_integration()
         data_dir = settings.resolve_data_dir()
-        manager = WorkspaceDirManager(base_dir=data_dir / "workspaces")
-        return manager.create_repo_workspace(
-            kind, repo_url=repo_url, gh_token=token
+        base_dir = data_dir / "workspaces"
+        manager = WorkspaceDirManager(base_dir=base_dir)
+        # The model is stored in the repo-root opencode.json (updated by the
+        # AI onboarding step). Without it, the workspace process rejects every
+        # message with "The requested model is not supported." — so we have
+        # to copy it into each repo-workspace config.
+        model = settings.opencode_model or None
+        workspace_id = manager.create_repo_workspace(
+            kind,
+            repo_url=repo_url,
+            params=params,
+            gh_token=token,
+            model=model,
         )
 
+        if self._pool is None:
+            # Tests / degraded deployments: scaffold only. The scaffolded
+            # directory is still useful as an inspection artefact.
+            logger.warning(
+                "repo workspace %s created without a pool — agent will not run",
+                workspace_id,
+            )
+            return workspace_id
 
-def get_repo_workspace_spawner() -> RepoWorkspaceSpawnerProtocol:
-    """Default provider — returns the real spawner built on ``WorkspaceDirManager``.
+        workspace_root = base_dir / workspace_id
+        runner = RepoAgentRunner(self._pool)
+
+        async def _run() -> None:
+            try:
+                await runner.run(
+                    workspace_id=workspace_id,
+                    workspace_root=workspace_root,
+                    kind=kind,
+                    repo_url=repo_url,
+                    gh_token=token,
+                    params=params,
+                )
+            except Exception:  # noqa: BLE001 — runner is supposed to swallow
+                logger.exception(
+                    "RepoAgentRunner raised unexpectedly for %s",
+                    workspace_id,
+                )
+
+        asyncio.create_task(_run(), name=f"repo-agent:{workspace_id}")
+        return workspace_id
+
+
+def get_repo_workspace_spawner(request: Request) -> RepoWorkspaceSpawnerProtocol:
+    """Default provider — returns the real spawner wired to the app's pool.
 
     Route tests override this via ``app.dependency_overrides``.
     """
-    return _DefaultRepoWorkspaceSpawner()
+    pool = getattr(request.app.state, "process_pool", None)
+    return _DefaultRepoWorkspaceSpawner(pool=pool)
 
 

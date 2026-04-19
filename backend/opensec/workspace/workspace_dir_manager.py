@@ -238,6 +238,7 @@ class WorkspaceDirManager:
         *,
         gh_token: str | None = None,
         template_engine: AgentTemplateEngine | None = None,
+        model: str | None = None,
     ) -> str:
         """Create an ephemeral repo-scoped workspace for a generator agent.
 
@@ -269,7 +270,11 @@ class WorkspaceDirManager:
         (workspace_root / "history").mkdir()
 
         (workspace_root / "opencode.json").write_text(
-            json.dumps(_build_opencode_config(), indent=2) + "\n"
+            json.dumps(
+                _build_opencode_config(for_repo_action=True, model=model),
+                indent=2,
+            )
+            + "\n"
         )
 
         agent_path = workspace_root / ".opencode" / "agents" / rendered.filename
@@ -317,12 +322,51 @@ class WorkspaceDirManager:
         )
 
 
-def _build_opencode_config(mcp_servers: dict[str, dict] | None = None) -> dict:
-    """ADR-0024 permission model — ``ask`` for bash/edit, ``allow`` for webfetch."""
+def _build_opencode_config(
+    mcp_servers: dict[str, dict] | None = None,
+    *,
+    for_repo_action: bool = False,
+    model: str | None = None,
+) -> dict:
+    """ADR-0024 permission model — ``ask`` for bash/edit, ``allow`` for webfetch.
+
+    ``for_repo_action=True`` relaxes bash/edit to ``allow`` for the single-shot
+    posture-fix workspaces. Rationale: the user has already authorised the
+    specific action by clicking "Let OpenSec open a PR", the agent is scoped
+    to clone → branch → write → push → draft-PR on an isolated branch, and
+    there is no interactive approval path in a posture-fix run (no DB agent
+    run row, no SSE queue, no UI listener). With ``ask`` the agent stalls on
+    the first ``git clone`` waiting for an approval that never arrives.
+
+    ``model`` — the OpenCode model id (e.g. ``openai/gpt-4.1``). Without it
+    the workspace process starts without a default model and rejects every
+    message with "The requested model is not supported." Required for
+    repo-action workspaces because nothing else wires a model in (finding
+    workspaces inherit via a DB-backed upsert path).
+    """
+    if for_repo_action:
+        # ``external_directory: "allow"`` is load-bearing: the agent clones
+        # into ``repo/`` under the workspace root, then the LLM reaches for
+        # the ``read``/``edit`` tools with paths the model thinks of as
+        # ``/repo/SECURITY.md``. OpenCode resolves those outside the
+        # workspace CWD and routes them through the ``external_directory``
+        # permission check. With the default "ask" rule the tool call
+        # blocks forever because the posture runner has no approval path
+        # and the agent never reaches the write step.
+        permission = {
+            "bash": "allow",
+            "edit": "allow",
+            "webfetch": "allow",
+            "external_directory": "allow",
+        }
+    else:
+        permission = {"bash": "ask", "edit": "ask", "webfetch": "allow"}
     config: dict = {
         "$schema": "https://opencode.ai/config.json",
-        "permission": {"bash": "ask", "edit": "ask", "webfetch": "allow"},
+        "permission": permission,
     }
+    if model:
+        config["model"] = model
     if mcp_servers:
         config["mcp"] = mcp_servers
     return config

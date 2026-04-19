@@ -49,16 +49,47 @@ export type PostureFixableCheck = 'security_md' | 'dependabot_config'
 // Fetchers
 // ---------------------------------------------------------------------------
 
+export interface PostureFixStatus {
+  workspace_id: string
+  kind: string
+  status: 'queued' | 'running' | 'pr_created' | 'already_present' | 'failed'
+  pr_url?: string | null
+  branch_name?: string | null
+  error?: string | null
+  started_at: string
+  finished_at?: string | null
+  structured_output?: Record<string, unknown> | null
+}
+
+/**
+ * Optional per-check parameters the UI can send with the fix call.
+ * All fields are optional — omitting them renders the template with its
+ * clearly-labelled placeholders that the maintainer edits before merging.
+ */
+export interface PostureFixParams {
+  contact_email?: string
+  contact_url?: string
+  supported_versions?: string
+  disclosure_window_days?: number
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
     request<AssessmentLatestResponse>('/api/assessment/latest'),
   getAssessmentStatus: (id: string) =>
     request<AssessmentStatusResponse>(`/api/assessment/status/${id}`),
-  fixPostureCheck: (checkName: PostureFixableCheck) =>
+  fixPostureCheck: (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) =>
     request<PostureFixResponse>(`/api/posture/fix/${checkName}`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: params ? JSON.stringify(params) : undefined,
     }),
+  getPostureFixStatus: (workspaceId: string) =>
+    request<PostureFixStatus>(`/api/posture/fix/status/${workspaceId}`),
 }
 
 // ---------------------------------------------------------------------------
@@ -96,7 +127,39 @@ export function useAssessmentStatus(
 
 export function useFixPostureCheck() {
   return useMutation({
-    mutationFn: (checkName: PostureFixableCheck) =>
-      dashboardApi.fixPostureCheck(checkName),
+    mutationFn: ({
+      checkName,
+      params,
+    }: {
+      checkName: PostureFixableCheck
+      params?: PostureFixParams
+    }) => dashboardApi.fixPostureCheck(checkName, params),
+  })
+}
+
+/**
+ * Polls the posture-fix status file while the agent is still running.
+ * Terminal statuses (pr_created / already_present / failed) stop the poll.
+ */
+export function usePostureFixStatus(
+  workspaceId: string | null | undefined,
+  options?: { pollIntervalMs?: number },
+) {
+  const pollInterval = options?.pollIntervalMs ?? 2500
+  return useQuery({
+    queryKey: ['posture-fix-status', workspaceId],
+    queryFn: () => dashboardApi.getPostureFixStatus(workspaceId!),
+    enabled: Boolean(workspaceId),
+    refetchInterval: (query) => {
+      const status = query.state.data?.status
+      if (
+        status === 'pr_created'
+        || status === 'already_present'
+        || status === 'failed'
+      ) {
+        return false
+      }
+      return pollInterval
+    },
   })
 }

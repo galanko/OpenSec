@@ -10,13 +10,18 @@
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { useDashboard, useFixPostureCheck } from '@/api/dashboard'
+import {
+  useDashboard,
+  useFixPostureCheck,
+  usePostureFixStatus,
+} from '@/api/dashboard'
 import type {
   DashboardPayload,
   PostureCheckName,
   PostureCheckResult,
   PostureCheckStatus,
   PostureFixableCheck,
+  PostureFixParams,
 } from '@/api/dashboard'
 import { onboardingApi } from '@/api/onboarding'
 import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
@@ -167,6 +172,11 @@ function ReportCard({ data }: { data: DashboardPayload }) {
   const [postureFeedback, setPostureFeedback] = useState<PostureFeedback | null>(
     null,
   )
+  // Live agent runs keyed by check_name so the inline strip can poll status.
+  // Keeps the PostureCard stateless — we thread the workspace_id into the row.
+  const [activeWorkspaceIds, setActiveWorkspaceIds] = useState<
+    Partial<Record<PostureFixableCheck, string>>
+  >({})
 
   const repoName = repoNameFromUrl(data.assessment?.repo_url)
   const criteria = data.criteria
@@ -175,16 +185,23 @@ function ReportCard({ data }: { data: DashboardPayload }) {
 
   const heroCopy = buildHeroCopy(data.grade, remaining)
 
-  const handleGenerate = (checkName: PostureFixableCheck) => {
+  const handleGenerate = (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) => {
     setPostureFeedback(null)
-    fixMutation.mutate(checkName, {
+    fixMutation.mutate({ checkName, params }, {
       onSuccess: (resp) => {
+        setActiveWorkspaceIds((prev) => ({
+          ...prev,
+          [checkName]: resp.workspace_id,
+        }))
         setPostureFeedback({
           kind: 'success',
           checkName,
           message:
-            `We spawned a workspace (${resp.workspace_id}). The agent is drafting ` +
-            'the pull request — check your GitHub notifications in a minute.',
+            `Agent workspace ${resp.workspace_id} is running — we'll update the ` +
+            'row below when the draft PR opens.',
         })
       },
       onError: (err) => {
@@ -274,6 +291,7 @@ function ReportCard({ data }: { data: DashboardPayload }) {
           onGenerate={handleGenerate}
           pending={fixMutation.isPending}
           feedback={postureFeedback}
+          activeWorkspaceIds={activeWorkspaceIds}
         />
 
         <ScorecardInfoLine />
@@ -484,11 +502,16 @@ function PostureCard({
   onGenerate,
   pending,
   feedback,
+  activeWorkspaceIds,
 }: {
   data: DashboardPayload
-  onGenerate: (checkName: PostureFixableCheck) => void
+  onGenerate: (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) => void
   pending: boolean
   feedback: PostureFeedback | null
+  activeWorkspaceIds: Partial<Record<PostureFixableCheck, string>>
 }) {
   const { posture_pass_count, posture_total_count, criteria, posture_checks } =
     data
@@ -583,6 +606,11 @@ function PostureCard({
             check={check}
             onGenerate={onGenerate}
             pending={pending}
+            activeWorkspaceId={
+              isFixable(check.check_name)
+                ? activeWorkspaceIds[check.check_name]
+                : undefined
+            }
           />
         ))}
       </ul>
@@ -594,13 +622,19 @@ function PostureCheckRow({
   check,
   onGenerate,
   pending,
+  activeWorkspaceId,
 }: {
   check: PostureCheckResult
-  onGenerate: (name: PostureFixableCheck) => void
+  onGenerate: (name: PostureFixableCheck, params?: PostureFixParams) => void
   pending: boolean
+  activeWorkspaceId?: string
 }) {
   const meta = POSTURE_META[check.check_name]
   const [open, setOpen] = useState(check.status === 'fail')
+  // security_md is the only auto-fix that benefits from a user-supplied
+  // parameter today (the contact email on the generated SECURITY.md).
+  // Kept local to the row so it doesn't pollute the card-level state.
+  const [contactEmail, setContactEmail] = useState('')
 
   const tone = statusTone(check.status)
   const label =
@@ -677,26 +711,60 @@ function PostureCheckRow({
           )}
 
           {check.status !== 'pass' && isFixable(check.check_name) && (
-            <div className="mt-4 flex items-center gap-3 border-t border-outline-variant/30 pt-3">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (isFixable(check.check_name)) {
-                    onGenerate(check.check_name)
-                  }
-                }}
-                disabled={pending}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-sm" aria-hidden>
-                  play_arrow
+            <div className="mt-4 flex flex-col gap-3 border-t border-outline-variant/30 pt-3">
+              {check.check_name === 'security_md' && !activeWorkspaceId && (
+                <label
+                  className="flex flex-col gap-1 text-xs font-medium text-on-surface-variant"
+                  htmlFor={`contact-email-${check.check_name}`}
+                >
+                  Contact email for vulnerability reports
+                  <span className="font-normal text-on-surface-variant/80">
+                    Optional. If you leave this blank the generated
+                    SECURITY.md ships with a clearly-labelled placeholder
+                    you can edit before merging.
+                  </span>
+                  <input
+                    id={`contact-email-${check.check_name}`}
+                    type="email"
+                    inputMode="email"
+                    placeholder="security@your-project.org"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </label>
+              )}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!isFixable(check.check_name)) return
+                    const params: PostureFixParams = {}
+                    if (check.check_name === 'security_md' && contactEmail.trim()) {
+                      params.contact_email = contactEmail.trim()
+                    }
+                    onGenerate(
+                      check.check_name,
+                      Object.keys(params).length > 0 ? params : undefined,
+                    )
+                  }}
+                  disabled={pending || Boolean(activeWorkspaceId)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-sm" aria-hidden>
+                    play_arrow
+                  </span>
+                  Let OpenSec open a PR
+                </button>
+                <span className="text-xs text-on-surface-variant">
+                  Opens a draft PR you review before merging.
                 </span>
-                Let OpenSec open a PR
-              </button>
-              <span className="text-xs text-on-surface-variant">
-                Opens a draft PR you review before merging.
-              </span>
+              </div>
+              {activeWorkspaceId && (
+                <PostureFixStatusStrip workspaceId={activeWorkspaceId} />
+              )}
             </div>
           )}
 
@@ -713,6 +781,67 @@ function PostureCheckRow({
         </div>
       )}
     </li>
+  )
+}
+
+function PostureFixStatusStrip({ workspaceId }: { workspaceId: string }) {
+  const { data, isLoading } = usePostureFixStatus(workspaceId)
+  const status = data?.status ?? (isLoading ? 'queued' : 'queued')
+
+  let icon = 'hourglass_top'
+  let tone = 'text-on-surface-variant'
+  let label = 'Starting the generator agent…'
+
+  if (status === 'queued') {
+    label = 'Agent queued — spinning up OpenCode…'
+  } else if (status === 'running') {
+    label = 'Agent running — cloning, writing, committing, pushing…'
+  } else if (status === 'pr_created') {
+    icon = 'check_circle'
+    tone = 'text-tertiary'
+    label = 'Draft PR opened and ready for your review.'
+  } else if (status === 'already_present') {
+    icon = 'info'
+    tone = 'text-on-surface-variant'
+    label = 'No change needed — the file was already present and complete.'
+  } else if (status === 'failed') {
+    icon = 'error'
+    tone = 'text-error'
+    label = data?.error || 'The agent failed before opening a PR.'
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-2 rounded-lg bg-surface-container-lowest px-3 py-2"
+    >
+      <span
+        className={`material-symbols-outlined text-base ${tone}`}
+        aria-hidden
+      >
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-on-surface">{label}</p>
+        {data?.pr_url && (
+          <a
+            href={data.pr_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            <span className="material-symbols-outlined text-xs" aria-hidden>
+              open_in_new
+            </span>
+            Review {data.pr_url.replace('https://github.com/', '')}
+          </a>
+        )}
+        <p className="mt-0.5 text-[10px] text-on-surface-variant/80">
+          workspace {workspaceId}
+        </p>
+      </div>
+    </div>
   )
 }
 
