@@ -23,10 +23,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# MVP pipeline order — the 4-agent suggested sequence.
+# Pipeline order — the 5-agent suggested sequence.
 PIPELINE_ORDER: list[str] = [
     "finding_enricher",
     "exposure_analyzer",
+    "evidence_collector",
     "remediation_planner",
     "remediation_executor",
 ]
@@ -42,6 +43,7 @@ MAX_RETRY_ITERATIONS = 3
 _PIPELINE_CHECKS: list[tuple[str, str]] = [
     ("enrichment", "finding_enricher"),
     ("exposure", "exposure_analyzer"),
+    ("evidence", "evidence_collector"),
     ("plan", "remediation_planner"),
     ("remediation", "remediation_executor"),
 ]
@@ -120,6 +122,7 @@ def suggest_next(
 _REASONS: dict[str, str] = {
     "enrichment": "CVE details and exploit info not yet collected",
     "exposure": "Reachability and blast radius not yet assessed",
+    "evidence": "Affected files and fix impact not yet analyzed",
     "plan": "No remediation plan created yet",
     "remediation": "Remediation not yet executed",
 }

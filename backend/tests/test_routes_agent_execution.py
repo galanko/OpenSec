@@ -175,6 +175,7 @@ class TestSuggestNextEndpoint:
             "enrichment": {"normalized_title": "T"},
             "ownership": {"recommended_owner": "A"},
             "exposure": {"recommended_urgency": "high"},
+            "evidence": {"affected_files": [], "fix_safety": "safe_bump"},
             "plan": {"plan_steps": ["1"]},
             "remediation": {"status": "pr_created", "pr_url": "https://github.com/..."},
             "validation": {"verdict": "fixed", "recommendation": "close"},

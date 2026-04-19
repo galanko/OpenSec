@@ -44,6 +44,8 @@ export interface Finding {
   source_id: string;
   title: string;
   description: string | null;
+  /** Plain-language description written for a non-security reader (IMPL-0002 Milestone A). */
+  plain_description?: string | null;
   raw_severity: string | null;
   normalized_priority: string | null;
   asset_id: string | null;
@@ -346,7 +348,7 @@ export interface IngestJobProgress {
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-async function request<T>(
+export async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
@@ -416,10 +418,17 @@ export const api = {
     new EventSource(`/api/workspaces/${workspaceId}/chat/stream?session_id=${sessionId}`),
 
   // Findings
-  listFindings: (params?: { status?: string; has_workspace?: boolean; limit?: number; offset?: number }) => {
+  listFindings: (params?: {
+    status?: string;
+    has_workspace?: boolean;
+    scope?: 'current';
+    limit?: number;
+    offset?: number;
+  }) => {
     const qs = new URLSearchParams();
     if (params?.status) qs.set('status', params.status);
     if (params?.has_workspace != null) qs.set('has_workspace', String(params.has_workspace));
+    if (params?.scope) qs.set('scope', params.scope);
     if (params?.limit) qs.set('limit', String(params.limit));
     if (params?.offset) qs.set('offset', String(params.offset));
     const q = qs.toString();
@@ -601,6 +610,13 @@ export const api = {
       { method: 'POST' },
     ),
 
+  // Run all remaining pipeline agents sequentially
+  runAllPipeline: (workspaceId: string) =>
+    request<{ status: string; message: string }>(
+      `/api/workspaces/${workspaceId}/pipeline/run-all`,
+      { method: 'POST' },
+    ),
+
   // Agent execution SSE stream (connect when agent starts, disconnect on completion)
   streamAgentExecution: (workspaceId: string): EventSource =>
     new EventSource(`/api/workspaces/${workspaceId}/agent-execution/stream`),
@@ -618,4 +634,17 @@ export const api = {
       `/api/workspaces/${workspaceId}/chat/permission`,
       { method: 'POST', body: JSON.stringify({ permission_id: permissionId, session_id: sessionId, approved }) },
     ),
+
+  // Completion share-action recording (EXEC-0002 / IMPL-0002 H5).
+  // Frozen contract: POST /api/completion/{id}/share-action returns HTTP 200
+  // with { completion_id, share_actions_used }. Frontend treats it as
+  // fire-and-forget (the response body is ignored).
+  recordShareAction: (
+    completionId: string,
+    action: 'download' | 'copy_text' | 'copy_markdown',
+  ) =>
+    requestVoid(`/api/completion/${completionId}/share-action`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
+    }),
 };

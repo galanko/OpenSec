@@ -1,0 +1,28 @@
+{
+  "vulns": [
+    {
+      "id": "GHSA-grv7-fg5c-xmjg",
+      "summary": "Uncontrolled resource consumption in braces",
+      "details": "Versions of the package braces before 3.0.3 are vulnerable to Uncontrolled resource consumption via imbalanced braces.",
+      "aliases": ["CVE-2024-4068"],
+      "database_specific": { "severity": "HIGH" },
+      "severity": [
+        { "type": "CVSS_V3", "score": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H" }
+      ],
+      "affected": [
+        {
+          "package": { "name": "braces", "ecosystem": "npm" },
+          "ranges": [
+            {
+              "type": "SEMVER",
+              "events": [
+                { "introduced": "0" },
+                { "fixed": "3.0.3" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shutil
+import tarfile
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -19,6 +21,26 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def _archive_and_remove(src: Path, dest: Path, arcname: str) -> None:
+    """Create a gzipped tarball at ``dest`` and remove ``src``. Blocking.
+
+    The tarball is written to ``<dest>.tmp`` first and renamed into place
+    only after the gzip stream is closed, so a mid-archive crash leaves
+    either (a) the original source dir intact, or (b) the final archive —
+    never a truncated ``.tar.gz`` next to an intact source dir.
+    """
+    tmp_dest = dest.with_name(dest.name + ".tmp")
+    try:
+        with tarfile.open(tmp_dest, "w:gz") as tar:
+            tar.add(src, arcname=arcname)
+        os.replace(tmp_dest, dest)
+    except BaseException:
+        # Clean up a partial tarball so a retry starts from a clean slate.
+        tmp_dest.unlink(missing_ok=True)
+        raise
+    shutil.rmtree(src)
 
 
 class PortAllocator:
@@ -272,6 +294,33 @@ class WorkspaceProcessPool:
         workspace_ids = list(self._processes.keys())
         for ws_id in workspace_ids:
             await self.stop(ws_id)
+
+    async def stop_on_completion(self, workspace_id: str) -> Path | None:
+        """Stop a repo-action workspace, archive its directory, and remove it.
+
+        Idempotent — returns ``None`` when the workspace is unknown so
+        callers (e.g. the Session-B posture-fix route) can invoke it freely
+        after PR verification. Archival runs in a worker thread because
+        tar-gzipping a cloned repo can block for seconds.
+        """
+        wp = self._processes.get(workspace_id)
+        workspace_dir: Path | None = wp.workspace_dir if wp else None
+
+        await self.stop(workspace_id)
+
+        if workspace_dir is None or not workspace_dir.exists():
+            return None
+
+        archive_path = workspace_dir.parent / f"{workspace_id}.tar.gz"
+        await asyncio.to_thread(
+            _archive_and_remove, workspace_dir, archive_path, workspace_id
+        )
+        logger.info(
+            "Archived repo-action workspace %s to %s",
+            workspace_id,
+            archive_path,
+        )
+        return archive_path
 
     async def stop_idle(self, max_idle: timedelta) -> list[str]:
         """Stop processes idle longer than max_idle.

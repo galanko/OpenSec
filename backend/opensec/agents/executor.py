@@ -25,6 +25,7 @@ from opensec.agents.errors import (
 )
 from opensec.agents.output_parser import ParseResult, parse_agent_response
 from opensec.agents.sidebar_mapper import map_and_upsert
+from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.db.repo_agent_run import (
     create_agent_run,
     list_agent_runs,
@@ -66,6 +67,10 @@ TOOL_TIERS: dict[str, str] = {
     "edit": "user",
     "mcp": "user",
 }
+
+# Agents that need tool access to do their job (e.g. git, gh CLI).
+# Their bash/edit tool requests are auto-approved.
+_TOOL_AGENT_TYPES: set[str] = {"remediation_executor"}
 
 
 @dataclass
@@ -129,6 +134,26 @@ _STRUCTURED_OUTPUT_CONTRACTS: dict[str, str] = {
     "evidence": "what evidence supports the verdict" or null,
     "remaining_concerns": ["concern 1", ...]
 }""",
+    "evidence_collector": """\
+"structured_output": {
+    "affected_files": [
+        {"path": "relative/path", "line": null,
+         "context": "what was found",
+         "file_type": "lock_file|manifest|source|config|test"}
+    ],
+    "dependency_chain": ["pkg_a depends on pkg_b depends on vulnerable_pkg"],
+    "dependency_type": "direct|transitive",
+    "current_version": "version string likely in repo" or null,
+    "fix_safety": "safe_bump|breaking_change|needs_migration|code_fix",
+    "fix_safety_reasoning": "why this classification was chosen",
+    "test_coverage": {
+        "relevant_tests": [],
+        "has_coverage": true/false,
+        "notes": "observations"
+    },
+    "recommended_approach": "concise description of safest fix approach",
+    "impact_assessment": "what will change and what risks exist"
+}""",
     "remediation_executor": """\
 "structured_output": {
     "status": "pr_created/changes_made/failed/needs_approval",
@@ -144,6 +169,7 @@ _AGENT_TYPE_LABELS: dict[str, str] = {
     "finding_enricher": "vulnerability enrichment",
     "owner_resolver": "ownership resolution",
     "exposure_analyzer": "exposure and context analysis",
+    "evidence_collector": "evidence collection",
     "remediation_planner": "remediation planning",
     "remediation_executor": "remediation execution",
     "validation_checker": "validation checking",
@@ -409,6 +435,7 @@ class AgentExecutor:
         timeout: float = DEFAULT_TIMEOUT,
         on_progress: Callable[[str], None] | None = None,
         on_permission: Callable[[dict], None] | None = None,
+        env_vars: dict[str, str] | None = None,
     ) -> AgentExecutionResult:
         """Execute a single agent run.
 
@@ -449,7 +476,7 @@ class AgentExecutor:
             # 3. Get or start workspace OpenCode process
             try:
                 client = await self._pool.get_or_start(
-                    workspace_id, Path(workspace_dir)
+                    workspace_id, Path(workspace_dir), env_vars=env_vars
                 )
             except (RuntimeError, TimeoutError) as exc:
                 raise AgentProcessError(str(exc)) from exc
@@ -460,15 +487,52 @@ class AgentExecutor:
             finding_data, prior_ctx = _load_workspace_data(
                 workspace_dir, agent_type
             )
-            prompt = build_agent_prompt(
-                agent_type, finding=finding_data, prior_context=prior_ctx
+
+            # Tool agents (remediation_executor) use Jinja2 templates with
+            # tool access. Other agents use the no-tools JSON-only prompt
+            # for fast, reliable structured output.
+            if agent_type in _TOOL_AGENT_TYPES:
+                engine = AgentTemplateEngine()
+                # Pass repo_url and gh_token directly into the template
+                # so the agent doesn't rely on shell env var expansion.
+                extra_vars: dict[str, Any] = {}
+                if env_vars:
+                    if env_vars.get("OPENSEC_REPO_URL"):
+                        extra_vars["repo_url"] = env_vars["OPENSEC_REPO_URL"]
+                    if env_vars.get("GH_TOKEN"):
+                        extra_vars["gh_token"] = env_vars["GH_TOKEN"]
+                rendered = engine.render_agent(
+                    agent_type,
+                    finding=finding_data,
+                    enrichment=prior_ctx.get("enrichment"),
+                    ownership=prior_ctx.get("ownership"),
+                    exposure=prior_ctx.get("exposure"),
+                    evidence=prior_ctx.get("evidence"),
+                    plan=prior_ctx.get("plan"),
+                    remediation=prior_ctx.get("remediation"),
+                    validation=prior_ctx.get("validation"),
+                    **extra_vars,
+                )
+                prompt = rendered.content
+            else:
+                prompt = build_agent_prompt(
+                    agent_type, finding=finding_data, prior_context=prior_ctx
+                )
+
+            # Tool agents (e.g. remediation_executor) need more time for
+            # git clone, push, and PR creation.
+            effective_timeout = (
+                max(timeout, 600.0)
+                if agent_type in _TOOL_AGENT_TYPES
+                else timeout
             )
 
             response_text = await self._send_and_collect(
                 client, session.id, prompt,
-                timeout=timeout, on_progress=on_progress,
+                timeout=effective_timeout, on_progress=on_progress,
                 on_permission=on_permission,
                 agent_run_id=agent_run.id,
+                agent_type=agent_type,
             )
 
             # 7. Parse response
@@ -486,9 +550,10 @@ class AgentExecutor:
                 )
                 retry_text = await self._send_and_collect(
                     client, session.id, _RETRY_PROMPT,
-                    timeout=timeout, on_progress=on_progress,
+                    timeout=effective_timeout, on_progress=on_progress,
                     on_permission=on_permission,
                     agent_run_id=agent_run.id,
+                    agent_type=agent_type,
                     send_delay=0.0,
                 )
                 retry_result = parse_agent_response(
@@ -632,6 +697,7 @@ class AgentExecutor:
         on_progress: Callable[[str], None] | None = None,
         on_permission: Callable[[dict], None] | None = None,
         agent_run_id: str = "",
+        agent_type: str = "",
         send_delay: float = 0.5,
     ) -> str:
         """Send a prompt and collect the streamed response.
@@ -655,6 +721,7 @@ class AgentExecutor:
                 on_progress=on_progress,
                 on_permission=on_permission,
                 agent_run_id=agent_run_id,
+                agent_type=agent_type,
             )
         finally:
             if not send_task.done():
@@ -683,6 +750,7 @@ class AgentExecutor:
         on_progress: Callable[[str], None] | None = None,
         on_permission: Callable[[dict], None] | None = None,
         agent_run_id: str = "",
+        agent_type: str = "",
         stall_timeout: float = 60.0,
     ) -> str:
         """Collect the full response from OpenCode via SSE stream.
@@ -700,11 +768,22 @@ class AgentExecutor:
         last_event_time = time.monotonic()
         permission_wait_total = 0.0  # Total seconds spent waiting for user approval
 
+        # Tool agents need longer stall timeout for git/build operations
+        if agent_type in _TOOL_AGENT_TYPES:
+            stall_timeout = max(stall_timeout, 180.0)
+
         async def _handle_permission(event: dict) -> None:
             """Handle a permission request based on tool tier."""
             tool = event.get("tool", "unknown")
             permission_id = event.get("id", "")
             tier = TOOL_TIERS.get(tool, "user")
+
+            # Tool agents (e.g. remediation_executor) auto-approve bash/edit
+            # and external_directory (needed for git clone outside CWD).
+            if agent_type in _TOOL_AGENT_TYPES and tool in (
+                "bash", "edit", "external_directory",
+            ):
+                tier = "auto"
 
             if tier == "auto":
                 logger.info(

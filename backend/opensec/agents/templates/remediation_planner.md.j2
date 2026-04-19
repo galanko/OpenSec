@@ -43,6 +43,24 @@ You are a remediation planning specialist. Your job is to produce a concrete, ac
 {% endif %}
 {% endif %}
 
+{% if has_evidence %}
+## Evidence from repository analysis
+{% if evidence.affected_files %}
+### Affected files
+{% for f in evidence.affected_files %}
+- `{{ f.path }}{% if f.line %}:{{ f.line }}{% endif %}` — {{ f.context }}
+{% endfor %}
+{% endif %}
+{% if evidence.dependency_chain %}- **Dependency chain:** {{ evidence.dependency_chain | join(' → ') }}
+{% endif %}{% if evidence.dependency_type %}- **Dependency type:** {{ evidence.dependency_type }}
+{% endif %}{% if evidence.current_version %}- **Current version:** {{ evidence.current_version }}
+{% endif %}{% if evidence.fix_safety %}- **Fix safety:** {{ evidence.fix_safety }}
+{% endif %}{% if evidence.fix_safety_reasoning %}- **Reasoning:** {{ evidence.fix_safety_reasoning }}
+{% endif %}{% if evidence.recommended_approach %}- **Recommended approach:** {{ evidence.recommended_approach }}
+{% endif %}{% if evidence.impact_assessment %}- **Impact:** {{ evidence.impact_assessment }}
+{% endif %}
+{% endif %}
+
 ## Your task
 
 Generate a step-by-step remediation plan. The plan must be concrete enough that an engineer can execute it without additional research.

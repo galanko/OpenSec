@@ -12,6 +12,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from opensec.agents.errors import AgentBusyError, AgentProcessError
 from opensec.agents.pipeline import VALID_AGENT_TYPES, suggest_next
+from opensec.api.routes.workspaces import _resolve_repo_env_vars
 from opensec.db.connection import get_db
 from opensec.db.repo_agent_run import get_agent_run, update_agent_run
 from opensec.db.repo_workspace import get_workspace
@@ -104,6 +105,9 @@ async def execute_agent(
     except AgentBusyError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    # Resolve GitHub env vars (GH_TOKEN, OPENSEC_REPO_URL) for the workspace process.
+    env_vars = await _resolve_repo_env_vars(request, db)
+
     # Launch execution as a background task so we can return immediately.
     async def _run_in_background() -> None:
         try:
@@ -115,6 +119,7 @@ async def execute_agent(
                 on_permission=lambda evt: executor.push_permission_event(
                     workspace_id, evt
                 ),
+                env_vars=env_vars,
             )
         except (AgentBusyError, AgentProcessError):
             logger.exception(
@@ -186,6 +191,118 @@ async def suggest_next_endpoint(
         reason=suggestion.reason,
         priority=suggestion.priority,
         action_type=suggestion.action_type,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Run full pipeline
+# ---------------------------------------------------------------------------
+
+
+class RunAllResponse(BaseModel):
+    status: str
+    message: str
+
+
+@router.post(
+    "/workspaces/{workspace_id}/pipeline/run-all",
+    response_model=RunAllResponse,
+    status_code=202,
+)
+async def run_all_pipeline(
+    workspace_id: str,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Run all remaining agents in pipeline order as a background task.
+
+    Each agent runs sequentially. Progress events stream via the
+    agent-execution SSE endpoint. Stops on first failure.
+    """
+    workspace = await get_workspace(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if not workspace.workspace_dir:
+        raise HTTPException(status_code=400, detail="Workspace has no directory")
+
+    executor = request.app.state.agent_executor
+    context_builder = request.app.state.context_builder
+
+    try:
+        await executor.check_not_busy(db, workspace_id)
+    except AgentBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    env_vars = await _resolve_repo_env_vars(request, db)
+
+    async def _run_pipeline() -> None:
+        max_iterations = len(VALID_AGENT_TYPES) + 3  # generous upper bound
+        consecutive_failures = 0
+        max_consecutive_failures = 2
+
+        try:
+            for _i in range(max_iterations):
+                snapshot = await context_builder.get_context_snapshot(
+                    workspace_id
+                )
+                run_history = snapshot.pop("agent_run_history", [])
+                suggestion = suggest_next(snapshot, run_history)
+
+                if (
+                    suggestion is None
+                    or suggestion.action_type != "run_agent"
+                    or suggestion.agent_type is None
+                ):
+                    break
+
+                agent_type = suggestion.agent_type
+                logger.info(
+                    "Pipeline auto-run: %s for workspace %s",
+                    agent_type,
+                    workspace_id,
+                )
+
+                try:
+                    await executor.execute(
+                        workspace_id,
+                        agent_type,
+                        db,
+                        workspace_dir=workspace.workspace_dir,
+                        on_permission=lambda evt: (
+                            executor.push_permission_event(workspace_id, evt)
+                        ),
+                        env_vars=env_vars,
+                    )
+                    consecutive_failures = 0
+                except (AgentBusyError, AgentProcessError):
+                    consecutive_failures += 1
+                    logger.exception(
+                        "Pipeline agent %s failed for workspace %s "
+                        "(consecutive failures: %d/%d)",
+                        agent_type,
+                        workspace_id,
+                        consecutive_failures,
+                        max_consecutive_failures,
+                    )
+                    if consecutive_failures >= max_consecutive_failures:
+                        logger.error(
+                            "Pipeline stopped after %d consecutive failures "
+                            "for workspace %s",
+                            consecutive_failures,
+                            workspace_id,
+                        )
+                        break
+        except Exception:
+            logger.exception(
+                "Unexpected error in pipeline run-all for workspace %s",
+                workspace_id,
+            )
+
+    asyncio.create_task(_run_pipeline())
+
+    return RunAllResponse(
+        status="running",
+        message="Pipeline started — agents will run sequentially",
     )
 
 

@@ -20,6 +20,7 @@ def _row_to_finding(row: aiosqlite.Row) -> Finding:
         source_id=row["source_id"],
         title=row["title"],
         description=row["description"],
+        plain_description=row["plain_description"],
         raw_severity=row["raw_severity"],
         normalized_priority=row["normalized_priority"],
         asset_id=row["asset_id"],
@@ -39,10 +40,10 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
     await db.execute(
         """
         INSERT INTO finding
-            (id, source_type, source_id, title, description, raw_severity,
-             normalized_priority, asset_id, asset_label, status, likely_owner,
-             why_this_matters, raw_payload, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, source_type, source_id, title, description, plain_description,
+             raw_severity, normalized_priority, asset_id, asset_label, status,
+             likely_owner, why_this_matters, raw_payload, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             finding_id,
@@ -50,6 +51,7 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
             data.source_id,
             data.title,
             data.description,
+            data.plain_description,
             data.raw_severity,
             data.normalized_priority,
             data.asset_id,
@@ -77,15 +79,31 @@ async def list_findings(
     *,
     status: str | None = None,
     has_workspace: bool | None = None,
+    source_type: str | None = None,
+    created_since_iso: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[Finding]:
+    """List findings, optionally scoped to an assessment window.
+
+    ``source_type`` + ``created_since_iso`` together act as an "assessment
+    scope": pass ``source_type='opensec-assessment'`` + the latest assessment's
+    ``started_at`` to return only findings the current run surfaced.
+    """
     conditions: list[str] = []
     params: list[str | int] = []
 
     if status:
         conditions.append("f.status = ?")
         params.append(status)
+
+    if source_type is not None:
+        conditions.append("f.source_type = ?")
+        params.append(source_type)
+
+    if created_since_iso is not None:
+        conditions.append("f.created_at >= ?")
+        params.append(created_since_iso)
 
     if has_workspace is True:
         conditions.append(
@@ -130,3 +148,35 @@ async def delete_finding(db: aiosqlite.Connection, finding_id: str) -> bool:
     cursor = await db.execute("DELETE FROM finding WHERE id = ?", (finding_id,))
     await db.commit()
     return cursor.rowcount > 0
+
+
+async def count_findings_by_priority(
+    db: aiosqlite.Connection,
+    *,
+    source_type: str | None = None,
+    created_since_iso: str | None = None,
+) -> dict[str, int]:
+    """Return ``{priority: count}`` for findings with a non-null priority.
+
+    ``source_type`` + ``created_since_iso`` together scope the count to an
+    assessment window so the dashboard stat matches the findings list.
+    """
+    conditions: list[str] = ["normalized_priority IS NOT NULL"]
+    params: list[str] = []
+    if source_type is not None:
+        conditions.append("source_type = ?")
+        params.append(source_type)
+    if created_since_iso is not None:
+        conditions.append("created_at >= ?")
+        params.append(created_since_iso)
+    where = " AND ".join(conditions)
+    cursor = await db.execute(
+        f"""
+        SELECT normalized_priority, COUNT(*) AS n
+          FROM finding
+         WHERE {where}
+         GROUP BY normalized_priority
+        """,  # noqa: S608
+        params,
+    )
+    return {row["normalized_priority"]: row["n"] for row in await cursor.fetchall()}

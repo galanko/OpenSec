@@ -20,15 +20,23 @@ from opensec.agents.template_engine import AgentTemplateEngine
 from opensec.api.routes import (
     agent_execution,
     agent_runs,
+    assessment,
     audit,
     chat,
+    completion,
+    dashboard,
     findings,
     health,
     messages,
+    onboarding,
+    posture,
     seed,
     sessions,
     sidebar,
     workspaces,
+)
+from opensec.api.routes import (
+    config as config_routes,
 )
 from opensec.api.routes import (
     settings as settings_routes,
@@ -203,6 +211,15 @@ app.include_router(sidebar.router, prefix="/api")
 app.include_router(seed.router, prefix="/api")
 app.include_router(settings_routes.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
+
+# EXEC-0002 contract stubs — routers registered so the OpenAPI schema is
+# stable. Bodies raise NotImplementedError; real logic ships in Sessions B/C.
+app.include_router(onboarding.router, prefix="/api")
+app.include_router(assessment.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
+app.include_router(posture.router, prefix="/api")
+app.include_router(completion.router, prefix="/api")
+app.include_router(config_routes.router, prefix="/api")
 
 # Serve built frontend in production (when OPENSEC_STATIC_DIR is set)
 _static_dir = Path(settings.static_dir) if settings.static_dir else None

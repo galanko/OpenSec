@@ -1,0 +1,1104 @@
+/**
+ * DashboardPage — the report-card home (frame 2.2).
+ *
+ * IMPL-0002 Milestone G4. Switches between assessment-running and
+ * report-card states based on the /api/dashboard payload. Imports
+ * CompletionStatusCard as a Session-F-owned stub (renders its props;
+ * internals land in Session F).
+ */
+
+import type React from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router'
+import {
+  useDashboard,
+  useFixPostureCheck,
+  usePostureFixStatus,
+} from '@/api/dashboard'
+import type {
+  DashboardPayload,
+  PostureCheckName,
+  PostureCheckResult,
+  PostureCheckStatus,
+  PostureFixableCheck,
+  PostureFixParams,
+} from '@/api/dashboard'
+import { onboardingApi } from '@/api/onboarding'
+import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
+import CompletionProgressCard from '@/components/dashboard/CompletionProgressCard'
+import GradeRing from '@/components/dashboard/GradeRing'
+import ScorecardInfoLine from '@/components/dashboard/ScorecardInfoLine'
+import CompletionCelebration from '@/components/completion/CompletionCelebration'
+import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
+import SummaryActionPanel from '@/components/completion/SummaryActionPanel'
+import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import ErrorState from '@/components/ErrorState'
+import PageShell from '@/components/PageShell'
+import PageSpinner from '@/components/PageSpinner'
+
+const CRITERIA_TOTAL = 5
+
+const SEVERITY_ORDER: Array<{
+  key: 'critical' | 'high' | 'medium' | 'low'
+  label: string
+  tone: string
+}> = [
+  { key: 'critical', label: 'Critical', tone: 'text-error' },
+  { key: 'high', label: 'High', tone: 'text-error' },
+  { key: 'medium', label: 'Medium', tone: 'text-tertiary' },
+  { key: 'low', label: 'Low', tone: 'text-on-surface-variant' },
+]
+
+export default function DashboardPage() {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Dashboard error"
+      fallbackSubtitle="Something went wrong loading the dashboard."
+    >
+      <DashboardContent />
+    </ErrorBoundary>
+  )
+}
+
+function DashboardContent() {
+  const { data, isLoading, isError, refetch } = useDashboard()
+  useAckOnboardingOnce(data)
+
+  if (isError) {
+    return (
+      <PageShell title="Overview">
+        <ErrorState
+          title="Couldn't load the dashboard"
+          subtitle="Please try again."
+          onRetry={() => refetch()}
+        />
+      </PageShell>
+    )
+  }
+
+  if (isLoading || !data) {
+    return (
+      <PageShell title="Overview">
+        <PageSpinner />
+      </PageShell>
+    )
+  }
+
+  if (data.assessment?.status === 'running') {
+    return (
+      <PageShell title="Overview">
+        <AssessmentProgressList assessmentId={data.assessment.id} />
+      </PageShell>
+    )
+  }
+
+  if (data.assessment == null) {
+    return <EmptyDashboard />
+  }
+
+  return <ReportCard data={data} />
+}
+
+function EmptyDashboard() {
+  const navigate = useNavigate()
+  return (
+    <PageShell title="Overview">
+      <section
+        data-testid="dashboard-empty"
+        className="flex flex-col items-center gap-5 rounded-3xl bg-surface-container-low px-10 py-20 text-center"
+      >
+        <span
+          className="material-symbols-outlined text-primary"
+          style={{ fontSize: '44px' }}
+          aria-hidden
+        >
+          radar
+        </span>
+        <div>
+          <h2 className="font-headline text-2xl font-bold text-on-surface">
+            No assessment yet
+          </h2>
+          <p className="mt-2 max-w-md text-sm text-on-surface-variant">
+            Connect a repository to get your first security grade. It takes
+            under a minute.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/onboarding/welcome')}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90"
+        >
+          <span className="material-symbols-outlined text-sm" aria-hidden>
+            play_arrow
+          </span>
+          Start your first assessment
+        </button>
+      </section>
+    </PageShell>
+  )
+}
+
+/**
+ * Fire ``POST /api/onboarding/complete`` exactly once, the first time the
+ * dashboard sees the current assessment flip to ``complete``. This moves the
+ * completion ack off the wizard (which used to block on a 409 → complete
+ * transition, defeating the progress-list UX).
+ */
+function useAckOnboardingOnce(data: DashboardPayload | undefined): void {
+  const ackedRef = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const assessment = data?.assessment
+    if (!assessment || assessment.status !== 'complete') return
+    if (ackedRef.current.has(assessment.id)) return
+    ackedRef.current.add(assessment.id)
+    onboardingApi
+      .complete({ assessment_id: assessment.id })
+      .catch(() => {
+        // Already-complete onboarding is expected (idempotent); swallow.
+      })
+  }, [data?.assessment])
+}
+
+interface PostureFeedback {
+  kind: 'success' | 'error'
+  checkName: PostureFixableCheck
+  message: string
+}
+
+function ReportCard({ data }: { data: DashboardPayload }) {
+  const navigate = useNavigate()
+  const fixMutation = useFixPostureCheck()
+  const [postureFeedback, setPostureFeedback] = useState<PostureFeedback | null>(
+    null,
+  )
+  // Live agent runs keyed by check_name so the inline strip can poll status.
+  // Keeps the PostureCard stateless — we thread the workspace_id into the row.
+  const [activeWorkspaceIds, setActiveWorkspaceIds] = useState<
+    Partial<Record<PostureFixableCheck, string>>
+  >({})
+
+  const repoName = repoNameFromUrl(data.assessment?.repo_url)
+  const criteria = data.criteria
+  const criteriaMet = countCriteriaMet(criteria)
+  const remaining = Math.max(0, CRITERIA_TOTAL - criteriaMet)
+
+  const heroCopy = buildHeroCopy(data.grade, remaining)
+
+  const handleGenerate = (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) => {
+    setPostureFeedback(null)
+    fixMutation.mutate({ checkName, params }, {
+      onSuccess: (resp) => {
+        setActiveWorkspaceIds((prev) => ({
+          ...prev,
+          [checkName]: resp.workspace_id,
+        }))
+        setPostureFeedback({
+          kind: 'success',
+          checkName,
+          message:
+            `Agent workspace ${resp.workspace_id} is running — we'll update the ` +
+            'row below when the draft PR opens.',
+        })
+      },
+      onError: (err) => {
+        const msg = err instanceof Error ? err.message : 'Unknown error'
+        setPostureFeedback({
+          kind: 'error',
+          checkName,
+          message: msg.includes('No repo registered')
+            ? 'Run an assessment first — we need a repo to open the PR against.'
+            : msg.includes('vault') || msg.includes('token')
+              ? 'GitHub integration not configured. Open Settings to add a PAT.'
+              : msg,
+        })
+      },
+    })
+  }
+
+  // Only celebrate at grade A with a live completion row. The backend already
+  // suppresses stale completion_ids when the current snapshot no longer meets
+  // every criterion; this guard is defence in depth against a stale payload.
+  const completionBlock =
+    data.completion_id && data.grade === 'A'
+      ? renderCompletionBlock(data, repoName, 'A')
+      : null
+
+  const totalFindings = Object.values(data.findings_count_by_priority ?? {}).reduce(
+    (a, b) => a + b,
+    0,
+  )
+  const postureFails =
+    (data.posture_total_count ?? 0) - (data.posture_pass_count ?? 0)
+  const showGradeExplainer =
+    data.grade !== 'A' && (totalFindings > 0 || postureFails > 0)
+
+  return (
+    <PageShell title="Overview" subtitle={repoName}>
+      {completionBlock}
+      {showGradeExplainer && (
+        <GradeExplainer
+          grade={data.grade}
+          findingsCount={totalFindings}
+          posturePassing={data.posture_pass_count ?? 0}
+          postureTotal={data.posture_total_count ?? 0}
+          onStartFixing={() => navigate('/findings')}
+        />
+      )}
+      <div className="flex flex-col gap-6">
+        <section className="flex flex-col items-start gap-6 rounded-3xl bg-surface-container-low p-8 md:flex-row md:items-center">
+          <GradeRing
+            grade={data.grade}
+            criteriaMet={criteriaMet}
+            criteriaTotal={CRITERIA_TOTAL}
+          />
+          <div className="flex-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-on-surface-variant">
+              Security grade
+            </p>
+            <h2 className="mt-1 font-headline text-3xl font-bold text-on-surface">
+              {heroCopy.headline}
+            </h2>
+            <p className="mt-2 text-base text-on-surface-variant">
+              {heroCopy.body}
+            </p>
+          </div>
+          {data.completion_id && (
+            <div className="w-full md:w-auto md:max-w-xs md:flex-shrink-0">
+              <CompletionStatusCard
+                completionId={data.completion_id}
+                completedAt={data.assessment?.completed_at ?? null}
+              />
+            </div>
+          )}
+        </section>
+
+        <CompletionProgressCard
+          criteriaMet={criteriaMet}
+          criteriaTotal={CRITERIA_TOTAL}
+          repoName={repoName}
+        />
+
+        <VulnerabilitiesCard
+          data={data}
+          onStartFixing={() => navigate('/findings')}
+        />
+        <PostureCard
+          data={data}
+          onGenerate={handleGenerate}
+          pending={fixMutation.isPending}
+          feedback={postureFeedback}
+          activeWorkspaceIds={activeWorkspaceIds}
+        />
+
+        <ScorecardInfoLine />
+      </div>
+    </PageShell>
+  )
+}
+
+function VulnerabilitiesCard({
+  data,
+  onStartFixing,
+}: {
+  data: DashboardPayload
+  onStartFixing: () => void
+}) {
+  const counts = data.findings_count_by_priority ?? {}
+  const total = SEVERITY_ORDER.reduce(
+    (sum, s) => sum + (counts[s.key] ?? 0),
+    0,
+  )
+  const hasIssues = total > 0
+
+  return (
+    <section className="flex flex-col gap-4 rounded-3xl bg-surface-container-low p-6">
+      <header>
+        <h3 className="font-headline text-lg font-bold text-on-surface">
+          Vulnerabilities
+        </h3>
+        <p className="text-sm text-on-surface-variant">
+          Findings waiting to be solved.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-4 gap-3">
+        {SEVERITY_ORDER.map((sev) => {
+          const value = counts[sev.key] ?? 0
+          return (
+            <div
+              key={sev.key}
+              className="rounded-2xl bg-surface-container p-3"
+            >
+              <p className={`text-2xl font-bold leading-none ${sev.tone}`}>
+                {value}
+              </p>
+              <p className="mt-1 text-xs font-medium text-on-surface-variant">
+                {sev.label}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      {hasIssues ? (
+        <button
+          type="button"
+          onClick={onStartFixing}
+          className="inline-flex w-max items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90"
+        >
+          <span className="material-symbols-outlined text-sm" aria-hidden>
+            play_arrow
+          </span>
+          Start fixing
+        </button>
+      ) : (
+        <p className="text-sm text-tertiary">No open vulnerabilities. Nice.</p>
+      )}
+    </section>
+  )
+}
+
+// Per-check metadata: label, what-it-checks blurb, and ordered fix steps.
+// The two "auto-fix" checks (security_md, dependabot_config) show a
+// primary "Generate and open PR" CTA *in addition* to the manual steps so
+// maintainers can either let OpenSec do it or do it themselves.
+const POSTURE_META: Record<
+  PostureCheckName,
+  {
+    label: string
+    failLabel: string
+    description: string
+    steps: string[]
+    docHref?: string
+    docLabel?: string
+  }
+> = {
+  security_md: {
+    label: 'SECURITY.md is committed',
+    failLabel: 'SECURITY.md is missing',
+    description:
+      'A security policy tells researchers how to report vulnerabilities privately instead of filing a public issue.',
+    steps: [
+      'Create SECURITY.md at the repo root.',
+      'Add a "Reporting a vulnerability" section with a contact email or private issue link.',
+      'State your supported versions and expected response time (e.g. 72 hours).',
+      'Commit and push to main — OpenSec re-detects on the next assessment.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/getting-started/adding-a-security-policy-to-your-repository',
+    docLabel: 'GitHub: adding a security policy',
+  },
+  dependabot_config: {
+    label: 'Dependabot is configured',
+    failLabel: 'Dependabot is not configured',
+    description:
+      'Dependabot opens weekly PRs for outdated dependencies so you do not ship unpatched CVEs.',
+    steps: [
+      'Create .github/dependabot.yml at the repo root.',
+      'Declare a package-ecosystem entry for each lockfile OpenSec detected.',
+      'Set a weekly schedule and an optional reviewer team.',
+      'Commit and merge — Dependabot runs automatically on GitHub-hosted repos.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuring-dependabot-version-updates',
+    docLabel: 'GitHub: Dependabot version updates',
+  },
+  branch_protection: {
+    label: 'Default branch is protected',
+    failLabel: 'Default branch is not protected',
+    description:
+      'Without branch protection, a compromised contributor or misclick can push straight to main with no review.',
+    steps: [
+      'Go to Settings → Branches → Add rule for main.',
+      'Enable "Require a pull request before merging" with at least 1 reviewer.',
+      'Enable "Require status checks to pass" and select your CI checks.',
+      'Save the rule, then re-assess in OpenSec.',
+    ],
+    docHref:
+      'https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches',
+    docLabel: 'GitHub: about protected branches',
+  },
+  no_force_pushes: {
+    label: 'Force pushes are blocked',
+    failLabel: 'Force pushes to main are allowed',
+    description:
+      'Force-pushes rewrite history and can silently drop commits — critical on your default branch.',
+    steps: [
+      'Open the branch protection rule for main (Settings → Branches).',
+      'Under "Rules applied to everyone including administrators", tick "Do not allow force pushes".',
+      'Save and re-assess.',
+    ],
+    docHref:
+      'https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#allow-force-pushes',
+    docLabel: 'GitHub: force-push protections',
+  },
+  signed_commits: {
+    label: 'Recent commits are signed',
+    failLabel: 'Recent commits are unsigned (advisory)',
+    description:
+      'Signed commits prove each commit actually came from its claimed author. Advisory — we recommend it, but it does not block Grade A.',
+    steps: [
+      'Generate a GPG or SSH signing key and add it to your GitHub profile.',
+      'Run "git config --global commit.gpgsign true" (or use "ssh" for SSH signing).',
+      'Amend or re-commit from now on so new commits show a Verified badge.',
+      'Optional: require signed commits in your branch protection rule.',
+    ],
+    docHref:
+      'https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification',
+    docLabel: 'GitHub: commit signature verification',
+  },
+  no_secrets_in_code: {
+    label: 'No secrets detected in tracked files',
+    failLabel: 'Possible secrets detected in tracked files',
+    description:
+      'OpenSec scans for high-specificity tokens: AWS AKIA keys, GitHub ghp_/ghs_, Stripe sk_live_, Google AIza, and PEM blocks.',
+    steps: [
+      'Open the "detail" payload for this check to see which files matched.',
+      'Remove the secret from the file and rotate the credential immediately — assume it is leaked.',
+      'Add the pattern to .gitignore if it was a config file that should never be tracked.',
+      'For historical removal, consider "git filter-repo" or the BFG Repo-Cleaner, then force-push (careful).',
+      'Add an entry to .opensec/secrets-ignore only after you are sure the match is a false positive.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/secret-scanning/about-secret-scanning',
+    docLabel: 'GitHub: about secret scanning',
+  },
+  lockfile_present: {
+    label: 'A dependency lockfile is committed',
+    failLabel: 'No dependency lockfile detected',
+    description:
+      'Lockfiles pin exact versions so "npm install" next week matches what was audited today.',
+    steps: [
+      'Run your package manager to regenerate a lockfile (e.g. "npm install", "uv lock", "go mod tidy").',
+      'Commit the resulting package-lock.json / Pipfile.lock / go.sum / Cargo.lock.',
+      'Remove it from .gitignore if it was excluded.',
+      'Re-assess once the lockfile is on main.',
+    ],
+  },
+}
+
+const FIXABLE_NAMES: PostureFixableCheck[] = [
+  'security_md',
+  'dependabot_config',
+]
+
+function isFixable(name: PostureCheckName): name is PostureFixableCheck {
+  return (FIXABLE_NAMES as readonly string[]).includes(name)
+}
+
+const STATUS_ORDER: Record<PostureCheckStatus, number> = {
+  fail: 0,
+  unknown: 1,
+  advisory: 2,
+  pass: 3,
+}
+
+function PostureCard({
+  data,
+  onGenerate,
+  pending,
+  feedback,
+  activeWorkspaceIds,
+}: {
+  data: DashboardPayload
+  onGenerate: (
+    checkName: PostureFixableCheck,
+    params?: PostureFixParams,
+  ) => void
+  pending: boolean
+  feedback: PostureFeedback | null
+  activeWorkspaceIds: Partial<Record<PostureFixableCheck, string>>
+}) {
+  const { posture_pass_count, posture_total_count, criteria, posture_checks } =
+    data
+
+  // Prefer the real per-check list. Fall back to a synthesized minimal list
+  // for pre-2026-04 assessments whose payloads don't include posture_checks.
+  const checks: PostureCheckResult[] = useMemo(() => {
+    if (posture_checks && posture_checks.length > 0) return posture_checks
+    // Synthesize a best-effort list from the criteria summary so the UI
+    // doesn't collapse to "0 of 0" on older dashboards.
+    const names: PostureCheckName[] = [
+      'security_md',
+      'dependabot_config',
+      'branch_protection',
+      'no_force_pushes',
+      'no_secrets_in_code',
+      'lockfile_present',
+      'signed_commits',
+    ]
+    return names.map((n) => ({
+      id: `synth-${n}`,
+      assessment_id: 'synth',
+      check_name: n,
+      status:
+        n === 'security_md' && criteria.security_md_present
+          ? 'pass'
+          : n === 'dependabot_config' && criteria.dependabot_present
+            ? 'pass'
+            : 'unknown',
+      detail: null,
+      created_at: new Date().toISOString(),
+    })) as PostureCheckResult[]
+  }, [posture_checks, criteria])
+
+  const sorted = useMemo(
+    () =>
+      [...checks].sort(
+        (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status],
+      ),
+    [checks],
+  )
+
+  return (
+    <section className="flex flex-col gap-4 rounded-3xl bg-surface-container-low p-6">
+      <header>
+        <h3 className="font-headline text-lg font-bold text-on-surface">
+          Repo posture
+        </h3>
+        <p className="text-sm text-on-surface-variant">
+          {posture_pass_count} of {posture_total_count} checks pass · click any
+          item for step-by-step guidance
+        </p>
+      </header>
+
+      {feedback && feedback.kind === 'error' && (
+        <InlineErrorCallout
+          title={`Couldn't open the PR for ${feedback.checkName === 'security_md' ? 'SECURITY.md' : 'Dependabot'}`}
+          body={<>{feedback.message}</>}
+          action={
+            feedback.message.toLowerCase().includes('github integration')
+              ? { label: 'Open Settings', href: '/settings' }
+              : undefined
+          }
+        />
+      )}
+      {feedback && feedback.kind === 'success' && (
+        <div
+          role="status"
+          className="rounded-lg bg-tertiary-container/30 px-4 py-3 flex items-start gap-3"
+        >
+          <span
+            className="material-symbols-outlined text-tertiary flex-shrink-0"
+            aria-hidden
+          >
+            check_circle
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-on-surface">
+              Workspace spawned
+            </p>
+            <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">
+              {feedback.message}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <ul role="list" className="flex flex-col gap-2">
+        {sorted.map((check) => (
+          <PostureCheckRow
+            key={check.check_name}
+            check={check}
+            onGenerate={onGenerate}
+            pending={pending}
+            activeWorkspaceId={
+              isFixable(check.check_name)
+                ? activeWorkspaceIds[check.check_name]
+                : undefined
+            }
+          />
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function PostureCheckRow({
+  check,
+  onGenerate,
+  pending,
+  activeWorkspaceId,
+}: {
+  check: PostureCheckResult
+  onGenerate: (name: PostureFixableCheck, params?: PostureFixParams) => void
+  pending: boolean
+  activeWorkspaceId?: string
+}) {
+  const meta = POSTURE_META[check.check_name]
+  const [open, setOpen] = useState(check.status === 'fail')
+  // security_md is the only auto-fix that benefits from a user-supplied
+  // parameter today (the contact email on the generated SECURITY.md).
+  // Kept local to the row so it doesn't pollute the card-level state.
+  const [contactEmail, setContactEmail] = useState('')
+
+  const tone = statusTone(check.status)
+  const label =
+    check.status === 'pass' || check.status === 'advisory'
+      ? meta.label
+      : meta.failLabel
+
+  return (
+    <li
+      className={`rounded-2xl ${tone.bg} transition-colors`}
+      data-testid={`posture-row-${check.check_name}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:bg-surface-container"
+      >
+        <span
+          className={`material-symbols-outlined text-xl ${tone.iconColor}`}
+          aria-hidden
+        >
+          {tone.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-on-surface">{label}</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            {statusCopy(check.status)}
+            {check.status === 'unknown' &&
+              ' · likely a missing PAT scope, check Settings.'}
+          </p>
+        </div>
+        <span
+          className={`material-symbols-outlined text-on-surface-variant transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+          aria-hidden
+        >
+          expand_more
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 text-sm text-on-surface-variant">
+          <p className="mb-3">{meta.description}</p>
+
+          {check.status !== 'pass' && (
+            <>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                How to fix
+              </p>
+              <ol className="ml-4 list-decimal space-y-1.5">
+                {meta.steps.map((s, i) => (
+                  <li key={i} className="text-sm text-on-surface">
+                    {s}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+
+          {meta.docHref && (
+            <a
+              href={meta.docHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden>
+                open_in_new
+              </span>
+              {meta.docLabel ?? 'Read the docs'}
+            </a>
+          )}
+
+          {check.status !== 'pass' && isFixable(check.check_name) && (
+            <div className="mt-4 flex flex-col gap-3 border-t border-outline-variant/30 pt-3">
+              {check.check_name === 'security_md' && !activeWorkspaceId && (
+                <label
+                  className="flex flex-col gap-1 text-xs font-medium text-on-surface-variant"
+                  htmlFor={`contact-email-${check.check_name}`}
+                >
+                  Contact email for vulnerability reports
+                  <span className="font-normal text-on-surface-variant/80">
+                    Optional. If you leave this blank the generated
+                    SECURITY.md ships with a clearly-labelled placeholder
+                    you can edit before merging.
+                  </span>
+                  <input
+                    id={`contact-email-${check.check_name}`}
+                    type="email"
+                    inputMode="email"
+                    placeholder="security@your-project.org"
+                    value={contactEmail}
+                    onChange={(e) => setContactEmail(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="mt-1 w-full rounded-lg bg-surface-container-lowest px-3 py-2 text-sm text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  />
+                </label>
+              )}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!isFixable(check.check_name)) return
+                    const params: PostureFixParams = {}
+                    if (check.check_name === 'security_md' && contactEmail.trim()) {
+                      params.contact_email = contactEmail.trim()
+                    }
+                    onGenerate(
+                      check.check_name,
+                      Object.keys(params).length > 0 ? params : undefined,
+                    )
+                  }}
+                  disabled={pending || Boolean(activeWorkspaceId)}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-sm" aria-hidden>
+                    play_arrow
+                  </span>
+                  Let OpenSec open a PR
+                </button>
+                <span className="text-xs text-on-surface-variant">
+                  Opens a draft PR you review before merging.
+                </span>
+              </div>
+              {activeWorkspaceId && (
+                <PostureFixStatusStrip workspaceId={activeWorkspaceId} />
+              )}
+            </div>
+          )}
+
+          {check.detail && Object.keys(check.detail).length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                Check detail (JSON)
+              </summary>
+              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-surface-container p-3 text-xs text-on-surface">
+                {JSON.stringify(check.detail, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function PostureFixStatusStrip({ workspaceId }: { workspaceId: string }) {
+  const { data, isLoading } = usePostureFixStatus(workspaceId)
+  const status = data?.status ?? (isLoading ? 'queued' : 'queued')
+
+  let icon = 'hourglass_top'
+  let tone = 'text-on-surface-variant'
+  let label = 'Starting the generator agent…'
+
+  if (status === 'queued') {
+    label = 'Agent queued — spinning up OpenCode…'
+  } else if (status === 'running') {
+    label = 'Agent running — cloning, writing, committing, pushing…'
+  } else if (status === 'pr_created') {
+    icon = 'check_circle'
+    tone = 'text-tertiary'
+    label = 'Draft PR opened and ready for your review.'
+  } else if (status === 'already_present') {
+    icon = 'info'
+    tone = 'text-on-surface-variant'
+    label = 'No change needed — the file was already present and complete.'
+  } else if (status === 'failed') {
+    icon = 'error'
+    tone = 'text-error'
+    label = data?.error || 'The agent failed before opening a PR.'
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-start gap-2 rounded-lg bg-surface-container-lowest px-3 py-2"
+    >
+      <span
+        className={`material-symbols-outlined text-base ${tone}`}
+        aria-hidden
+      >
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-on-surface">{label}</p>
+        {data?.pr_url && (
+          <a
+            href={data.pr_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            <span className="material-symbols-outlined text-xs" aria-hidden>
+              open_in_new
+            </span>
+            Review {data.pr_url.replace('https://github.com/', '')}
+          </a>
+        )}
+        <p className="mt-0.5 text-[10px] text-on-surface-variant/80">
+          workspace {workspaceId}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function statusTone(status: PostureCheckStatus): {
+  icon: string
+  iconColor: string
+  bg: string
+} {
+  switch (status) {
+    case 'pass':
+      return {
+        icon: 'check_circle',
+        iconColor: 'text-tertiary',
+        bg: 'bg-surface-container',
+      }
+    case 'advisory':
+      return {
+        icon: 'info',
+        iconColor: 'text-on-surface-variant',
+        bg: 'bg-surface-container',
+      }
+    case 'unknown':
+      return {
+        icon: 'help',
+        iconColor: 'text-on-surface-variant',
+        bg: 'bg-surface-container',
+      }
+    case 'fail':
+    default:
+      return {
+        icon: 'error',
+        iconColor: 'text-primary',
+        bg: 'bg-primary-container/25',
+      }
+  }
+}
+
+function statusCopy(status: PostureCheckStatus): string {
+  switch (status) {
+    case 'pass':
+      return 'Passing'
+    case 'advisory':
+      return 'Recommended'
+    case 'unknown':
+      return 'Unable to verify'
+    case 'fail':
+    default:
+      return 'Needs attention'
+  }
+}
+
+/**
+ * Counts how many of the five completion criteria are met.
+ *
+ * The five criteria, in order of the pill meter:
+ *   1. SECURITY.md is committed
+ *   2. Dependabot is configured
+ *   3. No critical vulnerabilities remain open
+ *   4. At least 80% of posture checks pass (health threshold)
+ *   5. 100% of posture checks pass (completion threshold)
+ *
+ * Criteria 4 and 5 are intentionally overlapping: hitting 100% implies 80%,
+ * so perfect posture counts for both. A repo at 80–99% earns only criterion 4.
+ */
+function countCriteriaMet(c: DashboardPayload['criteria']): number {
+  return [
+    c.security_md_present,
+    c.dependabot_present,
+    c.no_critical_vulns,
+    c.posture_checks_total > 0 &&
+      c.posture_checks_passing >= Math.ceil(c.posture_checks_total * 0.8),
+    c.posture_checks_total > 0 &&
+      c.posture_checks_passing === c.posture_checks_total,
+  ].filter(Boolean).length
+}
+
+function GradeExplainer({
+  grade,
+  findingsCount,
+  posturePassing,
+  postureTotal,
+  onStartFixing,
+}: {
+  grade: DashboardPayload['grade']
+  findingsCount: number
+  posturePassing: number
+  postureTotal: number
+  onStartFixing: () => void
+}) {
+  const postureFails = Math.max(0, postureTotal - posturePassing)
+  const parts: string[] = []
+  if (findingsCount > 0) {
+    parts.push(
+      `${findingsCount} ${findingsCount === 1 ? 'vulnerability' : 'vulnerabilities'}`,
+    )
+  }
+  if (postureFails > 0) {
+    parts.push(
+      `${postureFails} of ${postureTotal} posture check${postureTotal === 1 ? '' : 's'} failing`,
+    )
+  }
+  const summary = parts.join(' and ')
+
+  return (
+    <section
+      data-testid="grade-explainer"
+      className="mb-6 rounded-3xl bg-surface-container-low p-6"
+    >
+      <div className="flex items-start gap-4">
+        <span
+          className="material-symbols-outlined text-tertiary mt-0.5"
+          aria-hidden
+        >
+          info
+        </span>
+        <div className="flex-1">
+          <h3 className="font-headline text-lg font-bold text-on-surface">
+            {grade === 'F'
+              ? 'Your project starts at grade F'
+              : `Your project is at grade ${grade}`}
+          </h3>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            {summary
+              ? `We found ${summary}. Each fix moves the grade up — start anywhere below.`
+              : 'Keep fixing findings to raise the grade.'}
+          </p>
+          {findingsCount > 0 && (
+            <button
+              type="button"
+              onClick={onStartFixing}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden>
+                play_arrow
+              </span>
+              Start fixing
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function buildHeroCopy(
+  grade: DashboardPayload['grade'],
+  remaining: number,
+): { headline: string; body: string } {
+  if (grade == null) {
+    return {
+      headline: 'Working on it',
+      body: 'We are still assessing your repository.',
+    }
+  }
+  if (grade === 'A') {
+    return {
+      headline: 'Security completion reached',
+      body: 'All five criteria are met. Keep it up.',
+    }
+  }
+  if (grade === 'F' || grade === 'D') {
+    return {
+      headline: 'Work to do',
+      body: `Start with any failing check below. Fix ${remaining} item${remaining === 1 ? '' : 's'} to reach security completion.`,
+    }
+  }
+  if (remaining === 0) {
+    return {
+      headline: 'Almost there',
+      body: 'Criteria look good. Address any remaining findings to earn grade A.',
+    }
+  }
+  return {
+    headline: 'Nearly there',
+    body: `Fix ${remaining} more ${remaining === 1 ? 'item' : 'items'} to reach security completion.`,
+  }
+}
+
+function repoNameFromUrl(url: string | null | undefined): string {
+  if (!url) return 'your repository'
+  try {
+    const u = new URL(url)
+    return u.pathname.replace(/^\//, '').replace(/\.git$/, '') || url
+  } catch {
+    return url
+  }
+}
+
+type LetterGrade = 'A' | 'B' | 'C' | 'D' | 'F'
+
+function renderCompletionBlock(
+  data: DashboardPayload,
+  repoName: string,
+  grade: LetterGrade,
+): React.ReactNode {
+  const completionId = data.completion_id ?? ''
+  const completedAtIso = data.assessment?.completed_at ?? null
+  const completedDate = formatCompletedDate(completedAtIso)
+  const vulnsFixed = Object.values(data.findings_count_by_priority ?? {}).reduce(
+    (a, b) => a + b,
+    0,
+  )
+  const posturePassing = data.posture_pass_count ?? 0
+  const filename = buildSummaryFilename(repoName, completedAtIso)
+
+  const summaryText = `I secured ${repoName} with OpenSec — ${vulnsFixed} vulnerabilities reviewed, ${posturePassing} posture checks passing, grade ${grade}. opensec.dev`
+  const summaryMarkdown = `![Secured by OpenSec](opensec-summary.png)\n<!-- ${repoName} · completed ${completedDate} · grade ${grade} -->`
+
+  const scrollToPanel = () => {
+    document
+      .getElementById('summary-panel')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  return (
+    <div className="mb-8" data-testid="completion-block">
+      <CompletionCelebration
+        repoName={repoName}
+        completedDate={completedDate}
+        grade={grade}
+        criteriaCount={CRITERIA_TOTAL}
+        onDownloadClick={scrollToPanel}
+        onCopyTextClick={() => {
+          void navigator.clipboard?.writeText(summaryText)
+        }}
+        onCopyMarkdownClick={() => {
+          void navigator.clipboard?.writeText(summaryMarkdown)
+        }}
+      />
+      <div className="mt-10">
+        <SummaryActionPanel
+          completionId={completionId}
+          summaryText={summaryText}
+          summaryMarkdown={summaryMarkdown}
+          filename={filename}
+          cardProps={{
+            repoName,
+            completedAt: completedDate,
+            vulnsFixed,
+            postureChecksPassing: posturePassing,
+            prsMerged: 0,
+            grade,
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function formatCompletedDate(iso: string | null): string {
+  if (!iso) return 'today'
+  // Defensive: backend emits full ISO; take the date part for display.
+  return iso.slice(0, 10)
+}
+
+function buildSummaryFilename(repoName: string, iso: string | null): string {
+  const safe = repoName.replace(/[^a-z0-9_-]+/gi, '-').toLowerCase()
+  const date = (iso ?? new Date().toISOString()).slice(0, 10)
+  return `${safe}_opensec-summary_${date}.png`
+}

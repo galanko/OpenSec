@@ -163,7 +163,7 @@ def engine() -> AgentTemplateEngine:
 
 def test_render_all_returns_seven_agents(engine: AgentTemplateEngine, sample_finding_dict: dict):
     agents = engine.render_all(finding=sample_finding_dict)
-    assert len(agents) == 7
+    assert len(agents) == 8
     names = [a.name for a in agents]
     assert names == AGENT_NAMES
 
@@ -336,7 +336,7 @@ def test_write_agents_creates_files(
     agents_dir = tmp_path / "agents"
     agents_dir.mkdir()
     paths = engine.write_agents(agents_dir, finding=sample_finding_dict)
-    assert len(paths) == 7
+    assert len(paths) == 8
     for path in paths:
         assert path.exists()
         assert path.suffix == ".md"

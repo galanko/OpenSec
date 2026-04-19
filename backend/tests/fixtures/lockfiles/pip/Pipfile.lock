@@ -1,0 +1,38 @@
+{
+    "_meta": {
+        "hash": {
+            "sha256": "00000000000000000000000000000000000000000000000000000000deadbeef"
+        },
+        "pipfile-spec": 6,
+        "requires": { "python_version": "3.11" },
+        "sources": [
+            { "name": "pypi", "url": "https://pypi.org/simple", "verify_ssl": true }
+        ]
+    },
+    "default": {
+        "django": {
+            "hashes": [
+                "sha256:6f1616c2786c408ce86ab7e10f4b98f30a41b3cdd28e69300ba8c9be1d8f0bb5"
+            ],
+            "index": "pypi",
+            "version": "==3.2.0"
+        },
+        "requests": {
+            "hashes": [
+                "sha256:aaaaaa",
+                "sha256:bbbbbb"
+            ],
+            "index": "pypi",
+            "version": "==2.20.0"
+        },
+        "no-version-pkg": {
+            "hashes": ["sha256:cccccc"]
+        }
+    },
+    "develop": {
+        "pytest": {
+            "hashes": ["sha256:dddddd"],
+            "version": "==8.0.0"
+        }
+    }
+}

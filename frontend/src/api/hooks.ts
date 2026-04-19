@@ -45,7 +45,11 @@ export function useSession(id: string | undefined) {
 // Findings (Phase 4)
 // ---------------------------------------------------------------------------
 
-export function useFindings(params?: { status?: string; has_workspace?: boolean }) {
+export function useFindings(params?: {
+  status?: string
+  has_workspace?: boolean
+  scope?: 'current'
+}) {
   return useQuery({
     queryKey: ['findings', params],
     queryFn: () => api.listFindings(params),

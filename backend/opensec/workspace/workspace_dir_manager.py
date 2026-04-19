@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
+import secrets
 import shutil
 import tarfile
-from typing import TYPE_CHECKING
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
+from opensec.agents.template_engine import AgentTemplateEngine, get_default_engine
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import CONTEXT_SECTIONS, WorkspaceDir
 
@@ -14,6 +18,17 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from opensec.models import Finding
+
+
+class WorkspaceKind(StrEnum):
+    """Discriminator for workspace directories (IMPL-0002 Milestone E4).
+
+    Finding workspaces (the existing kind) are implicit; the two repo-scoped
+    actions get explicit enum values that route to their generator agents.
+    """
+
+    repo_action_security_md = "repo_action_security_md"
+    repo_action_dependabot = "repo_action_dependabot"
 
 
 class WorkspaceDirManager:
@@ -82,18 +97,9 @@ class WorkspaceDirManager:
         ws.finding_json.write_text(json.dumps(finding_data, indent=2) + "\n")
         ws.finding_md.write_text(_render_finding_md(finding))
 
-        # Write opencode.json — workspace agents need bash + file access
-        opencode_config: dict = {
-            "$schema": "https://opencode.ai/config.json",
-            "permission": {
-                "bash": "ask",
-                "edit": "ask",
-                "webfetch": "allow",
-            },
-        }
-        if mcp_servers:
-            opencode_config["mcp"] = mcp_servers
-        ws.opencode_json.write_text(json.dumps(opencode_config, indent=2) + "\n")
+        ws.opencode_json.write_text(
+            json.dumps(_build_opencode_config(mcp_servers), indent=2) + "\n"
+        )
 
         # Create empty agent-runs log
         ws.agent_runs_log.touch()
@@ -219,6 +225,164 @@ class WorkspaceDirManager:
                 f"Workspace directory not found: {self._base_dir / workspace_id}"
             )
         return ws
+
+    # ------------------------------------------------------------------
+    # Repo-scoped workspaces (IMPL-0002 Milestone E — V1↔V2 interface stub)
+    # ------------------------------------------------------------------
+
+    def create_repo_workspace(
+        self,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict[str, Any] | None = None,
+        *,
+        gh_token: str | None = None,
+        template_engine: AgentTemplateEngine | None = None,
+        model: str | None = None,
+    ) -> str:
+        """Create an ephemeral repo-scoped workspace for a generator agent.
+
+        Unlike ``create()``, this does **not** produce finding-scoped files
+        (no ``finding.json``, no ``finding.md``, no ``CONTEXT.md``). The
+        directory carries just enough scaffolding for an OpenCode process:
+
+        - ``.opencode/agents/<template_stem>.md`` — the rendered single-shot
+          agent prompt for the selected kind.
+        - ``opencode.json`` — ADR-0024 permission model (``"ask"`` for bash
+          and edit, ``"allow"`` for webfetch).
+        - ``REPO_ACTION.md`` — human-readable summary of the action.
+        - ``history/`` — for agent-run logs written later.
+
+        ``gh_token`` is intentionally kept out of ``params`` so it is never
+        serialised into ``REPO_ACTION.md``.
+
+        Returns:
+            The generated workspace_id (a safe single-path-component string).
+        """
+        engine = template_engine or get_default_engine()
+        rendered = engine.render_repo_action(
+            kind, repo_url=repo_url, params=params or {}, gh_token=gh_token
+        )
+
+        self._base_dir.mkdir(parents=True, exist_ok=True)
+        workspace_id, workspace_root = self._allocate_workspace_dir(kind)
+        (workspace_root / ".opencode" / "agents").mkdir(parents=True)
+        (workspace_root / "history").mkdir()
+
+        (workspace_root / "opencode.json").write_text(
+            json.dumps(
+                _build_opencode_config(for_repo_action=True, model=model),
+                indent=2,
+            )
+            + "\n"
+        )
+
+        agent_path = workspace_root / ".opencode" / "agents" / rendered.filename
+        agent_path.write_text(rendered.content)
+
+        # Empty agent-runs log mirrors finding workspaces so downstream tooling
+        # (tail readers, log rotation) can treat all workspaces uniformly.
+        (workspace_root / "history" / "agent-runs.jsonl").touch()
+
+        summary_lines = [
+            "# Repo action workspace",
+            "",
+            f"- **Action:** `{rendered.name}` ({kind.value})",
+            f"- **Repo:** {_scrub_repo_url(repo_url)}",
+        ]
+        if params:
+            summary_lines.append("- **Params:**")
+            for key, value in sorted(params.items()):
+                summary_lines.append(f"  - `{key}`: `{value}`")
+        summary_lines.append("")
+        (workspace_root / "REPO_ACTION.md").write_text("\n".join(summary_lines))
+
+        return workspace_id
+
+    def _allocate_workspace_dir(
+        self, kind: WorkspaceKind, *, attempts: int = 3
+    ) -> tuple[str, Path]:
+        """Generate a fresh workspace_id + atomically reserve its directory.
+
+        ``secrets.token_hex(8)`` gives 64 bits of entropy; a second allocation
+        colliding with an existing dir is vanishingly unlikely, but we retry
+        a handful of times to keep callers from needing collision handling.
+        """
+        for _ in range(attempts):
+            workspace_id = f"repo-{kind.value}-{secrets.token_hex(8)}"
+            _validate_workspace_id(workspace_id)
+            workspace_root = self._base_dir / workspace_id
+            try:
+                workspace_root.mkdir(exist_ok=False)
+            except FileExistsError:
+                continue
+            return workspace_id, workspace_root
+        raise RuntimeError(
+            f"Failed to allocate a unique workspace directory after {attempts} attempts"
+        )
+
+
+def _build_opencode_config(
+    mcp_servers: dict[str, dict] | None = None,
+    *,
+    for_repo_action: bool = False,
+    model: str | None = None,
+) -> dict:
+    """ADR-0024 permission model — ``ask`` for bash/edit, ``allow`` for webfetch.
+
+    ``for_repo_action=True`` relaxes bash/edit to ``allow`` for the single-shot
+    posture-fix workspaces. Rationale: the user has already authorised the
+    specific action by clicking "Let OpenSec open a PR", the agent is scoped
+    to clone → branch → write → push → draft-PR on an isolated branch, and
+    there is no interactive approval path in a posture-fix run (no DB agent
+    run row, no SSE queue, no UI listener). With ``ask`` the agent stalls on
+    the first ``git clone`` waiting for an approval that never arrives.
+
+    ``model`` — the OpenCode model id (e.g. ``openai/gpt-4.1``). Without it
+    the workspace process starts without a default model and rejects every
+    message with "The requested model is not supported." Required for
+    repo-action workspaces because nothing else wires a model in (finding
+    workspaces inherit via a DB-backed upsert path).
+    """
+    if for_repo_action:
+        # ``external_directory: "allow"`` is load-bearing: the agent clones
+        # into ``repo/`` under the workspace root, then the LLM reaches for
+        # the ``read``/``edit`` tools with paths the model thinks of as
+        # ``/repo/SECURITY.md``. OpenCode resolves those outside the
+        # workspace CWD and routes them through the ``external_directory``
+        # permission check. With the default "ask" rule the tool call
+        # blocks forever because the posture runner has no approval path
+        # and the agent never reaches the write step.
+        permission = {
+            "bash": "allow",
+            "edit": "allow",
+            "webfetch": "allow",
+            "external_directory": "allow",
+        }
+    else:
+        permission = {"bash": "ask", "edit": "ask", "webfetch": "allow"}
+    config: dict = {
+        "$schema": "https://opencode.ai/config.json",
+        "permission": permission,
+    }
+    if model:
+        config["model"] = model
+    if mcp_servers:
+        config["mcp"] = mcp_servers
+    return config
+
+
+_CREDENTIALED_URL = re.compile(r"^(https?://)[^/@\s]+@", re.IGNORECASE)
+
+
+def _scrub_repo_url(url: str) -> str:
+    """Strip embedded credentials (``user:token@host``) before persisting the URL.
+
+    Callers sometimes pass URLs like ``https://x-access-token:ghp_xxx@github.com/...``.
+    We don't want that ending up in ``REPO_ACTION.md``, which is a plain text
+    artefact under ``data/workspaces/`` and may be archived or mirrored.
+    """
+    return _CREDENTIALED_URL.sub(r"\1", url)
 
 
 def _validate_workspace_id(workspace_id: str) -> None:
