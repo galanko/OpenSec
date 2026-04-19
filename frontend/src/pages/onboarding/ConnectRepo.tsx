@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
 import OnboardingShell from '@/components/onboarding/OnboardingShell'
 import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
@@ -14,6 +14,14 @@ import { onboardingStorage } from './storage'
 
 const MISSING_REPO_SCOPE_CODE = 'missing_repo_scope'
 
+// How long the verified card stays on screen before we auto-advance to
+// step 2. UX Spec Rev 2 calls for "a small spinner + 'Loading Step 2'
+// inline hint" after verification — the delay lets the celebratory
+// moment register so users see which repo got verified, while still
+// owning the auto-advance. Long enough to read the repo name, short
+// enough that users don't start hunting for a button.
+const AUTO_ADVANCE_DELAY_MS = 1_400
+
 type ConnectState =
   | { kind: 'idle' }
   | { kind: 'submitting' }
@@ -22,9 +30,12 @@ type ConnectState =
 
 /**
  * Onboarding frames 1.1 / 1.2 / 1.3 — "Connect your project".
- * On success the verified card stays on screen until the user clicks
- * "Continue to AI config" — no auto-advance. Gives the moment space to
- * register and mirrors the celebratory rhythm of the mockup (frame 1.3).
+ *
+ * On success the verified card renders for ~1.4s and then the wizard
+ * auto-advances to `/onboarding/ai`. UX Spec Rev 2 asked for this —
+ * a manual "Continue to AI config" click is a dead-end interaction
+ * once verification has succeeded, and users kept pausing there
+ * trying to figure out whether something was wrong.
  */
 export default function ConnectRepo() {
   const navigate = useNavigate()
@@ -32,6 +43,17 @@ export default function ConnectRepo() {
   const [token, setToken] = useState('')
   const [state, setState] = useState<ConnectState>({ kind: 'idle' })
   const [dialogOpen, setDialogOpen] = useState(false)
+
+  // Auto-advance to AI config once the verified card has registered.
+  // A dependency on ``state.kind`` is enough — ``setTimeout`` cleanup
+  // kicks in if the user hits "Change" during the window.
+  useEffect(() => {
+    if (state.kind !== 'verified') return
+    const timer = window.setTimeout(() => {
+      navigate('/onboarding/ai')
+    }, AUTO_ADVANCE_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [state.kind, navigate])
 
   const missingScope =
     state.kind === 'error' && state.error.code === MISSING_REPO_SCOPE_CODE
@@ -111,13 +133,23 @@ export default function ConnectRepo() {
               </div>
             </div>
           )}
-          <WizardNav
-            onBack={() => setState({ kind: 'idle' })}
-            hideBack
-            onNext={() => navigate('/onboarding/ai')}
-            nextLabel="Continue to AI config"
-            nextDisabled={false}
-          />
+          {/*
+            * UX Spec Rev 2: after verification, replace the "Continue to
+            * AI config" button with a small spinner + "Loading step 2…"
+            * hint so the user sees the wizard is doing the next thing for
+            * them instead of waiting on a click.
+            */}
+          <div
+            role="status"
+            aria-live="polite"
+            className="mt-8 flex items-center gap-3 text-sm text-on-surface-variant"
+          >
+            <div
+              className="h-4 w-4 animate-spin rounded-full border-[2px] border-primary/30 border-t-primary"
+              aria-hidden="true"
+            />
+            <span>Loading step 2…</span>
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit} noValidate>

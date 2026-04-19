@@ -68,18 +68,25 @@ describe('onboarding wizard', () => {
       )
       await user.click(screen.getByRole('button', { name: /verify and continue/i }))
 
-      // 1.3 Verified card appears and stays on screen until the user clicks
-      // "Continue to AI config" (no auto-advance).
+      // 1.3 Verified card appears. Per UX Spec Rev 2 (bug B9), Step 1
+      // auto-advances to Step 2 after a ~1.4s dwell with a "Loading step 2…"
+      // spinner in place of the old manual "Continue to AI config" button.
+      // We wait for the AI-config heading to prove the auto-advance fired —
+      // extended timeout because the setTimeout is real, not fake.
       await waitFor(() =>
         expect(screen.getByText('alex-dev/fast-markdown')).toBeInTheDocument(),
       )
-      await user.click(
-        screen.getByRole('button', { name: /continue to ai config/i }),
-      )
+      expect(
+        await screen.findByText(/loading step 2/i),
+      ).toBeInTheDocument()
 
       // 1.4 Configure AI — pick OpenAI card (default), a model, then type the API key.
       expect(
-        await screen.findByRole('heading', { name: /configure your ai model/i }),
+        await screen.findByRole(
+          'heading',
+          { name: /configure your ai model/i },
+          { timeout: 4_000 },
+        ),
       ).toBeInTheDocument()
       await waitFor(() =>
         expect(
