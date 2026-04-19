@@ -8,15 +8,20 @@
  */
 
 import type React from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useDashboard, useFixPostureCheck } from '@/api/dashboard'
-import type { DashboardPayload, PostureFixableCheck } from '@/api/dashboard'
+import type {
+  DashboardPayload,
+  PostureCheckName,
+  PostureCheckResult,
+  PostureCheckStatus,
+  PostureFixableCheck,
+} from '@/api/dashboard'
 import { onboardingApi } from '@/api/onboarding'
 import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
 import CompletionProgressCard from '@/components/dashboard/CompletionProgressCard'
 import GradeRing from '@/components/dashboard/GradeRing'
-import PostureCheckItem from '@/components/dashboard/PostureCheckItem'
 import ScorecardInfoLine from '@/components/dashboard/ScorecardInfoLine'
 import CompletionCelebration from '@/components/completion/CompletionCelebration'
 import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
@@ -339,6 +344,141 @@ function VulnerabilitiesCard({
   )
 }
 
+// Per-check metadata: label, what-it-checks blurb, and ordered fix steps.
+// The two "auto-fix" checks (security_md, dependabot_config) show a
+// primary "Generate and open PR" CTA *in addition* to the manual steps so
+// maintainers can either let OpenSec do it or do it themselves.
+const POSTURE_META: Record<
+  PostureCheckName,
+  {
+    label: string
+    failLabel: string
+    description: string
+    steps: string[]
+    docHref?: string
+    docLabel?: string
+  }
+> = {
+  security_md: {
+    label: 'SECURITY.md is committed',
+    failLabel: 'SECURITY.md is missing',
+    description:
+      'A security policy tells researchers how to report vulnerabilities privately instead of filing a public issue.',
+    steps: [
+      'Create SECURITY.md at the repo root.',
+      'Add a "Reporting a vulnerability" section with a contact email or private issue link.',
+      'State your supported versions and expected response time (e.g. 72 hours).',
+      'Commit and push to main — OpenSec re-detects on the next assessment.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/getting-started/adding-a-security-policy-to-your-repository',
+    docLabel: 'GitHub: adding a security policy',
+  },
+  dependabot_config: {
+    label: 'Dependabot is configured',
+    failLabel: 'Dependabot is not configured',
+    description:
+      'Dependabot opens weekly PRs for outdated dependencies so you do not ship unpatched CVEs.',
+    steps: [
+      'Create .github/dependabot.yml at the repo root.',
+      'Declare a package-ecosystem entry for each lockfile OpenSec detected.',
+      'Set a weekly schedule and an optional reviewer team.',
+      'Commit and merge — Dependabot runs automatically on GitHub-hosted repos.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuring-dependabot-version-updates',
+    docLabel: 'GitHub: Dependabot version updates',
+  },
+  branch_protection: {
+    label: 'Default branch is protected',
+    failLabel: 'Default branch is not protected',
+    description:
+      'Without branch protection, a compromised contributor or misclick can push straight to main with no review.',
+    steps: [
+      'Go to Settings → Branches → Add rule for main.',
+      'Enable "Require a pull request before merging" with at least 1 reviewer.',
+      'Enable "Require status checks to pass" and select your CI checks.',
+      'Save the rule, then re-assess in OpenSec.',
+    ],
+    docHref:
+      'https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches',
+    docLabel: 'GitHub: about protected branches',
+  },
+  no_force_pushes: {
+    label: 'Force pushes are blocked',
+    failLabel: 'Force pushes to main are allowed',
+    description:
+      'Force-pushes rewrite history and can silently drop commits — critical on your default branch.',
+    steps: [
+      'Open the branch protection rule for main (Settings → Branches).',
+      'Under "Rules applied to everyone including administrators", tick "Do not allow force pushes".',
+      'Save and re-assess.',
+    ],
+    docHref:
+      'https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#allow-force-pushes',
+    docLabel: 'GitHub: force-push protections',
+  },
+  signed_commits: {
+    label: 'Recent commits are signed',
+    failLabel: 'Recent commits are unsigned (advisory)',
+    description:
+      'Signed commits prove each commit actually came from its claimed author. Advisory — we recommend it, but it does not block Grade A.',
+    steps: [
+      'Generate a GPG or SSH signing key and add it to your GitHub profile.',
+      'Run "git config --global commit.gpgsign true" (or use "ssh" for SSH signing).',
+      'Amend or re-commit from now on so new commits show a Verified badge.',
+      'Optional: require signed commits in your branch protection rule.',
+    ],
+    docHref:
+      'https://docs.github.com/en/authentication/managing-commit-signature-verification/about-commit-signature-verification',
+    docLabel: 'GitHub: commit signature verification',
+  },
+  no_secrets_in_code: {
+    label: 'No secrets detected in tracked files',
+    failLabel: 'Possible secrets detected in tracked files',
+    description:
+      'OpenSec scans for high-specificity tokens: AWS AKIA keys, GitHub ghp_/ghs_, Stripe sk_live_, Google AIza, and PEM blocks.',
+    steps: [
+      'Open the "detail" payload for this check to see which files matched.',
+      'Remove the secret from the file and rotate the credential immediately — assume it is leaked.',
+      'Add the pattern to .gitignore if it was a config file that should never be tracked.',
+      'For historical removal, consider "git filter-repo" or the BFG Repo-Cleaner, then force-push (careful).',
+      'Add an entry to .opensec/secrets-ignore only after you are sure the match is a false positive.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/secret-scanning/about-secret-scanning',
+    docLabel: 'GitHub: about secret scanning',
+  },
+  lockfile_present: {
+    label: 'A dependency lockfile is committed',
+    failLabel: 'No dependency lockfile detected',
+    description:
+      'Lockfiles pin exact versions so "npm install" next week matches what was audited today.',
+    steps: [
+      'Run your package manager to regenerate a lockfile (e.g. "npm install", "uv lock", "go mod tidy").',
+      'Commit the resulting package-lock.json / Pipfile.lock / go.sum / Cargo.lock.',
+      'Remove it from .gitignore if it was excluded.',
+      'Re-assess once the lockfile is on main.',
+    ],
+  },
+}
+
+const FIXABLE_NAMES: PostureFixableCheck[] = [
+  'security_md',
+  'dependabot_config',
+]
+
+function isFixable(name: PostureCheckName): name is PostureFixableCheck {
+  return (FIXABLE_NAMES as readonly string[]).includes(name)
+}
+
+const STATUS_ORDER: Record<PostureCheckStatus, number> = {
+  fail: 0,
+  unknown: 1,
+  advisory: 2,
+  pass: 3,
+}
+
 function PostureCard({
   data,
   onGenerate,
@@ -350,28 +490,46 @@ function PostureCard({
   pending: boolean
   feedback: PostureFeedback | null
 }) {
-  const { posture_pass_count, posture_total_count, criteria } = data
-  const failures: Array<{
-    name: 'security_md' | 'dependabot_config'
-    label: string
-    description: string
-  }> = []
-  if (!criteria.security_md_present) {
-    failures.push({
-      name: 'security_md',
-      label: 'SECURITY.md is missing',
-      description:
-        'We can generate a starter file and open a PR you can review.',
-    })
-  }
-  if (!criteria.dependabot_present) {
-    failures.push({
-      name: 'dependabot_config',
-      label: 'Dependabot is not configured',
-      description:
-        'We can open a PR with a weekly update schedule and alerts.',
-    })
-  }
+  const { posture_pass_count, posture_total_count, criteria, posture_checks } =
+    data
+
+  // Prefer the real per-check list. Fall back to a synthesized minimal list
+  // for pre-2026-04 assessments whose payloads don't include posture_checks.
+  const checks: PostureCheckResult[] = useMemo(() => {
+    if (posture_checks && posture_checks.length > 0) return posture_checks
+    // Synthesize a best-effort list from the criteria summary so the UI
+    // doesn't collapse to "0 of 0" on older dashboards.
+    const names: PostureCheckName[] = [
+      'security_md',
+      'dependabot_config',
+      'branch_protection',
+      'no_force_pushes',
+      'no_secrets_in_code',
+      'lockfile_present',
+      'signed_commits',
+    ]
+    return names.map((n) => ({
+      id: `synth-${n}`,
+      assessment_id: 'synth',
+      check_name: n,
+      status:
+        n === 'security_md' && criteria.security_md_present
+          ? 'pass'
+          : n === 'dependabot_config' && criteria.dependabot_present
+            ? 'pass'
+            : 'unknown',
+      detail: null,
+      created_at: new Date().toISOString(),
+    })) as PostureCheckResult[]
+  }, [posture_checks, criteria])
+
+  const sorted = useMemo(
+    () =>
+      [...checks].sort(
+        (a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status],
+      ),
+    [checks],
+  )
 
   return (
     <section className="flex flex-col gap-4 rounded-3xl bg-surface-container-low p-6">
@@ -380,7 +538,8 @@ function PostureCard({
           Repo posture
         </h3>
         <p className="text-sm text-on-surface-variant">
-          {posture_pass_count} of {posture_total_count} checks pass
+          {posture_pass_count} of {posture_total_count} checks pass · click any
+          item for step-by-step guidance
         </p>
       </header>
 
@@ -417,27 +576,192 @@ function PostureCard({
         </div>
       )}
 
-      <ul role="list" className="flex flex-col gap-3">
-        {failures.map((f) => (
-          <PostureCheckItem
-            key={f.name}
-            checkName={f.name}
-            status="fail"
-            label={f.label}
-            description={f.description}
+      <ul role="list" className="flex flex-col gap-2">
+        {sorted.map((check) => (
+          <PostureCheckRow
+            key={check.check_name}
+            check={check}
             onGenerate={onGenerate}
             pending={pending}
           />
         ))}
-        <li className="pt-1 text-sm text-on-surface-variant">
-          <span className="material-symbols-outlined align-middle text-tertiary">
-            check_circle
-          </span>{' '}
-          {posture_pass_count} other checks passing
-        </li>
       </ul>
     </section>
   )
+}
+
+function PostureCheckRow({
+  check,
+  onGenerate,
+  pending,
+}: {
+  check: PostureCheckResult
+  onGenerate: (name: PostureFixableCheck) => void
+  pending: boolean
+}) {
+  const meta = POSTURE_META[check.check_name]
+  const [open, setOpen] = useState(check.status === 'fail')
+
+  const tone = statusTone(check.status)
+  const label =
+    check.status === 'pass' || check.status === 'advisory'
+      ? meta.label
+      : meta.failLabel
+
+  return (
+    <li
+      className={`rounded-2xl ${tone.bg} transition-colors`}
+      data-testid={`posture-row-${check.check_name}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left hover:bg-surface-container"
+      >
+        <span
+          className={`material-symbols-outlined text-xl ${tone.iconColor}`}
+          aria-hidden
+        >
+          {tone.icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-on-surface">{label}</p>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            {statusCopy(check.status)}
+            {check.status === 'unknown' &&
+              ' · likely a missing PAT scope, check Settings.'}
+          </p>
+        </div>
+        <span
+          className={`material-symbols-outlined text-on-surface-variant transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+          aria-hidden
+        >
+          expand_more
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 text-sm text-on-surface-variant">
+          <p className="mb-3">{meta.description}</p>
+
+          {check.status !== 'pass' && (
+            <>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                How to fix
+              </p>
+              <ol className="ml-4 list-decimal space-y-1.5">
+                {meta.steps.map((s, i) => (
+                  <li key={i} className="text-sm text-on-surface">
+                    {s}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+
+          {meta.docHref && (
+            <a
+              href={meta.docHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden>
+                open_in_new
+              </span>
+              {meta.docLabel ?? 'Read the docs'}
+            </a>
+          )}
+
+          {check.status !== 'pass' && isFixable(check.check_name) && (
+            <div className="mt-4 flex items-center gap-3 border-t border-outline-variant/30 pt-3">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (isFixable(check.check_name)) {
+                    onGenerate(check.check_name)
+                  }
+                }}
+                disabled={pending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-sm" aria-hidden>
+                  play_arrow
+                </span>
+                Let OpenSec open a PR
+              </button>
+              <span className="text-xs text-on-surface-variant">
+                Opens a draft PR you review before merging.
+              </span>
+            </div>
+          )}
+
+          {check.detail && Object.keys(check.detail).length > 0 && (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                Check detail (JSON)
+              </summary>
+              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-surface-container p-3 text-xs text-on-surface">
+                {JSON.stringify(check.detail, null, 2)}
+              </pre>
+            </details>
+          )}
+        </div>
+      )}
+    </li>
+  )
+}
+
+function statusTone(status: PostureCheckStatus): {
+  icon: string
+  iconColor: string
+  bg: string
+} {
+  switch (status) {
+    case 'pass':
+      return {
+        icon: 'check_circle',
+        iconColor: 'text-tertiary',
+        bg: 'bg-surface-container',
+      }
+    case 'advisory':
+      return {
+        icon: 'info',
+        iconColor: 'text-on-surface-variant',
+        bg: 'bg-surface-container',
+      }
+    case 'unknown':
+      return {
+        icon: 'help',
+        iconColor: 'text-on-surface-variant',
+        bg: 'bg-surface-container',
+      }
+    case 'fail':
+    default:
+      return {
+        icon: 'error',
+        iconColor: 'text-primary',
+        bg: 'bg-primary-container/25',
+      }
+  }
+}
+
+function statusCopy(status: PostureCheckStatus): string {
+  switch (status) {
+    case 'pass':
+      return 'Passing'
+    case 'advisory':
+      return 'Recommended'
+    case 'unknown':
+      return 'Unable to verify'
+    case 'fail':
+    default:
+      return 'Needs attention'
+  }
 }
 
 /**

@@ -10,7 +10,34 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { request } from './client'
 import type { components } from './types'
 
-export type DashboardPayload = components['schemas']['DashboardPayload']
+// Names match backend/opensec/models/posture_check.py :: PostureCheckName.
+// Frontend-owned so we don't wait on an OpenAPI regen every time we add
+// state to the PostureCard.
+export type PostureCheckName =
+  | 'branch_protection'
+  | 'no_force_pushes'
+  | 'no_secrets_in_code'
+  | 'security_md'
+  | 'lockfile_present'
+  | 'dependabot_config'
+  | 'signed_commits'
+
+export type PostureCheckStatus = 'pass' | 'fail' | 'advisory' | 'unknown'
+
+export interface PostureCheckResult {
+  id: string
+  assessment_id: string
+  check_name: PostureCheckName
+  status: PostureCheckStatus
+  detail?: Record<string, unknown> | null
+  created_at: string
+}
+
+// The codegen snapshot doesn't know about `posture_checks` yet. Extend the
+// generated shape with the field we ship from the backend now.
+export type DashboardPayload = components['schemas']['DashboardPayload'] & {
+  posture_checks?: PostureCheckResult[]
+}
 export type AssessmentStatusResponse =
   components['schemas']['AssessmentStatusResponse']
 export type AssessmentLatestResponse =

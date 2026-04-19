@@ -774,6 +774,14 @@
             ],
             "title": "Grade"
           },
+          "posture_checks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PostureCheck"
+            },
+            "title": "Posture Checks",
+            "type": "array"
+          },
           "posture_pass_count": {
             "title": "Posture Pass Count",
             "type": "integer"
@@ -1887,6 +1895,67 @@
           "approved"
         ],
         "title": "PermissionDecision",
+        "type": "object"
+      },
+      "PostureCheck": {
+        "properties": {
+          "assessment_id": {
+            "title": "Assessment Id",
+            "type": "string"
+          },
+          "check_name": {
+            "enum": [
+              "branch_protection",
+              "no_force_pushes",
+              "no_secrets_in_code",
+              "security_md",
+              "lockfile_present",
+              "dependabot_config",
+              "signed_commits"
+            ],
+            "title": "Check Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "advisory",
+              "unknown"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "assessment_id",
+          "check_name",
+          "status",
+          "created_at"
+        ],
+        "title": "PostureCheck",
         "type": "object"
       },
       "PostureFixResponse": {

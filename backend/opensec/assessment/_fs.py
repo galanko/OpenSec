@@ -9,7 +9,25 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 SKIP_DIRS = frozenset(
-    {"node_modules", "vendor", ".git", ".venv", "venv", "__pycache__", "dist", "build"}
+    {
+        "node_modules",
+        "vendor",
+        ".git",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "dist",
+        "build",
+        # Test data directories — lockfiles under these paths are intentional
+        # inputs to the assessment engine's own unit tests (or the user's), not
+        # real runtime dependencies. Without this exclusion we report hundreds
+        # of false-positive CVEs on any repo whose parser tests ship an
+        # intentionally-vulnerable lockfile (including OpenSec itself).
+        "fixtures",
+        "testdata",
+        "test-fixtures",
+        "test_fixtures",
+    }
 )
 
 # Size cap for untrusted lockfiles — a pathological monorepo can produce
