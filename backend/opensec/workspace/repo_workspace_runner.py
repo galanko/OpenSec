@@ -40,6 +40,7 @@ from pydantic import BaseModel
 
 from opensec.agents.output_parser import parse_agent_response
 from opensec.agents.template_engine import AgentTemplateEngine
+from opensec.services.pr_verifier import verify_pr_url
 from opensec.workspace.workspace_dir_manager import WorkspaceKind
 
 if TYPE_CHECKING:
@@ -77,6 +78,10 @@ class RepoAgentStatus(BaseModel):
     error: str | None = None
     started_at: str
     finished_at: str | None = None
+    # Last ~2000 chars of the agent's SSE text, persisted so the UI can show
+    # users *why* a run failed instead of generic "Agent finished without
+    # opening a PR". Added for B16 (fake PR URL surfaced as a helpful log).
+    agent_log_tail: str | None = None
     # Raw JSON payload from the generator's structured_output block, kept so
     # the UI can surface rich per-kind details (e.g. the file_path an agent
     # wrote) without us having to bake every template's schema into this model.
@@ -208,12 +213,15 @@ class RepoAgentRunner:
                 response_text
             )
 
+        log_tail = _tail(response_text)
+
         if not response_text.strip():
             return self._finalize(
                 workspace_root,
                 running,
                 status="failed",
                 error="Agent returned an empty response",
+                agent_log_tail=log_tail,
             )
 
         parsed = parse_agent_response(response_text, agent_type=_agent_type_for(kind))
@@ -226,20 +234,41 @@ class RepoAgentRunner:
                 status="failed",
                 error=parsed.error or "Agent output did not match contract",
                 structured_output=structured or None,
+                agent_log_tail=log_tail,
             )
 
         agent_status = (structured.get("status") or "").lower()
         pr_url = structured.get("pr_url")
         branch_name = structured.get("branch_name")
 
-        if agent_status == "pr_created" and pr_url:
+        if agent_status == "pr_created":
+            # B16: the agent cannot be trusted to emit a real PR URL. Hit
+            # GitHub's API before we tell the user "PR opened" — a mismatch
+            # is the symptom we're fixing.
+            verification = await verify_pr_url(pr_url, token=gh_token)
+            if verification.ok:
+                return self._finalize(
+                    workspace_root,
+                    running,
+                    status="pr_created",
+                    pr_url=verification.html_url or pr_url,
+                    branch_name=branch_name,
+                    structured_output=structured,
+                )
+            # Verification failed — no fallback. Surface the real reason +
+            # a tail of the agent's response so the user can tell whether
+            # a branch was actually pushed or the model invented the URL.
             return self._finalize(
                 workspace_root,
                 running,
-                status="pr_created",
-                pr_url=pr_url,
-                branch_name=branch_name,
+                status="failed",
+                error=(
+                    "PR verification failed: "
+                    f"{verification.reason}. Agent claimed pr_url="
+                    f"{pr_url!r}."
+                ),
                 structured_output=structured,
+                agent_log_tail=log_tail,
             )
         if agent_status == "already_present":
             return self._finalize(
@@ -256,6 +285,7 @@ class RepoAgentRunner:
             error=structured.get("error_details")
             or "Agent finished without opening a PR",
             structured_output=structured,
+            agent_log_tail=log_tail,
         )
 
     # ------------------------------------------------------------------
@@ -272,6 +302,7 @@ class RepoAgentRunner:
         branch_name: str | None = None,
         error: str | None = None,
         structured_output: dict[str, Any] | None = None,
+        agent_log_tail: str | None = None,
     ) -> RepoAgentStatus:
         final = running.model_copy(
             update={
@@ -280,6 +311,7 @@ class RepoAgentRunner:
                 "branch_name": branch_name,
                 "error": error,
                 "structured_output": structured_output,
+                "agent_log_tail": agent_log_tail,
                 "finished_at": datetime.now(UTC).isoformat(),
             }
         )
@@ -299,6 +331,21 @@ class RepoAgentRunner:
 # Private helpers — separated from the class to keep it mockable without
 # monkey-patching instance methods.
 # ---------------------------------------------------------------------------
+
+
+# Keep the log excerpt short enough to live in a JSON field and render in a
+# sidebar without scrollbars, but long enough to show the last ``gh pr create``
+# output (which is the bit that explains why PR creation failed).
+_LOG_TAIL_CHARS = 2000
+
+
+def _tail(text: str) -> str | None:
+    """Return the last ~2000 chars of *text* with a truncation marker."""
+    if not text:
+        return None
+    if len(text) <= _LOG_TAIL_CHARS:
+        return text
+    return "…(truncated)…\n" + text[-_LOG_TAIL_CHARS:]
 
 
 def _render_prompt(
