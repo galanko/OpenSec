@@ -77,9 +77,15 @@ class TestSecurityMdRepoWorkspace:
         # process pool), not from the rendered prompt.
         assert "ghp_sekret_only_in_env" not in content
 
-    def test_opencode_json_has_ask_perms(
+    def test_opencode_json_has_allow_perms_for_repo_action(
         self, manager: WorkspaceDirManager
     ) -> None:
+        """Repo-action workspaces run single-shot posture agents with no
+        interactive approval path — see the rationale in
+        ``_build_opencode_config``. Bash/edit/webfetch/external_directory
+        all default to ``allow`` for this kind of workspace so the agent
+        doesn't stall on a permission prompt nobody can answer.
+        """
         workspace_id = manager.create_repo_workspace(
             WorkspaceKind.repo_action_security_md,
             repo_url="https://github.com/acme/widget",
@@ -88,9 +94,10 @@ class TestSecurityMdRepoWorkspace:
         cfg = json.loads(
             (manager.base_dir / workspace_id / "opencode.json").read_text()
         )
-        assert cfg["permission"]["bash"] == "ask"
-        assert cfg["permission"]["edit"] == "ask"
+        assert cfg["permission"]["bash"] == "allow"
+        assert cfg["permission"]["edit"] == "allow"
         assert cfg["permission"]["webfetch"] == "allow"
+        assert cfg["permission"]["external_directory"] == "allow"
 
 
 class TestDependabotRepoWorkspace:
