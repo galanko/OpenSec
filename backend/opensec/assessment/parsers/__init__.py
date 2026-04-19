@@ -14,7 +14,11 @@ from opensec.assessment._fs import iter_repo_files
 from opensec.assessment.parsers.base import Ecosystem, ParsedDependency
 from opensec.assessment.parsers.golang import parse_go_sum
 from opensec.assessment.parsers.npm import parse_npm_lockfile
-from opensec.assessment.parsers.pip import parse_pipfile_lock, parse_requirements_txt
+from opensec.assessment.parsers.pip import (
+    parse_pipfile_lock,
+    parse_requirements_txt,
+    parse_uv_lock,
+)
 
 ParserFn = Callable[[Path], list[ParsedDependency]]
 
@@ -22,6 +26,7 @@ _REGISTRY: dict[str, tuple[Ecosystem, ParserFn]] = {
     "package-lock.json": ("npm", parse_npm_lockfile),
     "Pipfile.lock": ("pip", parse_pipfile_lock),
     "requirements.txt": ("pip", parse_requirements_txt),
+    "uv.lock": ("pip", parse_uv_lock),
     "go.sum": ("go", parse_go_sum),
 }
 
@@ -45,4 +50,5 @@ __all__ = [
     "parse_npm_lockfile",
     "parse_pipfile_lock",
     "parse_requirements_txt",
+    "parse_uv_lock",
 ]
