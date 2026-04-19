@@ -10,13 +10,17 @@ Tests override via ``app.dependency_overrides[get_assessment_engine] = lambda: f
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
-import asyncio
-import logging
-
-from fastapi import Request
+# Request stays in runtime imports on purpose. FastAPI resolves the
+# get_repo_workspace_spawner(request: Request) annotation via
+# typing.get_type_hints at OpenAPI schema build time; pydantic's
+# TypeAdapter raises class-not-fully-defined if Request only lives in a
+# TYPE_CHECKING block. Do not move.
+from fastapi import Request  # noqa: TCH002
 
 from opensec.config import settings
 

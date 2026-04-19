@@ -33,16 +33,19 @@ import contextlib
 import json
 import logging
 from datetime import UTC, datetime
-from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from pydantic import BaseModel
 
 from opensec.agents.output_parser import parse_agent_response
 from opensec.agents.template_engine import AgentTemplateEngine
-from opensec.engine.pool import WorkspaceProcessPool
 from opensec.workspace.workspace_dir_manager import WorkspaceKind
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from opensec.engine.pool import WorkspaceProcessPool
 
 logger = logging.getLogger(__name__)
 
@@ -389,7 +392,7 @@ async def _collect_response(
 
     try:
         return await asyncio.wait_for(_stream(), timeout=timeout)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         # Outer timeout — surface whatever we collected so the caller still
         # gets diagnostic text in ``history/agent-response.txt`` instead of
         # a blanket "Unexpected error".
