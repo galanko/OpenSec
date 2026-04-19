@@ -53,3 +53,37 @@ def test_pip_parser_ignores_comments_and_editables(tmp_path: Path) -> None:
     )
     deps = parse_requirements_txt(req)
     assert [(d.name, d.version) for d in deps] == [("foo", "1.2.3")]
+
+
+UV_FIXTURES = FIXTURES / "uv"
+
+
+def test_pip_uv_lock_extracts_registry_packages() -> None:
+    from opensec.assessment.parsers.pip import parse_uv_lock
+
+    deps = parse_uv_lock(UV_FIXTURES / "uv.lock")
+    entries = {(d.name, d.version) for d in deps}
+
+    # Real registry packages land.
+    assert ("aiosqlite", "0.22.1") in entries
+    assert ("cryptography", "46.0.6") in entries
+    assert ("pytest", "9.0.2") in entries
+
+    # Virtual / workspace / editable entries are dropped — they're repo-local
+    # and not resolvable on OSV.
+    for name in ("opensec", "myworkspace", "editable-pkg"):
+        assert all(n != name for n, _ in entries), f"{name} should be skipped"
+
+    for dep in deps:
+        assert dep.ecosystem == "pip"
+
+
+def test_pip_uv_lock_registered_for_detection() -> None:
+    """``uv.lock`` must be in the detect_lockfiles registry, otherwise the
+    engine silently skips Python projects that use uv (i.e. OpenSec itself).
+    """
+    from opensec.assessment.parsers import _REGISTRY
+
+    assert "uv.lock" in _REGISTRY
+    ecosystem, _ = _REGISTRY["uv.lock"]
+    assert ecosystem == "pip"
