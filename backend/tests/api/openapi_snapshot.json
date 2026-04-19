@@ -1958,6 +1958,57 @@
         "title": "PostureCheck",
         "type": "object"
       },
+      "PostureFixRequest": {
+        "description": "Optional per-check parameters the UI can send with the fix call.\n\nAll fields are optional \u2014 the template falls back to clearly-labelled\nplaceholders when a value is missing. We accept the full set up-front so\nadding a new field (e.g. ``contact_url``) later doesn't require a new\nrequest model.",
+        "properties": {
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Url"
+          },
+          "disclosure_window_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disclosure Window Days"
+          },
+          "supported_versions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supported Versions"
+          }
+        },
+        "title": "PostureFixRequest",
+        "type": "object"
+      },
       "PostureFixResponse": {
         "properties": {
           "check_name": {
@@ -2091,6 +2142,98 @@
           "description"
         ],
         "title": "RegistryEntry",
+        "type": "object"
+      },
+      "RepoAgentStatus": {
+        "description": "On-disk status snapshot. One JSON file per repo workspace.",
+        "properties": {
+          "branch_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Name"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "pr_created",
+              "already_present",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
+          },
+          "workspace_id": {
+            "title": "Workspace Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_id",
+          "kind",
+          "status",
+          "started_at"
+        ],
+        "title": "RepoAgentStatus",
         "type": "object"
       },
       "RunAllResponse": {
@@ -3850,9 +3993,52 @@
         ]
       }
     },
+    "/api/posture/fix/status/{workspace_id}": {
+      "get": {
+        "description": "Return the current status of a posture-fix agent run.\n\nPolled by the UI after ``POST /posture/fix/{check_name}`` returns a\nworkspace id. Reads from ``data/workspaces/<id>/history/status.json``\n\u2014 no DB involvement; status is workspace-local state.",
+        "operationId": "get_posture_fix_status_api_posture_fix_status__workspace_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepoAgentStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Posture Fix Status",
+        "tags": [
+          "posture"
+        ]
+      }
+    },
     "/api/posture/fix/{check_name}": {
       "post": {
-        "description": "Spawn a repo-workspace with the appropriate generator agent.",
+        "description": "Spawn a repo-workspace with the appropriate generator agent.\n\n``body`` is optional: existing callers that POST an empty body still work\nand the generator templates fall back to placeholders. When the UI sends\n``contact_email`` (or other template params), we thread them through the\nspawner so the rendered prompt substitutes them verbatim and the\nmaintainer gets a PR that needs fewer edits.",
         "operationId": "fix_posture_check_api_posture_fix__check_name__post",
         "parameters": [
           {
@@ -3869,6 +4055,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PostureFixRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
