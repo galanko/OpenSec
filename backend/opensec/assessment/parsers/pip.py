@@ -1,4 +1,5 @@
-"""pip lockfile parsers — `Pipfile.lock` (JSON) and exact-pinned `requirements.txt`.
+"""pip lockfile parsers — `Pipfile.lock` (JSON), exact-pinned `requirements.txt`,
+and `uv.lock` (TOML, astral-sh/uv).
 
 We honour only exact pins (`name==version`); unpinned / `-r` / `-e` /
 comments / CLI flags / blank lines are skipped silently. This is a scanner,
@@ -9,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 from typing import TYPE_CHECKING
 
 from opensec.assessment._fs import safe_read_text
@@ -38,6 +40,42 @@ def parse_pipfile_lock(path: Path) -> list[ParsedDependency]:
             if not version:
                 continue
             out.setdefault((name, version), ParsedDependency(name, version, "pip"))
+    return list(out.values())
+
+
+def parse_uv_lock(path: Path) -> list[ParsedDependency]:
+    """Parse ``uv.lock`` — astral-sh/uv's TOML lockfile.
+
+    Shape (uv 0.4+):
+
+        [[package]]
+        name = "cryptography"
+        version = "46.0.6"
+        source = { registry = "https://pypi.org/simple" }
+
+    Skip entries without a ``version`` (editable installs) and entries
+    whose ``source`` is ``virtual`` or ``workspace`` — those are local
+    packages in the repo, not runtime deps we can look up on OSV.
+    """
+    data = tomllib.loads(safe_read_text(path))
+    out: dict[tuple[str, str], ParsedDependency] = {}
+    for entry in data.get("package", []) or []:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        version = entry.get("version")
+        if not isinstance(name, str) or not isinstance(version, str):
+            continue
+        source = entry.get("source")
+        if isinstance(source, dict):
+            if source.get("virtual") or source.get("editable"):
+                continue
+            # Workspace members are siblings of the root project — their
+            # "version" is whatever the dev wrote in pyproject, not a
+            # registry-resolvable version.
+            if source.get("workspace") is True:
+                continue
+        out.setdefault((name, version), ParsedDependency(name, version, "pip"))
     return list(out.values())
 
 

@@ -1,0 +1,32 @@
+version = 1
+requires-python = ">=3.11"
+
+[[package]]
+name = "aiosqlite"
+version = "0.22.1"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "cryptography"
+version = "46.0.6"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "pytest"
+version = "9.0.2"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "opensec"
+version = "0.1.0"
+source = { virtual = "." }
+
+[[package]]
+name = "myworkspace"
+version = "0.0.0"
+source = { workspace = true }
+
+[[package]]
+name = "editable-pkg"
+version = "1.0.0"
+source = { editable = "/path" }
