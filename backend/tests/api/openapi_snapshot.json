@@ -2147,6 +2147,17 @@
       "RepoAgentStatus": {
         "description": "On-disk status snapshot. One JSON file per repo workspace.",
         "properties": {
+          "agent_log_tail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Log Tail"
+          },
           "branch_name": {
             "anyOf": [
               {

@@ -91,6 +91,7 @@ export const assessmentRunningPayload: DashboardPayload = {
   },
   findings_count_by_priority: {},
   grade: null,
+  posture_checks: [],
   posture_pass_count: 0,
   posture_total_count: 0,
 }
@@ -112,6 +113,7 @@ export const gradeCWithIssuesPayload: DashboardPayload = {
     low: 1,
   },
   grade: 'C',
+  posture_checks: [],
   posture_pass_count: 7,
   posture_total_count: 7,
 }
@@ -133,6 +135,7 @@ export const gradeACompletionHoldingPayload: DashboardPayload = {
     low: 0,
   },
   grade: 'A',
+  posture_checks: [],
   posture_pass_count: 7,
   posture_total_count: 7,
 }

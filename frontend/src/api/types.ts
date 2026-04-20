@@ -73,7 +73,11 @@ export interface paths {
         };
         /**
          * Get Assessment Status
-         * @description Poll assessment progress. Session B will upgrade this to SSE.
+         * @description Poll assessment progress.
+         *
+         *     When the assessment is ``running``, ``step`` is the live phase from
+         *     :func:`opensec.api._background.get_assessment_step` (e.g. ``cloning`` or
+         *     ``looking_up_cves``); otherwise it mirrors ``status``.
          */
         get: operations["get_assessment_status_api_assessment_status__assessment_id__get"];
         put?: never;
@@ -149,6 +153,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/completion/{completion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Completion
+         * @description Read-only fetch — used by the E2E suite to verify share-action recording.
+         */
+        get: operations["get_completion_api_completion__completion_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/completion/{completion_id}/share-action": {
         parameters: {
             query?: never;
@@ -169,6 +193,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Bootstrap
+         * @description Bootstrap hints for SPA redirect decisions.
+         */
+        get: operations["get_bootstrap_api_config_bootstrap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/dashboard": {
         parameters: {
             query?: never;
@@ -179,6 +223,10 @@ export interface paths {
         /**
          * Get Dashboard
          * @description Aggregate dashboard payload: latest assessment + findings + posture.
+         *
+         *     The findings count is scoped to the current assessment window (source
+         *     ``opensec-assessment``, created at or after the latest assessment's start)
+         *     so the Vulnerabilities tile always matches what the Findings page shows.
          */
         get: operations["get_dashboard_api_dashboard_get"];
         put?: never;
@@ -196,7 +244,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Findings Endpoint */
+        /**
+         * List Findings Endpoint
+         * @description List findings.
+         *
+         *     When ``scope=current`` the list is scoped to the latest assessment's
+         *     window (``source_type='opensec-assessment'`` + ``created_at`` at or after
+         *     the latest assessment's ``started_at``) so the Findings page matches the
+         *     dashboard's Vulnerabilities tile.
+         */
         get: operations["list_findings_endpoint_api_findings_get"];
         put?: never;
         /** Create Finding Endpoint */
@@ -330,6 +386,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/posture/fix/status/{workspace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Posture Fix Status
+         * @description Return the current status of a posture-fix agent run.
+         *
+         *     Polled by the UI after ``POST /posture/fix/{check_name}`` returns a
+         *     workspace id. Reads from ``data/workspaces/<id>/history/status.json``
+         *     — no DB involvement; status is workspace-local state.
+         */
+        get: operations["get_posture_fix_status_api_posture_fix_status__workspace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/posture/fix/{check_name}": {
         parameters: {
             query?: never;
@@ -342,6 +422,12 @@ export interface paths {
         /**
          * Fix Posture Check
          * @description Spawn a repo-workspace with the appropriate generator agent.
+         *
+         *     ``body`` is optional: existing callers that POST an empty body still work
+         *     and the generator templates fall back to placeholders. When the UI sends
+         *     ``contact_email`` (or other template params), we thread them through the
+         *     spawner so the rendered prompt substitutes them verbatim and the
+         *     maintainer gets a PR that needs fewer edits.
          */
         post: operations["fix_posture_check_api_posture_fix__check_name__post"];
         delete?: never;
@@ -1263,6 +1349,16 @@ export interface components {
             /** Step */
             step?: string | null;
         };
+        /**
+         * BootstrapState
+         * @description Read-only state the SPA fetches before rendering the first page.
+         */
+        BootstrapState: {
+            /** Has Any Assessment */
+            has_any_assessment: boolean;
+            /** Onboarding Completed */
+            onboarding_completed: boolean;
+        };
         /** ChatPermissionDecision */
         ChatPermissionDecision: {
             /** Approved */
@@ -1286,6 +1382,26 @@ export interface components {
              * @default sent
              */
             status: string;
+        };
+        /** Completion */
+        Completion: {
+            /** Assessment Id */
+            assessment_id: string;
+            /**
+             * Completed At
+             * Format: date-time
+             */
+            completed_at: string;
+            criteria_snapshot: components["schemas"]["CriteriaSnapshot"];
+            /** Id */
+            id: string;
+            /** Repo Url */
+            repo_url: string;
+            /**
+             * Share Actions Used
+             * @default []
+             */
+            share_actions_used: ("download" | "copy_text" | "copy_markdown")[];
         };
         /** CredentialCreate */
         CredentialCreate: {
@@ -1372,6 +1488,11 @@ export interface components {
             };
             /** Grade */
             grade: ("A" | "B" | "C" | "D" | "F") | null;
+            /**
+             * Posture Checks
+             * @default []
+             */
+            posture_checks: components["schemas"]["PostureCheck"][];
             /** Posture Pass Count */
             posture_pass_count: number;
             /** Posture Total Count */
@@ -1761,11 +1882,57 @@ export interface components {
             assessment_id: string;
             /** Repo Url */
             repo_url: string;
+            verified?: components["schemas"]["VerifiedRepo"] | null;
         };
         /** PermissionDecision */
         PermissionDecision: {
             /** Approved */
             approved: boolean;
+        };
+        /** PostureCheck */
+        PostureCheck: {
+            /** Assessment Id */
+            assessment_id: string;
+            /**
+             * Check Name
+             * @enum {string}
+             */
+            check_name: "branch_protection" | "no_force_pushes" | "no_secrets_in_code" | "security_md" | "lockfile_present" | "dependabot_config" | "signed_commits";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Detail */
+            detail?: {
+                [key: string]: unknown;
+            } | null;
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pass" | "fail" | "advisory" | "unknown";
+        };
+        /**
+         * PostureFixRequest
+         * @description Optional per-check parameters the UI can send with the fix call.
+         *
+         *     All fields are optional — the template falls back to clearly-labelled
+         *     placeholders when a value is missing. We accept the full set up-front so
+         *     adding a new field (e.g. ``contact_url``) later doesn't require a new
+         *     request model.
+         */
+        PostureFixRequest: {
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Url */
+            contact_url?: string | null;
+            /** Disclosure Window Days */
+            disclosure_window_days?: number | null;
+            /** Supported Versions */
+            supported_versions?: string | null;
         };
         /** PostureFixResponse */
         PostureFixResponse: {
@@ -1835,6 +2002,37 @@ export interface components {
             toolsets?: {
                 [key: string]: string[];
             } | null;
+        };
+        /**
+         * RepoAgentStatus
+         * @description On-disk status snapshot. One JSON file per repo workspace.
+         */
+        RepoAgentStatus: {
+            /** Agent Log Tail */
+            agent_log_tail?: string | null;
+            /** Branch Name */
+            branch_name?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Kind */
+            kind: string;
+            /** Pr Url */
+            pr_url?: string | null;
+            /** Started At */
+            started_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "running" | "pr_created" | "already_present" | "failed";
+            /** Structured Output */
+            structured_output?: {
+                [key: string]: unknown;
+            } | null;
+            /** Workspace Id */
+            workspace_id: string;
         };
         /** RunAllResponse */
         RunAllResponse: {
@@ -2001,6 +2199,23 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /**
+         * VerifiedRepo
+         * @description Display-only metadata the SPA shows on the connect-success card.
+         */
+        VerifiedRepo: {
+            /** Default Branch */
+            default_branch: string;
+            /**
+             * Permissions
+             * @default []
+             */
+            permissions: string[];
+            /** Repo Name */
+            repo_name: string;
+            /** Visibility */
+            visibility: string;
         };
         /** Workspace */
         Workspace: {
@@ -2294,6 +2509,37 @@ export interface operations {
             };
         };
     };
+    get_completion_api_completion__completion_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                completion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Completion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     record_share_action_api_completion__completion_id__share_action_post: {
         parameters: {
             query?: never;
@@ -2329,6 +2575,26 @@ export interface operations {
             };
         };
     };
+    get_bootstrap_api_config_bootstrap_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BootstrapState"];
+                };
+            };
+        };
+    };
     get_dashboard_api_dashboard_get: {
         parameters: {
             query?: never;
@@ -2354,6 +2620,7 @@ export interface operations {
             query?: {
                 status?: string | null;
                 has_workspace?: boolean | null;
+                scope?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -2672,6 +2939,37 @@ export interface operations {
             };
         };
     };
+    get_posture_fix_status_api_posture_fix_status__workspace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepoAgentStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     fix_posture_check_api_posture_fix__check_name__post: {
         parameters: {
             query?: never;
@@ -2681,7 +2979,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PostureFixRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -791,3 +791,186 @@ class TestPermissionApproval:
         assert permission_calls[0]["tool"] == "bash"
         # Should have called grant after approval
         client.grant_permission.assert_called_once_with("per_bash", session_id="ses-1")
+
+
+# ---------------------------------------------------------------------------
+# B16: PR-URL verification on remediation_executor
+# ---------------------------------------------------------------------------
+
+
+def _make_executor_agent_response(*, pr_url: str | None, status: str = "pr_created"):
+    """Build a remediation_executor response with the given pr_url claim."""
+    data = {
+        "summary": "opened draft PR",
+        "result_card_markdown": "## Remediation\n\nBumped version",
+        "structured_output": {
+            "status": status,
+            "pr_url": pr_url,
+            "branch_name": "opensec/fix/cve-test",
+            "changes_summary": "bumped widget to 1.2.3",
+            "test_results": "pass",
+            "error_details": None,
+        },
+        "confidence": 0.9,
+        "evidence_sources": ["git diff", "pytest"],
+        "suggested_next_action": "review_pr",
+    }
+    return f"```json\n{json.dumps(data)}\n```"
+
+
+class TestRemediationExecutorPRVerification:
+    """B16 guardrail: hallucinated PR URLs must fail the run."""
+
+    @pytest.mark.asyncio
+    async def test_valid_pr_url_passes_verification(
+        self, mock_pool, mock_context_builder, mock_db, workspace_dir
+    ):
+        real_url = "https://github.com/acme/widget/pull/42"
+        mock_pool.get_or_start.return_value = _make_mock_client(
+            _make_executor_agent_response(pr_url=real_url)
+        )
+
+        from opensec.services.pr_verifier import PRVerification
+
+        async def fake_verify(url, **_):
+            assert url == real_url
+            return PRVerification(
+                ok=True, reason="verified", pr_state="open", html_url=url
+            )
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(
+                    agent_type="remediation_executor"
+                ),
+            ),
+            patch("opensec.agents.executor.update_agent_run") as mock_update,
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+            patch(
+                "opensec.agents.executor._advance_finding_status",
+                return_value="remediated",
+            ) as mock_advance,
+            patch(
+                "opensec.agents.executor.verify_pr_url",
+                side_effect=fake_verify,
+            ),
+        ):
+            result = await executor.execute(
+                "ws-1",
+                "remediation_executor",
+                mock_db,
+                workspace_dir=workspace_dir,
+                env_vars={"GH_TOKEN": "ghp_test"},
+            )
+
+        assert result.status == "completed"
+        assert result.parse_result.success is True
+        assert result.sidebar_updated is True
+        mock_sidebar.assert_called_once()
+        mock_advance.assert_called_once()
+        final_call = mock_update.call_args_list[-1]
+        assert final_call.args[2].status == "completed"
+
+    @pytest.mark.asyncio
+    async def test_hallucinated_pr_url_fails_run_and_blocks_advance(
+        self, mock_pool, mock_context_builder, mock_db, workspace_dir
+    ):
+        """B16 regression: verifier says 404 → no sidebar update, no advance, no completion."""
+        fake_url = "https://github.com/acme/widget/pull/9999"
+        mock_pool.get_or_start.return_value = _make_mock_client(
+            _make_executor_agent_response(pr_url=fake_url)
+        )
+
+        from opensec.services.pr_verifier import PRVerification
+
+        async def fake_verify(url, **_):
+            return PRVerification(
+                ok=False,
+                reason="not_found: GitHub returned 404 for this pull request",
+            )
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(
+                    agent_type="remediation_executor"
+                ),
+            ),
+            patch("opensec.agents.executor.update_agent_run") as mock_update,
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+            patch(
+                "opensec.agents.executor._advance_finding_status",
+                return_value=None,
+            ) as mock_advance,
+            patch(
+                "opensec.agents.executor.verify_pr_url",
+                side_effect=fake_verify,
+            ),
+        ):
+            result = await executor.execute(
+                "ws-1",
+                "remediation_executor",
+                mock_db,
+                workspace_dir=workspace_dir,
+                env_vars={"GH_TOKEN": "ghp_test"},
+            )
+
+        assert result.status == "failed"
+        assert result.error is not None
+        assert "PR verification failed" in result.error
+        assert "not_found" in result.error
+        mock_sidebar.assert_not_called()
+        mock_advance.assert_not_called()
+        final_call = mock_update.call_args_list[-1]
+        update = final_call.args[2]
+        assert update.status == "failed"
+        assert "PR verification failed" in (update.summary_markdown or "")
+
+    @pytest.mark.asyncio
+    async def test_compare_url_rejected_without_network(
+        self, mock_pool, mock_context_builder, mock_db, workspace_dir
+    ):
+        """A ``/pull/new/<branch>`` URL is rejected by the URL parser alone."""
+        fake_url = "https://github.com/acme/widget/pull/new/opensec-fix"
+        mock_pool.get_or_start.return_value = _make_mock_client(
+            _make_executor_agent_response(pr_url=fake_url)
+        )
+
+        executor = AgentExecutor(mock_pool, mock_context_builder)
+        with (
+            patch(
+                "opensec.agents.executor.create_agent_run",
+                return_value=_make_mock_agent_run(
+                    agent_type="remediation_executor"
+                ),
+            ),
+            patch("opensec.agents.executor.update_agent_run"),
+            patch("opensec.agents.executor.list_agent_runs", return_value=[]),
+            patch("opensec.agents.executor.map_and_upsert") as mock_sidebar,
+            patch(
+                "opensec.agents.executor._advance_finding_status",
+                return_value=None,
+            ),
+            patch(
+                "httpx.AsyncClient.get",
+                side_effect=AssertionError(
+                    "verifier should not touch the network for invalid URLs"
+                ),
+            ),
+        ):
+            result = await executor.execute(
+                "ws-1",
+                "remediation_executor",
+                mock_db,
+                workspace_dir=workspace_dir,
+                env_vars={"GH_TOKEN": "ghp_test"},
+            )
+
+        assert result.status == "failed"
+        assert "not_a_pull_url" in (result.error or "")
+        mock_sidebar.assert_not_called()

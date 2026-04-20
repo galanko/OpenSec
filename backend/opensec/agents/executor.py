@@ -34,6 +34,7 @@ from opensec.db.repo_agent_run import (
 from opensec.db.repo_finding import get_finding, update_finding
 from opensec.db.repo_workspace import get_workspace
 from opensec.models import AgentRunCreate, AgentRunUpdate, FindingUpdate
+from opensec.services.pr_verifier import verify_pr_url
 from opensec.workspace.context_document import ContextDocument
 from opensec.workspace.workspace_dir import AGENT_TYPE_TO_SECTION, CONTEXT_SECTIONS
 
@@ -562,6 +563,53 @@ class AgentExecutor:
                 if retry_result.success:
                     parse_result = retry_result
 
+            # 7c. PR URL verification (B16). The remediation_executor is the
+            # only agent that claims to have opened a PR. If the emitted
+            # ``pr_url`` can't be fetched from GitHub we flip the parse
+            # result to a failure BEFORE anything is persisted — otherwise
+            # we'd advance the finding to ``remediated`` with a hallucinated
+            # URL and the user would later click a dead link.
+            verification_error: str | None = None
+            if (
+                parse_result.success
+                and agent_type == "remediation_executor"
+                and (parse_result.structured_output or {}).get("status")
+                == "pr_created"
+            ):
+                gh_token = (env_vars or {}).get("GH_TOKEN") or (
+                    env_vars or {}
+                ).get("GITHUB_TOKEN")
+                claimed = (parse_result.structured_output or {}).get("pr_url")
+                verification = await verify_pr_url(claimed, token=gh_token)
+                if not verification.ok:
+                    verification_error = (
+                        "PR verification failed: "
+                        f"{verification.reason}. Agent claimed "
+                        f"pr_url={claimed!r}."
+                    )
+                    logger.warning(
+                        "remediation_executor emitted unverifiable pr_url "
+                        "(workspace=%s run=%s): %s",
+                        workspace_id,
+                        agent_run.id,
+                        verification_error,
+                    )
+                    # Strip the false claim so downstream persistence doesn't
+                    # store a dead link in the sidebar.
+                    cleaned = dict(parse_result.structured_output or {})
+                    cleaned["status"] = "failed"
+                    cleaned["pr_url"] = None
+                    cleaned["error_details"] = verification_error
+                    parse_result = ParseResult(
+                        success=False,
+                        raw_text=parse_result.raw_text,
+                        error=verification_error,
+                        structured_output=cleaned,
+                        summary=parse_result.summary,
+                        confidence=parse_result.confidence,
+                        suggested_next_action=parse_result.suggested_next_action,
+                    )
+
             # 8. Persist results
             sidebar_updated = False
             context_version = None
@@ -595,15 +643,28 @@ class AgentExecutor:
 
             # 9. Update AgentRun in DB
             duration = time.monotonic() - start_time
+            run_status: Literal["completed", "failed"] = (
+                "failed" if verification_error else "completed"
+            )
+            evidence_json = (
+                {"error": verification_error, "type": "PRVerificationError"}
+                if verification_error
+                else None
+            )
             await update_agent_run(
                 db,
                 agent_run.id,
                 AgentRunUpdate(
-                    status="completed",
-                    summary_markdown=parse_result.summary,
+                    status=run_status,
+                    summary_markdown=(
+                        verification_error
+                        if verification_error
+                        else parse_result.summary
+                    ),
                     confidence=parse_result.confidence,
                     structured_output=parse_result.structured_output,
                     next_action_hint=parse_result.suggested_next_action,
+                    evidence_json=evidence_json,
                 ),
             )
 
@@ -611,11 +672,12 @@ class AgentExecutor:
             return AgentExecutionResult(
                 agent_run_id=agent_run.id,
                 agent_type=agent_type,
-                status="completed",
+                status=run_status,
                 parse_result=parse_result,
                 sidebar_updated=sidebar_updated,
                 context_version=context_version,
                 duration_seconds=duration,
+                error=verification_error,
             )
 
         except AgentTimeoutError:
