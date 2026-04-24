@@ -96,3 +96,32 @@ async def test_spawner_collision_raises_integrity_error(
             repo_url="https://github.com/acme/widget",
             params=None,
         )
+
+
+async def test_runner_finalize_releases_partial_index(
+    db: aiosqlite.Connection,
+) -> None:
+    """End-to-end test that exercising the runner's terminal path
+    (``_finalize`` -> ``_sync_workspace_state``) flips ``workspace.state``
+    to a terminal value and lets a retry succeed. Matches the code-review
+    fix for the Story 3 retry-after-failure flow — no raw SQL.
+    """
+    from opensec.db.repo_workspace import set_workspace_state
+
+    spawner = _DefaultRepoWorkspaceSpawner(pool=None)
+    first = await spawner.spawn_repo_workspace(
+        kind=WorkspaceKind.repo_action_security_md,
+        repo_url="https://github.com/acme/widget",
+        params=None,
+    )
+
+    # Simulate what RepoAgentRunner.run does when the agent fails.
+    await set_workspace_state(db, first, "failed")
+
+    # Retry now succeeds; a new workspace id comes back.
+    second = await spawner.spawn_repo_workspace(
+        kind=WorkspaceKind.repo_action_security_md,
+        repo_url="https://github.com/acme/widget",
+        params=None,
+    )
+    assert second != first

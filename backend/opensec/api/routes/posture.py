@@ -92,9 +92,13 @@ async def fix_posture_check(
         # ``idx_workspace_active_per_check`` fires when a second non-terminal
         # workspace for the same check is attempted. SQLite's error message
         # is column-shaped (``UNIQUE constraint failed: workspace.source_check_name``)
-        # rather than index-shaped, so we confirm it's our guard by looking
-        # up the existing active row for this check. If none exists, the
-        # integrity error was something else and we propagate.
+        # rather than index-shaped, so we first confirm the collision was
+        # ours (UNIQUE + source_check_name) and then resolve the existing
+        # active row. Anything else propagates as a 500.
+        message = str(exc).lower()
+        is_our_guard = "unique" in message and "source_check_name" in message
+        if not is_our_guard:
+            raise
         existing = await get_active_workspace_by_source_check_name(db, check_name)
         if existing is None:
             raise

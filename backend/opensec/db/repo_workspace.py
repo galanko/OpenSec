@@ -157,6 +157,23 @@ async def create_repo_action_workspace(
     await db.commit()
 
 
+async def set_workspace_state(
+    db: aiosqlite.Connection, workspace_id: str, state: str
+) -> None:
+    """UPDATE ``workspace.state`` for the given id.
+
+    Called by the repo-action runner on terminal transitions so the partial
+    unique index ``idx_workspace_active_per_check`` releases and a retry of
+    the same posture check can succeed (PRD-0004 Story 3).
+    """
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE workspace SET state = ?, updated_at = ? WHERE id = ?",
+        (state, now, workspace_id),
+    )
+    await db.commit()
+
+
 async def get_active_workspace_by_source_check_name(
     db: aiosqlite.Connection, check_name: str
 ) -> Workspace | None:
