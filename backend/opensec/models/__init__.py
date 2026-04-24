@@ -45,8 +45,22 @@ from opensec.models.posture_check import (
 # Workspace
 # ---------------------------------------------------------------------------
 
-WorkspaceState = Literal["open", "waiting", "ready_to_close", "closed", "reopened"]
-
+WorkspaceState = Literal[
+    # Finding-remediation states (ADR-0014)
+    "open",
+    "waiting",
+    "ready_to_close",
+    "closed",
+    "reopened",
+    # Repo-action states (ADR-0030) — used by posture-fix workspaces. The
+    # partial unique index ``idx_workspace_active_per_check`` keys off
+    # ``state IN ('pending', 'running')`` for the 409 guard.
+    "pending",
+    "running",
+    "succeeded",
+    "failed",
+    "cancelled",
+]
 
 class WorkspaceCreate(BaseModel):
     finding_id: str
@@ -64,7 +78,9 @@ class WorkspaceUpdate(BaseModel):
 
 class Workspace(BaseModel):
     id: str
-    finding_id: str
+    finding_id: str | None = None
+    kind: str = "finding_remediation"
+    source_check_name: str | None = None
     state: WorkspaceState = "open"
     current_focus: str | None = None
     active_plan_version: int | None = None

@@ -2031,6 +2031,86 @@
         "title": "PostureFixResponse",
         "type": "object"
       },
+      "ProviderTestRequest": {
+        "description": "Optional staged config. Alpha passes nothing and probes the currently\nconfigured provider/model/key; a future UI can preview unsaved staged\nconfig by populating these fields. Ignored today \u2014 probe uses whatever\nOpenCode has configured \u2014 but kept so the wire shape is stable.",
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "ProviderTestRequest",
+        "type": "object"
+      },
+      "ProviderTestResult": {
+        "properties": {
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok",
+          "latency_ms"
+        ],
+        "title": "ProviderTestResult",
+        "type": "object"
+      },
       "RegistryEntry": {
         "description": "A single integration in the catalog.",
         "properties": {
@@ -2805,11 +2885,23 @@
             "title": "Current Focus"
           },
           "finding_id": {
-            "title": "Finding Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finding Id"
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "finding_remediation",
+            "title": "Kind",
             "type": "string"
           },
           "linked_ticket_id": {
@@ -2823,6 +2915,17 @@
             ],
             "title": "Linked Ticket Id"
           },
+          "source_check_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Check Name"
+          },
           "state": {
             "default": "open",
             "enum": [
@@ -2830,7 +2933,12 @@
               "waiting",
               "ready_to_close",
               "closed",
-              "reopened"
+              "reopened",
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
             ],
             "title": "State",
             "type": "string"
@@ -2865,7 +2973,6 @@
         },
         "required": [
           "id",
-          "finding_id",
           "created_at",
           "updated_at"
         ],
@@ -2914,7 +3021,12 @@
               "waiting",
               "ready_to_close",
               "closed",
-              "reopened"
+              "reopened",
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
             ],
             "title": "State",
             "type": "string"
@@ -2969,7 +3081,12 @@
                   "waiting",
                   "ready_to_close",
                   "closed",
-                  "reopened"
+                  "reopened",
+                  "pending",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "cancelled"
                 ],
                 "type": "string"
               },
@@ -4894,6 +5011,55 @@
           }
         },
         "summary": "Get Configured Providers",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/settings/providers/test": {
+      "post": {
+        "description": "Cheap probe of the configured provider+model (ADR-0031).\n\nSends a bounded ``\"Say OK\"`` chat call through OpenCode with an 8s\ntimeout and classifies the outcome into\n``{ok, latency_ms, error_code, error_message}``. Always returns HTTP\n200; ``ok`` reflects the probe result.",
+        "operationId": "test_provider_api_settings_providers_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ProviderTestRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderTestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Provider",
         "tags": [
           "settings"
         ]

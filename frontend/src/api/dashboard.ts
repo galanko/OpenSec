@@ -73,12 +73,23 @@ export interface PostureFixParams {
   disclosure_window_days?: number
 }
 
+export interface RunAssessmentResponse {
+  assessment_id: string
+  status: string
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
     request<AssessmentLatestResponse>('/api/assessment/latest'),
   getAssessmentStatus: (id: string) =>
     request<AssessmentStatusResponse>(`/api/assessment/status/${id}`),
+  runAssessment: (repoUrl: string) =>
+    request<RunAssessmentResponse>('/api/assessment/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo_url: repoUrl }),
+    }),
   fixPostureCheck: (
     checkName: PostureFixableCheck,
     params?: PostureFixParams,
@@ -100,6 +111,19 @@ export function useDashboard() {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: dashboardApi.getDashboard,
+    // While an assessment is in flight the dashboard has to notice the
+    // transition from running → complete so the running card can be replaced
+    // by the report card. Without this the re-assessment flow lands on the
+    // running state and stays there forever — the inner status endpoint
+    // polls, but nothing refreshes the top-level /api/dashboard payload.
+    refetchInterval: (query) => {
+      const status = query.state.data?.assessment?.status
+      // 1s while running — matches the assessment-status poll so the
+      // Report Card swap doesn't lag a full extra beat behind the "all
+      // done" visual in AssessmentProgressList.
+      if (status === 'pending' || status === 'running') return 1_000
+      return false
+    },
   })
 }
 
@@ -134,6 +158,18 @@ export function useFixPostureCheck() {
       checkName: PostureFixableCheck
       params?: PostureFixParams
     }) => dashboardApi.fixPostureCheck(checkName, params),
+  })
+}
+
+/**
+ * Kicks off a new assessment against the currently-connected repo
+ * (PRD-0004 Story 1). The UI invalidates the ``['dashboard']`` query on
+ * success so the header button flips to its running state without an
+ * extra round-trip.
+ */
+export function useRunAssessment() {
+  return useMutation({
+    mutationFn: (repoUrl: string) => dashboardApi.runAssessment(repoUrl),
   })
 }
 

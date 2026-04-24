@@ -9,10 +9,13 @@ const severityConfig: Record<string, { label: string; icon: string; classes: str
     icon: 'error',
     classes: 'text-error bg-error-container/20',
   },
+  // ADR-0029 / IMPL-0004 T14: medium severity moved from the tertiary
+  // (success-green) family to the new warning family so it scans as
+  // "attention needed but not blocking" rather than "fine".
   medium: {
     label: 'Medium',
     icon: 'info',
-    classes: 'text-tertiary bg-tertiary-container/30',
+    classes: 'text-on-warning-container bg-warning-container/40',
   },
   low: {
     label: 'Low',
@@ -52,7 +55,7 @@ export function SeverityIcon({ severity }: { severity: string | null | undefined
   const iconClasses: Record<string, string> = {
     critical: 'bg-error-container/20 text-error',
     high: 'bg-error-container/15 text-error',
-    medium: 'bg-tertiary-container/20 text-tertiary',
+    medium: 'bg-warning-container/40 text-on-warning-container',
     low: 'bg-surface-container-high text-on-surface-variant',
   }
 

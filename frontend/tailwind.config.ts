@@ -60,6 +60,15 @@ const config: Config = {
         'on-primary-container': '#3f33d6',
         'on-background': '#2b3437',
         'tertiary-dim': '#4b526c',
+        // ADR-0029 · Warning family for medium-severity findings and any
+        // "attention needed but not blocking" state. Contrast ratios:
+        //   warning on surface ≈ 5.2:1 (AA)
+        //   on-warning-container on warning-container ≈ 7.6:1 (AAA)
+        //   warning-dim on surface-container-lowest ≈ 6.1:1 (AA)
+        'warning': '#b45f06',
+        'warning-container': '#ffddb7',
+        'on-warning-container': '#6a3400',
+        'warning-dim': '#8a4905',
       },
       fontFamily: {
         headline: ['Manrope', 'sans-serif'],

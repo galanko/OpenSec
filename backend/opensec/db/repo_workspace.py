@@ -16,6 +16,8 @@ def _row_to_workspace(row: aiosqlite.Row) -> Workspace:
     return Workspace(
         id=row["id"],
         finding_id=row["finding_id"],
+        kind=row["kind"],
+        source_check_name=row["source_check_name"],
         state=row["state"],
         current_focus=row["current_focus"],
         active_plan_version=row["active_plan_version"],
@@ -118,6 +120,81 @@ async def update_workspace_dir(
         (workspace_dir, now, workspace_id),
     )
     await db.commit()
+
+
+async def create_repo_action_workspace(
+    db: aiosqlite.Connection,
+    *,
+    workspace_id: str,
+    kind: str,
+    source_check_name: str,
+    workspace_dir: str | None = None,
+    state: str = "pending",
+) -> None:
+    """Insert a repo-action workspace row (PRD-0004 / ADR-0030).
+
+    Unlike ``create_workspace()`` this is called by the posture-fix spawner
+    after the filesystem scaffolding is in place. ``finding_id`` is NULL and
+    ``source_check_name`` carries the natural key (``security_md`` /
+    ``dependabot_config``) so the partial unique index
+    ``idx_workspace_active_per_check`` can enforce at-most-one-active-per-check.
+
+    Raises ``IntegrityError`` (via aiosqlite) when a second concurrent insert
+    collides with a non-terminal workspace for the same check. The caller
+    (``POST /api/posture/fix/{check_name}``) catches this and returns 409.
+    """
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        """
+        INSERT INTO workspace
+            (id, finding_id, state, kind, source_check_name,
+             workspace_dir, current_focus, active_plan_version,
+             linked_ticket_id, validation_state, created_at, updated_at)
+        VALUES (?, NULL, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?)
+        """,
+        (workspace_id, state, kind, source_check_name, workspace_dir, now, now),
+    )
+    await db.commit()
+
+
+async def set_workspace_state(
+    db: aiosqlite.Connection, workspace_id: str, state: str
+) -> None:
+    """UPDATE ``workspace.state`` for the given id.
+
+    Called by the repo-action runner on terminal transitions so the partial
+    unique index ``idx_workspace_active_per_check`` releases and a retry of
+    the same posture check can succeed (PRD-0004 Story 3).
+    """
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE workspace SET state = ?, updated_at = ? WHERE id = ?",
+        (state, now, workspace_id),
+    )
+    await db.commit()
+
+
+async def get_active_workspace_by_source_check_name(
+    db: aiosqlite.Connection, check_name: str
+) -> Workspace | None:
+    """Return the single non-terminal workspace for a posture check, if any.
+
+    Uses the same predicate as the partial unique index so "active" here
+    means the one row that caused an INSERT to collide. When no active
+    workspace exists (e.g. after a terminal transition), returns None.
+    """
+    cursor = await db.execute(
+        """
+        SELECT * FROM workspace
+        WHERE source_check_name = ?
+          AND state IN ('pending', 'running')
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (check_name,),
+    )
+    row = await cursor.fetchone()
+    return _row_to_workspace(row) if row else None
 
 
 async def increment_context_version(

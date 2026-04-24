@@ -66,6 +66,43 @@ DEFAULT_TIMEOUT_SECONDS = 600.0
 
 RepoAgentPhase = Literal["queued", "running", "pr_created", "already_present", "failed"]
 
+# Maps runner phases to ``workspace.state`` values. Terminal phases flip the
+# partial unique index predicate off so a retry of the same posture check
+# is no longer blocked by ``idx_workspace_active_per_check``.
+_PHASE_TO_WORKSPACE_STATE: dict[str, str] = {
+    "queued": "pending",
+    "running": "running",
+    "pr_created": "succeeded",
+    "already_present": "succeeded",
+    "failed": "failed",
+}
+
+
+async def _sync_workspace_state(workspace_id: str, phase: str) -> None:
+    """Best-effort UPDATE ``workspace.state`` from a runner phase.
+
+    Repo-action workspaces live in the ``workspace`` table since ADR-0030;
+    the partial unique index on ``source_check_name`` only releases when
+    state leaves ``pending`` / ``running``. Unit tests often run the runner
+    without a DB (``_db is None``) — silently skip in that case.
+    """
+    from opensec.db.connection import _db
+    from opensec.db.repo_workspace import set_workspace_state
+
+    if _db is None:
+        return
+    target = _PHASE_TO_WORKSPACE_STATE.get(phase)
+    if target is None:
+        return
+    try:
+        await set_workspace_state(_db, workspace_id, target)
+    except Exception:
+        logger.exception(
+            "failed to sync workspace.state for %s (phase=%s)",
+            workspace_id,
+            phase,
+        )
+
 
 class RepoAgentStatus(BaseModel):
     """On-disk status snapshot. One JSON file per repo workspace."""
@@ -152,13 +189,14 @@ class RepoAgentRunner:
             started_at=started,
         )
         _write_status(workspace_root, running)
+        await _sync_workspace_state(workspace_id, "running")
 
         try:
             prompt = _render_prompt(
                 kind, repo_url=repo_url, gh_token=gh_token, params=params or {}
             )
         except Exception as exc:  # noqa: BLE001 — never leak to caller
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="failed",
@@ -182,7 +220,7 @@ class RepoAgentRunner:
             )
         except (RuntimeError, TimeoutError, httpx.HTTPError) as exc:
             logger.exception("repo agent process failed for %s", workspace_id)
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="failed",
@@ -192,7 +230,7 @@ class RepoAgentRunner:
             logger.exception(
                 "unexpected error in repo agent runner for %s", workspace_id
             )
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="failed",
@@ -216,7 +254,7 @@ class RepoAgentRunner:
         log_tail = _tail(response_text)
 
         if not response_text.strip():
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="failed",
@@ -228,7 +266,7 @@ class RepoAgentRunner:
         structured = parsed.structured_output or {}
 
         if not parsed.success:
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="failed",
@@ -247,7 +285,7 @@ class RepoAgentRunner:
             # is the symptom we're fixing.
             verification = await verify_pr_url(pr_url, token=gh_token)
             if verification.ok:
-                return self._finalize(
+                return await self._finalize(
                     workspace_root,
                     running,
                     status="pr_created",
@@ -258,7 +296,7 @@ class RepoAgentRunner:
             # Verification failed — no fallback. Surface the real reason +
             # a tail of the agent's response so the user can tell whether
             # a branch was actually pushed or the model invented the URL.
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="failed",
@@ -271,14 +309,14 @@ class RepoAgentRunner:
                 agent_log_tail=log_tail,
             )
         if agent_status == "already_present":
-            return self._finalize(
+            return await self._finalize(
                 workspace_root,
                 running,
                 status="already_present",
                 structured_output=structured,
             )
         # Fall through: the agent claimed success but didn't give us a PR.
-        return self._finalize(
+        return await self._finalize(
             workspace_root,
             running,
             status="failed",
@@ -292,7 +330,7 @@ class RepoAgentRunner:
     # Internals
     # ------------------------------------------------------------------
 
-    def _finalize(
+    async def _finalize(
         self,
         workspace_root: Path,
         running: RepoAgentStatus,
@@ -316,6 +354,7 @@ class RepoAgentRunner:
             }
         )
         _write_status(workspace_root, final)
+        await _sync_workspace_state(running.workspace_id, status)
         logger.info(
             "repo agent %s (%s) finished: status=%s pr_url=%s error=%s",
             running.workspace_id,

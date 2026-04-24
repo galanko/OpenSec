@@ -11,10 +11,12 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { useFinding } from '@/api/hooks'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import ErrorState from '@/components/ErrorState'
+import DescriptionFallbackNote from '@/components/findings/DescriptionFallbackNote'
 import PageShell from '@/components/PageShell'
 import PageSpinner from '@/components/PageSpinner'
 import SeverityBadge from '@/components/SeverityBadge'
 import TechnicalDetailsPanel from '@/components/TechnicalDetailsPanel'
+import { resolveFindingDescription } from '@/lib/findingDescription'
 
 export default function FindingDetailPage() {
   return (
@@ -52,7 +54,10 @@ function FindingDetailContent() {
     )
   }
 
-  const body = finding.plain_description ?? finding.description ?? ''
+  const resolved = resolveFindingDescription(
+    finding.plain_description,
+    finding.description,
+  )
 
   return (
     <PageShell
@@ -72,9 +77,27 @@ function FindingDetailContent() {
     >
       <div className="max-w-3xl">
         <SeverityBadge severity={finding.raw_severity} />
-        {body && (
-          <p className="mt-5 whitespace-pre-wrap text-base leading-relaxed text-on-surface">
-            {body}
+        {resolved.kind !== 'empty' && (
+          <p
+            data-testid="finding-description"
+            className="mt-5 whitespace-pre-wrap text-base leading-relaxed text-on-surface"
+          >
+            {resolved.text}
+          </p>
+        )}
+        {resolved.kind === 'fallback' && <DescriptionFallbackNote />}
+        {resolved.kind === 'empty' && (
+          <p
+            data-testid="finding-description-empty"
+            className="mt-5 inline-flex items-center gap-1 text-sm text-on-surface-variant"
+          >
+            <span
+              className="material-symbols-outlined text-sm"
+              aria-hidden
+            >
+              help_outline
+            </span>
+            No description available.
           </p>
         )}
 

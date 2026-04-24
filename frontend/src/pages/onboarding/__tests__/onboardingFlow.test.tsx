@@ -102,11 +102,15 @@ describe('onboarding wizard', () => {
         screen.getByRole('button', { name: /test and continue/i }),
       )
 
-      // 1.5 Start assessment
+      // 1.5 Start assessment — this screen now shows live progress and
+      // auto-advances when the backend reports ``complete``. The test clicks
+      // the explicit skip button to stay deterministic.
       expect(
-        await screen.findByRole('heading', { name: /ready to assess/i }),
+        await screen.findByRole('heading', { name: /first assessment in progress/i }),
       ).toBeInTheDocument()
-      await user.click(screen.getByRole('button', { name: /start assessment/i }))
+      await user.click(
+        screen.getByRole('button', { name: /skip to dashboard|go to dashboard/i }),
+      )
 
       // Lands on the dashboard.
       expect(await screen.findByTestId('dashboard-landed')).toBeInTheDocument()
@@ -177,11 +181,13 @@ describe('onboarding wizard', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(
       screen.getByRole('heading', {
-        name: /create a github personal access token/i,
+        name: /create a fine-grained github token/i,
       }),
     ).toBeInTheDocument()
-    // Deep-link to the real GitHub page.
-    const link = screen.getByRole('link', { name: /github\.com\/settings\/tokens/i })
+    // Deep-link to the real GitHub page for the fine-grained token flow.
+    const link = screen.getByRole('link', {
+      name: /github\.com\/settings\/personal-access-tokens\/new/i,
+    })
     expect(link).toHaveAttribute('target', '_blank')
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })

@@ -1,123 +1,102 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import OnboardingShell from '@/components/onboarding/OnboardingShell'
 import InlineErrorCallout from '@/components/onboarding/InlineErrorCallout'
 import WizardNav from '@/components/onboarding/WizardNav'
-import { OnboardingApiError } from '@/api/onboarding'
+import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
+import { useAssessmentStatus } from '@/api/dashboard'
 import { onboardingStorage } from './storage'
 
-interface PreviewStep {
-  icon: string
-  title: string
-  description: string
-  duration: string
-}
-
-const STEPS: PreviewStep[] = [
-  {
-    icon: 'download',
-    title: 'Clone and parse your repo',
-    description:
-      'We read your lockfiles locally and never write anything you do not review.',
-    duration: '~30 s',
-  },
-  {
-    icon: 'shield_lock',
-    title: 'Check known vulnerabilities',
-    description:
-      'Cross-reference every dependency against OSV.dev and GHSA, grouped by fix.',
-    duration: '~60 s',
-  },
-  {
-    icon: 'rule',
-    title: 'Run posture checks',
-    description:
-      'Branch protection, SECURITY.md, Dependabot, signed commits, secret scan.',
-    duration: '~30 s',
-  },
-]
-
+/**
+ * Onboarding frame 1.5 — "Ready to assess".
+ *
+ * The assessment was already kicked off at step 1 (``/onboarding/repo``),
+ * so by the time the user reaches this screen a real run is usually in
+ * flight. Rather than show a static preview and then redirect to the
+ * dashboard (where the run often completes before the user sees anything),
+ * we render the same ``AssessmentProgressList`` the dashboard uses and
+ * auto-navigate to ``/dashboard`` when the backend flips to ``complete``.
+ *
+ * Consistency goal: onboarding and re-assessment both show live progress,
+ * both end at the dashboard, both using one component.
+ */
 export default function StartAssessment() {
   const navigate = useNavigate()
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<OnboardingApiError | null>(null)
+  const assessmentId = onboardingStorage.get('assessmentId')
 
-  function handleStart() {
-    const assessmentId = onboardingStorage.get('assessmentId')
-    if (!assessmentId) {
-      // Defensive: ConnectRepo always stashes this on success. If it's
-      // missing the user probably reloaded mid-wizard — send them back.
-      navigate('/onboarding/connect')
-      return
-    }
+  // Defensive: ConnectRepo always stashes an id on success. If it's missing
+  // the user probably reloaded mid-wizard — send them back to rebuild state.
+  useEffect(() => {
+    if (!assessmentId) navigate('/onboarding/connect')
+  }, [assessmentId, navigate])
 
-    // Don't block on ``/onboarding/complete`` — that endpoint returns 409 until
-    // the assessment actually finishes, and keeping the user on this screen
-    // defeats the progress-list UX. Navigate to the dashboard immediately; the
-    // dashboard itself fires ``/complete`` when it sees status=complete.
-    setError(null)
-    setSubmitting(true)
-    onboardingStorage.clear()
-    navigate('/dashboard')
-  }
+  const { data, isError } = useAssessmentStatus(assessmentId)
+  const status = data?.status
+
+  // Auto-advance to the dashboard as soon as the backend reports complete.
+  // A short dwell lets the "all five steps done" visual register before the
+  // route change — same motivation as the 1.4 s verified-card dwell.
+  useEffect(() => {
+    if (status !== 'complete') return
+    const timer = window.setTimeout(() => {
+      onboardingStorage.clear()
+      navigate('/dashboard')
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [status, navigate])
 
   return (
     <OnboardingShell step={3}>
       <h1 className="font-headline text-3xl font-extrabold text-on-surface mb-2">
-        Ready to assess
+        First assessment in progress
       </h1>
       <p className="text-on-surface-variant mb-8">
-        Here's what happens when you click Start. Nothing is written to your
-        repo without your explicit approval — every change lands as a draft
-        pull request you review.
+        OpenSec is cloning your repo, cross-referencing CVEs, and running
+        posture checks. Nothing is written to your repo without your
+        explicit approval — every change lands as a draft pull request
+        you review.
       </p>
 
-      <ol className="space-y-3 mb-10">
-        {STEPS.map((s, idx) => (
-          <li
-            key={s.title}
-            className="flex items-start gap-4 rounded-lg bg-surface-container-lowest shadow-sm px-4 py-4"
-          >
-            <span className="w-8 h-8 rounded-lg bg-primary-container/60 flex items-center justify-center flex-shrink-0">
-              <span
-                className="material-symbols-outlined text-primary text-base"
-                aria-hidden="true"
-              >
-                {s.icon}
-              </span>
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-on-surface">
-                <span className="text-on-surface-variant font-normal mr-2">
-                  Step {idx + 1}
-                </span>
-                {s.title}
-              </p>
-              <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                {s.description}
-              </p>
-            </div>
-            <span className="text-xs font-semibold text-on-surface-variant whitespace-nowrap">
-              {s.duration}
-            </span>
-          </li>
-        ))}
-      </ol>
+      {assessmentId ? (
+        <AssessmentProgressList assessmentId={assessmentId} />
+      ) : null}
 
-      {error && (
-        <InlineErrorCallout
-          title="We couldn't start your assessment"
-          body={<>{error.message}</>}
-        />
+      {status === 'failed' && (
+        <div className="mt-6">
+          <InlineErrorCallout
+            title="Assessment failed"
+            body={
+              <>
+                Something went wrong during the scan. You can still go to the
+                dashboard and retry from there.
+              </>
+            }
+          />
+        </div>
       )}
 
-      <WizardNav
-        onBack={() => navigate('/onboarding/ai')}
-        onNext={handleStart}
-        nextLabel={submitting ? 'Starting…' : 'Start assessment'}
-        nextIcon="play_arrow"
-        nextDisabled={submitting}
-      />
+      {isError && (
+        <div className="mt-6">
+          <InlineErrorCallout
+            title="We couldn't read the assessment status"
+            body={<>Check the backend logs, then retry from the dashboard.</>}
+          />
+        </div>
+      )}
+
+      <div className="mt-8">
+        <WizardNav
+          onBack={() => navigate('/onboarding/ai')}
+          onNext={() => {
+            onboardingStorage.clear()
+            navigate('/dashboard')
+          }}
+          nextLabel={
+            status === 'complete' ? 'Go to dashboard' : 'Skip to dashboard'
+          }
+          nextIcon={status === 'complete' ? 'arrow_forward' : 'skip_next'}
+        />
+      </div>
     </OnboardingShell>
   )
 }

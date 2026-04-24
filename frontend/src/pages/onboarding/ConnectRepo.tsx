@@ -196,7 +196,7 @@ export default function ConnectRepo() {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               aria-invalid={missingScope || undefined}
-              placeholder="ghp_••••••••••••••••••••••••••••"
+              placeholder="github_pat_••••••••••••••••••••••••••••"
               className={`w-full px-4 py-3 rounded-lg bg-surface-container-lowest shadow-sm border-0 ring-0 focus:ring-2 focus:outline-none text-sm font-mono ${
                 missingScope
                   ? 'ring-2 ring-error/40 focus:ring-error/60'
@@ -215,9 +215,11 @@ export default function ConnectRepo() {
               body={
                 missingScope ? (
                   <>
-                    Regenerate the token with the{' '}
-                    <span className="font-mono">repo</span> box checked, then
-                    paste it back here. Your repo URL is kept.
+                    The token needs <span className="font-mono">Contents</span>{' '}
+                    and <span className="font-mono">Pull requests</span>{' '}
+                    (read and write) on this repository. Regenerate with the
+                    fine-grained flow and paste it back here — your repo URL
+                    is kept.
                   </>
                 ) : (
                   <>{state.error.message}</>
@@ -227,7 +229,7 @@ export default function ConnectRepo() {
                 missingScope
                   ? {
                       label: 'How to create a token',
-                      href: 'https://github.com/settings/tokens',
+                      href: 'https://github.com/settings/personal-access-tokens/new',
                     }
                   : undefined
               }
