@@ -142,6 +142,13 @@ class RepoWorkspaceSpawnerProtocol(Protocol):
         ...
 
 
+_CHECK_NAME_FOR_KIND: dict[str, str] = {
+    # ``WorkspaceKind`` enum value -> posture check natural key.
+    "repo_action_security_md": "security_md",
+    "repo_action_dependabot": "dependabot_config",
+}
+
+
 class _DefaultRepoWorkspaceSpawner:
     """Production spawner backed by ``WorkspaceDirManager.create_repo_workspace``.
 
@@ -150,9 +157,12 @@ class _DefaultRepoWorkspaceSpawner:
     ``RepoAgentRunner.run`` task against the shared ``WorkspaceProcessPool``
     so ``POST /api/posture/fix/...`` produces a real draft PR.
 
-    DB workspace rows (which require ``finding_id``) are still not created —
-    repo-action workspaces are finding-less by design and persist their state
-    in ``history/status.json`` instead.
+    PRD-0004 / ADR-0030: the spawner now also INSERTs a ``workspace`` DB row
+    with ``kind=<WorkspaceKind.value>``, ``source_check_name=<check>`` and
+    ``state='pending'`` so the partial unique index
+    ``idx_workspace_active_per_check`` can enforce at most one active
+    workspace per posture check. ``IntegrityError`` bubbles up and the
+    posture route converts it to HTTP 409.
     """
 
     def __init__(self, pool: WorkspaceProcessPool | None) -> None:
@@ -168,6 +178,10 @@ class _DefaultRepoWorkspaceSpawner:
         repo_url: str,
         params: dict[str, Any] | None = None,
     ) -> str:
+        import shutil
+
+        from opensec.db.connection import _db
+        from opensec.db.repo_workspace import create_repo_action_workspace
         from opensec.workspace.repo_workspace_runner import RepoAgentRunner
         from opensec.workspace.workspace_dir_manager import WorkspaceDirManager
 
@@ -187,6 +201,26 @@ class _DefaultRepoWorkspaceSpawner:
             gh_token=token,
             model=model,
         )
+        workspace_root = base_dir / workspace_id
+
+        # ADR-0030: persist the workspace row so the 409 guard has something
+        # to collide on. Do this AFTER filesystem scaffolding so a stale dir
+        # doesn't outlive a failed DB insert — on any DB error we tear down
+        # the scaffolded directory and re-raise.
+        if _db is not None:
+            check_name = _CHECK_NAME_FOR_KIND.get(kind.value)
+            if check_name is not None:
+                try:
+                    await create_repo_action_workspace(
+                        _db,
+                        workspace_id=workspace_id,
+                        kind=kind.value,
+                        source_check_name=check_name,
+                        workspace_dir=str(workspace_root),
+                    )
+                except Exception:
+                    shutil.rmtree(workspace_root, ignore_errors=True)
+                    raise
 
         if self._pool is None:
             # Tests / degraded deployments: scaffold only. The scaffolded
@@ -197,7 +231,6 @@ class _DefaultRepoWorkspaceSpawner:
             )
             return workspace_id
 
-        workspace_root = base_dir / workspace_id
         runner = RepoAgentRunner(self._pool)
 
         async def _run() -> None:

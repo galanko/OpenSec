@@ -2805,11 +2805,23 @@
             "title": "Current Focus"
           },
           "finding_id": {
-            "title": "Finding Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finding Id"
           },
           "id": {
             "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "default": "finding_remediation",
+            "title": "Kind",
             "type": "string"
           },
           "linked_ticket_id": {
@@ -2823,6 +2835,17 @@
             ],
             "title": "Linked Ticket Id"
           },
+          "source_check_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Check Name"
+          },
           "state": {
             "default": "open",
             "enum": [
@@ -2830,7 +2853,12 @@
               "waiting",
               "ready_to_close",
               "closed",
-              "reopened"
+              "reopened",
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
             ],
             "title": "State",
             "type": "string"
@@ -2865,7 +2893,6 @@
         },
         "required": [
           "id",
-          "finding_id",
           "created_at",
           "updated_at"
         ],
@@ -2914,7 +2941,12 @@
               "waiting",
               "ready_to_close",
               "closed",
-              "reopened"
+              "reopened",
+              "pending",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
             ],
             "title": "State",
             "type": "string"
@@ -2969,7 +3001,12 @@
                   "waiting",
                   "ready_to_close",
                   "closed",
-                  "reopened"
+                  "reopened",
+                  "pending",
+                  "running",
+                  "succeeded",
+                  "failed",
+                  "cancelled"
                 ],
                 "type": "string"
               },
