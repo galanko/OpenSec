@@ -118,7 +118,10 @@ export function useDashboard() {
     // polls, but nothing refreshes the top-level /api/dashboard payload.
     refetchInterval: (query) => {
       const status = query.state.data?.assessment?.status
-      if (status === 'pending' || status === 'running') return 2_000
+      // 1s while running — matches the assessment-status poll so the
+      // Report Card swap doesn't lag a full extra beat behind the "all
+      // done" visual in AssessmentProgressList.
+      if (status === 'pending' || status === 'running') return 1_000
       return false
     },
   })
