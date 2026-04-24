@@ -111,6 +111,16 @@ export function useDashboard() {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: dashboardApi.getDashboard,
+    // While an assessment is in flight the dashboard has to notice the
+    // transition from running → complete so the running card can be replaced
+    // by the report card. Without this the re-assessment flow lands on the
+    // running state and stays there forever — the inner status endpoint
+    // polls, but nothing refreshes the top-level /api/dashboard payload.
+    refetchInterval: (query) => {
+      const status = query.state.data?.assessment?.status
+      if (status === 'pending' || status === 'running') return 2_000
+      return false
+    },
   })
 }
 
