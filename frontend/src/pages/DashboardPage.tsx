@@ -9,11 +9,13 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import {
   useDashboard,
   useFixPostureCheck,
   usePostureFixStatus,
+  useRunAssessment,
 } from '@/api/dashboard'
 import type {
   DashboardPayload,
@@ -46,7 +48,10 @@ const SEVERITY_ORDER: Array<{
 }> = [
   { key: 'critical', label: 'Critical', tone: 'text-error' },
   { key: 'high', label: 'High', tone: 'text-error' },
-  { key: 'medium', label: 'Medium', tone: 'text-tertiary' },
+  // ADR-0029 / IMPL-0004 T14: medium severity reads as "fine" under the
+  // tertiary (green) token. Swap to the new warning family so it scans as
+  // "attention needed but not blocking".
+  { key: 'medium', label: 'Medium', tone: 'text-warning' },
   { key: 'low', label: 'Low', tone: 'text-on-surface-variant' },
 ]
 
@@ -85,12 +90,8 @@ function DashboardContent() {
     )
   }
 
-  if (data.assessment?.status === 'running') {
-    return (
-      <PageShell title="Overview">
-        <AssessmentProgressList assessmentId={data.assessment.id} />
-      </PageShell>
-    )
+  if (data.assessment?.status === 'running' || data.assessment?.status === 'pending') {
+    return <RunningDashboard data={data} />
   }
 
   if (data.assessment == null) {
@@ -100,10 +101,108 @@ function DashboardContent() {
   return <ReportCard data={data} />
 }
 
-function EmptyDashboard() {
-  const navigate = useNavigate()
+/**
+ * Primary action in the dashboard header — "Run assessment" / "Re-run
+ * assessment" (PRD-0004 Story 1 / IMPL-0004 T8).
+ *
+ * Variants:
+ *   - first-run: labelled "Run assessment", surfaced on EmptyDashboard too
+ *   - subsequent: labelled "Re-run assessment", sits top-right of ReportCard
+ *   - running/pending: disabled, label "Assessment running"
+ *   - submitting: disabled with inline spinner, label "Starting…"
+ */
+function RunAssessmentButton({
+  repoUrl,
+  running,
+  variant,
+}: {
+  repoUrl: string | null
+  running: boolean
+  variant: 'first-run' | 'rerun'
+}) {
+  const mutation = useRunAssessment()
+  const queryClient = useQueryClient()
+  const disabled = running || mutation.isPending || !repoUrl
+
+  let label: string
+  if (mutation.isPending) {
+    label = 'Starting…'
+  } else if (running) {
+    label = 'Assessment running'
+  } else if (variant === 'first-run') {
+    label = 'Run assessment'
+  } else {
+    label = 'Re-run assessment'
+  }
+
+  const icon = mutation.isPending ? (
+    <span
+      className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-on-primary/40 border-t-on-primary"
+      aria-hidden
+    />
+  ) : (
+    <span className="material-symbols-outlined text-sm" aria-hidden>
+      refresh
+    </span>
+  )
+
   return (
-    <PageShell title="Overview">
+    <button
+      type="button"
+      data-testid="run-assessment-button"
+      data-variant={variant}
+      disabled={disabled}
+      onClick={() => {
+        if (!repoUrl) return
+        mutation.mutate(repoUrl, {
+          onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+          },
+        })
+      }}
+      className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+      aria-busy={mutation.isPending}
+      aria-label={label}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+function RunningDashboard({ data }: { data: DashboardPayload }) {
+  const repoName = repoNameFromUrl(data.assessment?.repo_url)
+  return (
+    <PageShell
+      title="Overview"
+      subtitle={repoName}
+      actions={
+        <RunAssessmentButton
+          repoUrl={data.assessment?.repo_url ?? null}
+          running
+          variant="rerun"
+        />
+      }
+    >
+      {data.assessment && (
+        <AssessmentProgressList assessmentId={data.assessment.id} />
+      )}
+    </PageShell>
+  )
+}
+
+function EmptyDashboard() {
+  return (
+    <PageShell
+      title="Overview"
+      actions={
+        <RunAssessmentButton
+          repoUrl={null}
+          running={false}
+          variant="first-run"
+        />
+      }
+    >
       <section
         data-testid="dashboard-empty"
         className="flex flex-col items-center gap-5 rounded-3xl bg-surface-container-low px-10 py-20 text-center"
@@ -124,16 +223,9 @@ function EmptyDashboard() {
             under a minute.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/onboarding/welcome')}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90"
-        >
-          <span className="material-symbols-outlined text-sm" aria-hidden>
-            play_arrow
-          </span>
-          Start your first assessment
-        </button>
+        <p className="text-xs text-on-surface-variant">
+          Finish onboarding to connect a repository.
+        </p>
       </section>
     </PageShell>
   )
@@ -237,7 +329,17 @@ function ReportCard({ data }: { data: DashboardPayload }) {
     data.grade !== 'A' && (totalFindings > 0 || postureFails > 0)
 
   return (
-    <PageShell title="Overview" subtitle={repoName}>
+    <PageShell
+      title="Overview"
+      subtitle={repoName}
+      actions={
+        <RunAssessmentButton
+          repoUrl={data.assessment?.repo_url ?? null}
+          running={false}
+          variant="rerun"
+        />
+      }
+    >
       {completionBlock}
       {showGradeExplainer && (
         <GradeExplainer
@@ -554,16 +656,32 @@ function PostureCard({
     [checks],
   )
 
+  const passCount = posture_pass_count ?? 0
+  const totalCount = posture_total_count ?? 0
+  const pct = totalCount > 0 ? Math.round((passCount / totalCount) * 100) : 0
+
   return (
     <section className="flex flex-col gap-4 rounded-3xl bg-surface-container-low p-6">
-      <header>
-        <h3 className="font-headline text-lg font-bold text-on-surface">
-          Repo posture
-        </h3>
-        <p className="text-sm text-on-surface-variant">
-          {posture_pass_count} of {posture_total_count} checks pass · click any
-          item for step-by-step guidance
-        </p>
+      <header className="flex flex-col gap-2">
+        <div
+          data-testid="posture-progress-rail"
+          aria-hidden
+          className="h-1.5 w-40 rounded-full bg-surface-container-high overflow-hidden"
+        >
+          <div
+            className="h-full bg-tertiary transition-all"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div>
+          <h3 className="font-headline text-lg font-bold text-on-surface">
+            Repo posture
+          </h3>
+          <p className="text-sm text-on-surface-variant">
+            {passCount} of {totalCount} checks pass · {pct}% complete · click
+            any item for step-by-step guidance
+          </p>
+        </div>
       </header>
 
       {feedback && feedback.kind === 'error' && (

@@ -73,12 +73,23 @@ export interface PostureFixParams {
   disclosure_window_days?: number
 }
 
+export interface RunAssessmentResponse {
+  assessment_id: string
+  status: string
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
     request<AssessmentLatestResponse>('/api/assessment/latest'),
   getAssessmentStatus: (id: string) =>
     request<AssessmentStatusResponse>(`/api/assessment/status/${id}`),
+  runAssessment: (repoUrl: string) =>
+    request<RunAssessmentResponse>('/api/assessment/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo_url: repoUrl }),
+    }),
   fixPostureCheck: (
     checkName: PostureFixableCheck,
     params?: PostureFixParams,
@@ -134,6 +145,18 @@ export function useFixPostureCheck() {
       checkName: PostureFixableCheck
       params?: PostureFixParams
     }) => dashboardApi.fixPostureCheck(checkName, params),
+  })
+}
+
+/**
+ * Kicks off a new assessment against the currently-connected repo
+ * (PRD-0004 Story 1). The UI invalidates the ``['dashboard']`` query on
+ * success so the header button flips to its running state without an
+ * extra round-trip.
+ */
+export function useRunAssessment() {
+  return useMutation({
+    mutationFn: (repoUrl: string) => dashboardApi.runAssessment(repoUrl),
   })
 }
 
