@@ -1,5 +1,7 @@
 import type { Finding } from '@/api/client'
+import { resolveFindingDescription } from '@/lib/findingDescription'
 import ActionButton from './ActionButton'
+import DescriptionFallbackNote from './findings/DescriptionFallbackNote'
 import ListCard from './ListCard'
 import SeverityBadge, { SeverityIcon } from './SeverityBadge'
 
@@ -55,7 +57,10 @@ export default function FindingRow({
   disabled,
 }: FindingRowProps) {
   const status = statusDisplay[finding.status] ?? statusDisplay.new
-  const description = finding.plain_description ?? finding.description ?? ''
+  const resolved = resolveFindingDescription(
+    finding.plain_description,
+    finding.description,
+  )
   const techLine = buildTechLine(finding)
 
   return (
@@ -76,9 +81,27 @@ export default function FindingRow({
         <h3 className="text-base font-bold text-on-surface mb-1">
           {finding.title}
         </h3>
-        {description && (
-          <p className="text-sm text-on-surface-variant mb-2 leading-relaxed">
-            {description}
+        {resolved.kind !== 'empty' && (
+          <p
+            data-testid="finding-description"
+            className="text-sm text-on-surface-variant mb-2 leading-relaxed line-clamp-2"
+          >
+            {resolved.text}
+          </p>
+        )}
+        {resolved.kind === 'fallback' && <DescriptionFallbackNote />}
+        {resolved.kind === 'empty' && (
+          <p
+            data-testid="finding-description-empty"
+            className="text-sm text-on-surface-variant mb-2"
+          >
+            <span
+              className="material-symbols-outlined text-sm align-middle mr-1"
+              aria-hidden
+            >
+              help_outline
+            </span>
+            No description available.
           </p>
         )}
         <p

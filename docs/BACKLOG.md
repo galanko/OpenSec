@@ -42,6 +42,25 @@ Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 
 ## App Builder (Vertical 2)
 
+### v0.1 alpha blockers (PRD-0004, UX-0004, IMPL-0004, ADRs 0029–0031)
+
+Closed by feat/prd-0004-alpha-blockers (one branch / four commits / one PR).
+
+- [x] **T1**: Migration `009_alpha_blockers.sql` — add `kind` + `source_check_name`, make `finding_id` nullable, create partial unique index `idx_workspace_active_per_check`. TDD via `tests/test_migration_009.py`
+- [x] **T2**: Workspace DB insert on `spawn_repo_workspace` — extend `_DefaultRepoWorkspaceSpawner` to INSERT with `kind` + `source_check_name` + `state='pending'`; filesystem tear-down on DB failure
+- [x] **T3**: 409 guard on `POST /api/posture/fix/{check_name}` — catch `IntegrityError`, look up existing non-terminal workspace, return `{error: "workspace_already_running", workspace_id, check_name}`
+- [x] **T4**: `POST /api/settings/providers/test` — probe OpenCode with 8s timeout and classify response into `{ok, latency_ms, error_code, error_message}`; adds a `timeout` kwarg to `OpenCodeClient.send_message`
+- [x] **T5**: Tailwind `warning` token family — `warning` / `warning-container` / `on-warning-container` / `warning-dim` per ADR-0029
+- [x] **T6**: Delete `TopBar.tsx` — retire the non-functional top chrome; `AppLayout` drops the component
+- [x] **T7**: SideNav rework — Dashboard · Findings · History · Integrations · (spacer) · Settings; tonal active-state pill, no border violations
+- [x] **T8**: `Run assessment` / `Re-run assessment` button on Dashboard — new `RunAssessmentButton` + `useRunAssessment` hook wired to `POST /api/assessment/run`
+- [x] **T9**: Post-onboarding redirect → `/dashboard` — `StartAssessment.tsx` already redirects here; empty-state copy updated
+- [x] **T10**: PostureCheckItem rework — 4-state matrix (to_do / running / succeeded / failed) with leading `w-14` status column, action-slot variants, new `useWorkspaceStatus` hook
+- [x] **T11**: Posture progress rail — `h-1.5 w-40 bg-tertiary` rail above PostureCard heading, proportional to passing checks
+- [x] **T12**: "Test connection" button on ProviderSettings — `useProviderTest` hook, result chip with error-code copy map, 1-edit typo suggestion on `model_not_found`
+- [x] **T13**: Description fallback — new `resolveFindingDescription` + `DescriptionFallbackNote`; applied to `FindingRow` and `FindingDetailPage`
+- [x] **T14**: Medium-severity chip → warning token — swaps `text-tertiary` / `bg-tertiary-container` for `text-warning` / `bg-warning-container/40 text-on-warning-container` in DashboardPage + SeverityBadge
+
 ### v1.1: Earn the Badge (PRD-0002, UX-0002, IMPL-0002, ADR-0025)
 
 **Milestone A — Data layer (blocks everything else)**
