@@ -194,3 +194,139 @@ async def test_integrations_crud(db_client):
     # Verify deleted
     resp = await db_client.get("/api/settings/integrations")
     assert resp.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Provider probe (PRD-0004 Story 4 / ADR-0031)
+# ---------------------------------------------------------------------------
+
+
+class _FakeSession:
+    id = "probe-session-1"
+
+
+def _fake_client_success(response_text: str = "OK") -> object:
+    mock = AsyncMock()
+    mock.create_session = AsyncMock(return_value=_FakeSession())
+    mock.send_and_get_response = AsyncMock(return_value=response_text)
+    return mock
+
+
+def _fake_client_raising(exc: BaseException) -> object:
+    mock = AsyncMock()
+    mock.create_session = AsyncMock(return_value=_FakeSession())
+    mock.send_and_get_response = AsyncMock(side_effect=exc)
+    return mock
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_success(db_client):
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_success("OK"),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["latency_ms"] >= 0
+    assert data["error_code"] is None
+    assert data["error_message"] is None
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_empty_response_is_timeout(db_client):
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_success(""),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error_code"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_auth_failed(db_client):
+    import httpx
+
+    response = httpx.Response(
+        status_code=401,
+        text="invalid api key",
+        request=httpx.Request("POST", "http://test/session/x/message"),
+    )
+    exc = httpx.HTTPStatusError("401", request=response.request, response=response)
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_raising(exc),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error_code"] == "auth_failed"
+    assert "api key" in data["error_message"].lower()
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_model_not_found(db_client):
+    import httpx
+
+    response = httpx.Response(
+        status_code=404,
+        text="model 'gpt-4-turboo' not found",
+        request=httpx.Request("POST", "http://test/session/x/message"),
+    )
+    exc = httpx.HTTPStatusError("404", request=response.request, response=response)
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_raising(exc),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error_code"] == "model_not_found"
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_rate_limited(db_client):
+    import httpx
+
+    response = httpx.Response(
+        status_code=429,
+        text="rate limit exceeded, retry after 60s",
+        request=httpx.Request("POST", "http://test/session/x/message"),
+    )
+    exc = httpx.HTTPStatusError("429", request=response.request, response=response)
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_raising(exc),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error_code"] == "rate_limited"
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_timeout(db_client):
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_raising(TimeoutError()),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error_code"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_provider_test_endpoint_other_error(db_client):
+    with patch(
+        "opensec.api.routes.settings.opencode_client",
+        _fake_client_raising(RuntimeError("catastrophic lightning strike")),
+    ):
+        resp = await db_client.post("/api/settings/providers/test", json={})
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["error_code"] == "other"
+    assert "catastrophic lightning strike" in data["error_message"]

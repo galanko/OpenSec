@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from opensec.db.connection import get_db
 from opensec.db.repo_integration import (
@@ -15,6 +19,7 @@ from opensec.db.repo_integration import (
     list_integrations,
     update_integration,
 )
+from opensec.engine.client import opencode_client
 from opensec.engine.config_manager import config_manager
 from opensec.integrations.audit import AuditEvent
 from opensec.integrations.connection_tester import run_connection_test
@@ -102,6 +107,140 @@ async def get_configured_providers():
         return {"providers": providers, "auth": auth}
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"OpenCode unavailable: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Provider probe (PRD-0004 Story 4 / ADR-0031)
+# ---------------------------------------------------------------------------
+
+
+class ProviderTestRequest(BaseModel):
+    """Optional staged config. Alpha passes nothing and probes the currently
+    configured provider/model/key; a future UI can preview unsaved staged
+    config by populating these fields. Ignored today — probe uses whatever
+    OpenCode has configured — but kept so the wire shape is stable.
+    """
+
+    provider: str | None = None
+    model: str | None = None
+    api_key: str | None = None
+
+
+class ProviderTestResult(BaseModel):
+    ok: bool
+    latency_ms: int
+    error_code: str | None = None
+    error_message: str | None = None
+
+
+# ADR-0031: 8s is fast enough that first-run users don't wait meaningfully
+# longer than a page load, but slow enough to absorb OpenRouter/Together
+# cold-starts that can take 2–4s before first byte.
+_PROBE_TIMEOUT_SECONDS = 8.0
+_PROBE_PROMPT = "Say OK"
+
+_ERROR_COPY: dict[str, str] = {
+    "auth_failed": "Authentication failed — check your API key",
+    "model_not_found": "Model not found — check the model name spelling",
+    "timeout": "Timed out — check network or try again",
+    "rate_limited": "Rate limited — try again in a minute",
+}
+
+
+def _classify_http_error(status: int, body: str) -> str:
+    lower = body.lower()
+    if status in (401, 403):
+        return "auth_failed"
+    if status == 429:
+        return "rate_limited"
+    if status == 404:
+        return "model_not_found"
+    if "model" in lower and ("not found" in lower or "unsupported" in lower):
+        return "model_not_found"
+    if "unauthor" in lower or "invalid api key" in lower:
+        return "auth_failed"
+    if "rate limit" in lower:
+        return "rate_limited"
+    return "other"
+
+
+def _error_message_for(code: str, body: str) -> str:
+    return _ERROR_COPY.get(code, (body or "Probe failed").strip()[:200])
+
+
+@router.post(
+    "/settings/providers/test",
+    response_model=ProviderTestResult,
+)
+async def test_provider(
+    body: ProviderTestRequest | None = None,  # noqa: ARG001 — shape-stable
+) -> ProviderTestResult:
+    """Cheap probe of the configured provider+model (ADR-0031).
+
+    Sends a bounded ``"Say OK"`` chat call through OpenCode with an 8s
+    timeout and classifies the outcome into
+    ``{ok, latency_ms, error_code, error_message}``. Always returns HTTP
+    200; ``ok`` reflects the probe result.
+    """
+    return await _probe_opencode(opencode_client)
+
+
+async def _probe_opencode(client) -> ProviderTestResult:
+    start = time.monotonic()
+
+    def _elapsed_ms() -> int:
+        return int((time.monotonic() - start) * 1000)
+
+    try:
+        session = await client.create_session()
+        response = await asyncio.wait_for(
+            client.send_and_get_response(
+                session.id,
+                _PROBE_PROMPT,
+                timeout=_PROBE_TIMEOUT_SECONDS,
+            ),
+            timeout=_PROBE_TIMEOUT_SECONDS + 1.0,
+        )
+    except TimeoutError:
+        return ProviderTestResult(
+            ok=False,
+            latency_ms=int(_PROBE_TIMEOUT_SECONDS * 1000),
+            error_code="timeout",
+            error_message=_ERROR_COPY["timeout"],
+        )
+    except httpx.HTTPStatusError as exc:
+        body = exc.response.text if exc.response is not None else ""
+        status = exc.response.status_code if exc.response is not None else 0
+        code = _classify_http_error(status, body)
+        return ProviderTestResult(
+            ok=False,
+            latency_ms=_elapsed_ms(),
+            error_code=code,
+            error_message=_error_message_for(code, body),
+        )
+    except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+        return ProviderTestResult(
+            ok=False,
+            latency_ms=_elapsed_ms(),
+            error_code="timeout",
+            error_message=_error_message_for("timeout", str(exc)),
+        )
+    except Exception as exc:  # noqa: BLE001 — classify, don't leak
+        return ProviderTestResult(
+            ok=False,
+            latency_ms=_elapsed_ms(),
+            error_code="other",
+            error_message=str(exc)[:200] or "Probe failed",
+        )
+
+    if not response:
+        return ProviderTestResult(
+            ok=False,
+            latency_ms=_elapsed_ms(),
+            error_code="timeout",
+            error_message=_ERROR_COPY["timeout"],
+        )
+    return ProviderTestResult(ok=True, latency_ms=_elapsed_ms())
 
 
 # ---------------------------------------------------------------------------

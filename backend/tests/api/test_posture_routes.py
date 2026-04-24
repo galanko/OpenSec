@@ -1,12 +1,22 @@
-"""Route tests for D3 posture fix (IMPL-0002)."""
+"""Route tests for D3 posture fix (IMPL-0002).
+
+Also covers PRD-0004 / IMPL-0004 T3: the 409 guard + retry-after-terminal
+behaviour. Those tests swap in a DB-writing spawner so the partial unique
+index (``idx_workspace_active_per_check``) actually fires.
+"""
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
 
 import pytest
 
-from opensec.api._engine_dep import get_repo_workspace_spawner
+from opensec.api._engine_dep import (
+    _CHECK_NAME_FOR_KIND,
+    get_repo_workspace_spawner,
+)
+from opensec.db.repo_workspace import create_repo_action_workspace
 from opensec.main import app
 from opensec.workspace.workspace_dir_manager import WorkspaceKind
 
@@ -29,9 +39,48 @@ class FakeSpawner:
         return self.fixed_workspace_id
 
 
+class DBWritingSpawner:
+    """Exercises the real DAO (and therefore the partial unique index) without
+    touching the filesystem or the OpenCode process pool.
+
+    Lets T3 tests drive the 409 collision + retry-after-terminal scenarios
+    end-to-end through the posture route.
+    """
+
+    async def spawn_repo_workspace(
+        self,
+        *,
+        kind: WorkspaceKind,
+        repo_url: str,
+        params: dict | None = None,
+    ) -> str:
+        from opensec.db.connection import _db
+
+        assert _db is not None, "DBWritingSpawner requires an initialised db"
+        workspace_id = f"repo-{kind.value}-{secrets.token_hex(4)}"
+        check_name = _CHECK_NAME_FOR_KIND[kind.value]
+        await create_repo_action_workspace(
+            _db,
+            workspace_id=workspace_id,
+            kind=kind.value,
+            source_check_name=check_name,
+        )
+        return workspace_id
+
+
 @pytest.fixture
 def fake_spawner():
     spawner = FakeSpawner()
+    app.dependency_overrides[get_repo_workspace_spawner] = lambda: spawner
+    try:
+        yield spawner
+    finally:
+        app.dependency_overrides.pop(get_repo_workspace_spawner, None)
+
+
+@pytest.fixture
+def db_writing_spawner():
+    spawner = DBWritingSpawner()
     app.dependency_overrides[get_repo_workspace_spawner] = lambda: spawner
     try:
         yield spawner
@@ -85,3 +134,67 @@ async def test_fix_without_any_assessment_returns_409(db_client, fake_spawner):
     resp = await db_client.post("/api/posture/fix/security_md")
     assert resp.status_code == 409
     assert fake_spawner.calls == []
+
+
+# ---------------------------------------------------------------------------
+# T3 · 409 guard on concurrent posture fix (PRD-0004 / ADR-0030)
+# ---------------------------------------------------------------------------
+
+
+async def test_concurrent_fix_returns_409(db_client, db_writing_spawner):
+    await _seed_onboarded_repo("https://github.com/a/b")
+
+    r1 = await db_client.post("/api/posture/fix/security_md")
+    assert r1.status_code == 200
+    ws1 = r1.json()["workspace_id"]
+
+    # Second POST while the first workspace is still in a non-terminal state
+    # must collide on idx_workspace_active_per_check and surface as 409.
+    r2 = await db_client.post("/api/posture/fix/security_md")
+    assert r2.status_code == 409
+    detail = r2.json()["detail"]
+    assert detail["error"] == "workspace_already_running"
+    assert detail["workspace_id"] == ws1
+    assert detail["check_name"] == "security_md"
+
+
+async def test_retry_after_terminal(db_client, db_writing_spawner):
+    """After the first workspace reaches a terminal state, a new POST for
+    the same check must succeed with a new workspace id (predicate no longer
+    matches the prior row).
+    """
+    await _seed_onboarded_repo("https://github.com/a/b")
+
+    r1 = await db_client.post("/api/posture/fix/security_md")
+    assert r1.status_code == 200
+    ws1 = r1.json()["workspace_id"]
+
+    # Transition to terminal state.
+    from opensec.db.connection import _db
+
+    assert _db is not None
+    await _db.execute(
+        "UPDATE workspace SET state = 'failed' WHERE id = ?", (ws1,)
+    )
+    await _db.commit()
+
+    r2 = await db_client.post("/api/posture/fix/security_md")
+    assert r2.status_code == 200
+    ws2 = r2.json()["workspace_id"]
+    assert ws2 != ws1
+
+
+async def test_concurrent_fix_different_checks_both_succeed(
+    db_client, db_writing_spawner
+):
+    """Partial-index predicate keys off source_check_name — different checks
+    should not collide with each other.
+    """
+    await _seed_onboarded_repo("https://github.com/a/b")
+
+    r1 = await db_client.post("/api/posture/fix/security_md")
+    assert r1.status_code == 200
+
+    r2 = await db_client.post("/api/posture/fix/dependabot_config")
+    assert r2.status_code == 200
+    assert r2.json()["workspace_id"] != r1.json()["workspace_id"]

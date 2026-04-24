@@ -173,11 +173,18 @@ class OpenCodeClient:
                 return text
         return None
 
-    async def send_message(self, session_id: str, content: str) -> None:
+    async def send_message(
+        self, session_id: str, content: str, *, timeout: float = 120.0,
+    ) -> None:
         """Send a message to an OpenCode session.
 
         IMPORTANT: This call **blocks** until the LLM finishes generating
         its response (typically 10–120 s). Returns ``None`` on success.
+
+        ``timeout`` is the HTTP-level deadline on the POST call. Callers
+        that can tolerate only a short wait (e.g. the provider probe in
+        ADR-0031) pass a smaller value. Defaults to 120 s to preserve
+        existing long-running agent behaviour.
 
         To get the response text afterward, use one of:
           - ``get_last_assistant_text(session_id)`` — simple, deterministic
@@ -188,7 +195,7 @@ class OpenCodeClient:
         resp = await client.post(
             f"/session/{session_id}/message",
             json={"parts": [{"type": "text", "text": content}]},
-            timeout=httpx.Timeout(120.0, connect=5.0),
+            timeout=httpx.Timeout(timeout, connect=5.0),
         )
         resp.raise_for_status()
 
@@ -201,9 +208,10 @@ class OpenCodeClient:
         The OpenCode ``POST /session/{id}/message`` API returns
         immediately (non-blocking). This method polls the message
         history until an assistant reply appears or *timeout* seconds
-        have elapsed.
+        have elapsed. ``timeout`` is threaded through to
+        ``send_message`` so the HTTP call itself also respects it.
         """
-        await self.send_message(session_id, content)
+        await self.send_message(session_id, content, timeout=timeout)
 
         deadline = asyncio.get_event_loop().time() + timeout
         while asyncio.get_event_loop().time() < deadline:
