@@ -88,6 +88,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assessment/{assessment_id}/mark-summary-seen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Summary Seen Route
+         * @description Idempotent: flips ``summary_seen_at`` to ``now()`` only when NULL.
+         *
+         *     The first call writes the timestamp; subsequent calls return the same
+         *     value. The frontend invokes this once when the user dismisses the
+         *     assessment-complete interstitial (Surface 3 of PRD-0003 v0.2).
+         */
+        post: operations["mark_summary_seen_route_api_assessment__assessment_id__mark_summary_seen_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit": {
         parameters: {
             query?: never;
@@ -220,14 +244,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Get Dashboard
-         * @description Aggregate dashboard payload: latest assessment + findings + posture.
-         *
-         *     The findings count is scoped to the current assessment window (source
-         *     ``opensec-assessment``, created at or after the latest assessment's start)
-         *     so the Vulnerabilities tile always matches what the Findings page shows.
-         */
+        /** Get Dashboard */
         get: operations["get_dashboard_api_dashboard_get"];
         put?: never;
         post?: never;
@@ -761,6 +778,31 @@ export interface paths {
         get: operations["get_configured_providers_api_settings_providers_configured_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/providers/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Provider
+         * @description Cheap probe of the configured provider+model (ADR-0031).
+         *
+         *     Sends a bounded ``"Say OK"`` chat call through OpenCode with an 8s
+         *     timeout and classifies the outcome into
+         *     ``{ok, latency_ms, error_code, error_message}``. Always returns HTTP
+         *     200; ``ok`` reflects the probe result.
+         */
+        post: operations["test_provider_api_settings_providers_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1307,6 +1349,10 @@ export interface components {
              * @enum {string}
              */
             status: "pending" | "running" | "complete" | "failed";
+            /** Summary Seen At */
+            summary_seen_at?: string | null;
+            /** Tools */
+            tools?: components["schemas"]["AssessmentTool"][] | null;
         };
         /** AssessmentCreate */
         AssessmentCreate: {
@@ -1348,6 +1394,75 @@ export interface components {
             status: string;
             /** Step */
             step?: string | null;
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["AssessmentStep"][];
+            /** Summary Seen At */
+            summary_seen_at?: string | null;
+            /**
+             * Tools
+             * @default []
+             */
+            tools: components["schemas"]["AssessmentTool"][];
+        };
+        /**
+         * AssessmentStep
+         * @description One row in the assessment progress timeline (ADR-0032 §1.7).
+         */
+        AssessmentStep: {
+            /** Detail */
+            detail?: string | null;
+            /** Hint */
+            hint?: string | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Progress Pct */
+            progress_pct?: number | null;
+            /** Result Summary */
+            result_summary?: string | null;
+            /** State */
+            state: string;
+        };
+        /**
+         * AssessmentTool
+         * @description Single entry in the ADR-0032 ``tools[]`` payload.
+         *
+         *     Replaces the parallel ``scanner_versions`` + ``tool_states[]`` payloads
+         *     from earlier drafts; the architect's regression test
+         *     ``test_dashboard_omits_legacy_scanner_versions`` guards against either of
+         *     those legacy keys leaking back in.
+         */
+        AssessmentTool: {
+            /** Icon */
+            icon: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            result?: components["schemas"]["AssessmentToolResult"] | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "active" | "done" | "skipped";
+            /** Version */
+            version?: string | null;
+        };
+        /** AssessmentToolResult */
+        AssessmentToolResult: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "findings_count" | "pass_count";
+            /** Text */
+            text: string;
+            /** Value */
+            value: number;
         };
         /**
          * BootstrapState
@@ -1358,6 +1473,13 @@ export interface components {
             has_any_assessment: boolean;
             /** Onboarding Completed */
             onboarding_completed: boolean;
+        };
+        /** CategoryProgress */
+        CategoryProgress: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
         };
         /** ChatPermissionDecision */
         ChatPermissionDecision: {
@@ -1445,11 +1567,33 @@ export interface components {
         };
         /**
          * CriteriaSnapshot
-         * @description Five-criteria snapshot persisted at completion time.
+         * @description Ten-criteria snapshot persisted at completion time.
          *
-         *     Values are derived at read-time elsewhere; this is the frozen record.
+         *     Five fields are carried from PRD-0002 (``no_critical_vulns``,
+         *     ``posture_checks_passing/total``, ``security_md_present``,
+         *     ``dependabot_present``). Seven additional booleans land in PRD-0003 v0.2;
+         *     they default to ``False`` so any old persisted JSON still rehydrates
+         *     cleanly. Of those seven, five count toward the ten-criteria grade and two
+         *     (``branch_protection_enabled`` is a duplicate-named convenience flag,
+         *     ``no_secrets_detected`` is the four-state-vocab name for the existing
+         *     ``no_secrets_in_code`` posture check).
          */
         CriteriaSnapshot: {
+            /**
+             * Actions Pinned To Sha
+             * @default false
+             */
+            actions_pinned_to_sha: boolean;
+            /**
+             * Branch Protection Enabled
+             * @default false
+             */
+            branch_protection_enabled: boolean;
+            /**
+             * Code Owners Exists
+             * @default false
+             */
+            code_owners_exists: boolean;
             /**
              * Dependabot Present
              * @default false
@@ -1461,6 +1605,21 @@ export interface components {
              */
             no_critical_vulns: boolean;
             /**
+             * No High Vulns
+             * @default false
+             */
+            no_high_vulns: boolean;
+            /**
+             * No Secrets Detected
+             * @default false
+             */
+            no_secrets_detected: boolean;
+            /**
+             * No Stale Collaborators
+             * @default false
+             */
+            no_stale_collaborators: boolean;
+            /**
              * Posture Checks Passing
              * @default 0
              */
@@ -1471,23 +1630,46 @@ export interface components {
              */
             posture_checks_total: number;
             /**
+             * Secret Scanning Enabled
+             * @default false
+             */
+            secret_scanning_enabled: boolean;
+            /**
              * Security Md Present
              * @default false
              */
             security_md_present: boolean;
         };
-        /** DashboardPayload */
+        /**
+         * CriterionLabel
+         * @description One row of the labeled ``criteria[]`` list (ADR-0032 §1.4).
+         */
+        CriterionLabel: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Met */
+            met: boolean;
+        };
+        /**
+         * DashboardPayload
+         * @description v0.2 dashboard wire shape — see ADR-0032 for the full design rationale.
+         */
         DashboardPayload: {
             assessment: components["schemas"]["Assessment"] | null;
             /** Completion Id */
             completion_id?: string | null;
-            criteria: components["schemas"]["CriteriaSnapshot"];
+            /** Criteria */
+            criteria: components["schemas"]["CriterionLabel"][];
+            criteria_snapshot: components["schemas"]["CriteriaSnapshot"];
             /** Findings Count By Priority */
             findings_count_by_priority: {
                 [key: string]: number;
             };
             /** Grade */
             grade: ("A" | "B" | "C" | "D" | "F") | null;
+            posture?: components["schemas"]["PostureWire"] | null;
             /**
              * Posture Checks
              * @default []
@@ -1497,6 +1679,9 @@ export interface components {
             posture_pass_count: number;
             /** Posture Total Count */
             posture_total_count: number;
+            /** Tools */
+            tools?: components["schemas"]["AssessmentTool"][];
+            vulnerabilities?: components["schemas"]["VulnerabilityCounts"] | null;
         };
         /** ExecuteResponse */
         ExecuteResponse: {
@@ -1792,6 +1977,16 @@ export interface components {
             /** Registry Id */
             registry_id: string;
         };
+        /**
+         * MarkSummarySeenResponse
+         * @description Idempotent response: ``summary_seen_at`` is set on first call.
+         */
+        MarkSummarySeenResponse: {
+            /** Assessment Id */
+            assessment_id: string;
+            /** Summary Seen At */
+            summary_seen_at: string;
+        };
         /** Message */
         Message: {
             /** Content Markdown */
@@ -1889,15 +2084,30 @@ export interface components {
             /** Approved */
             approved: boolean;
         };
+        /** PostureCategoryWire */
+        PostureCategoryWire: {
+            /** Checks */
+            checks: components["schemas"]["PostureCheckWire"][];
+            /** Display Name */
+            display_name: string;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "repo_configuration" | "code_integrity" | "ci_supply_chain" | "collaborator_hygiene";
+            progress: components["schemas"]["CategoryProgress"];
+        };
         /** PostureCheck */
         PostureCheck: {
             /** Assessment Id */
             assessment_id: string;
+            /** Category */
+            category?: ("repo_configuration" | "code_integrity" | "ci_supply_chain" | "collaborator_hygiene") | null;
             /**
              * Check Name
              * @enum {string}
              */
-            check_name: "branch_protection" | "no_force_pushes" | "no_secrets_in_code" | "security_md" | "lockfile_present" | "dependabot_config" | "signed_commits";
+            check_name: "branch_protection" | "no_force_pushes" | "no_secrets_in_code" | "security_md" | "lockfile_present" | "dependabot_config" | "signed_commits" | "code_owners_exists" | "secret_scanning_enabled" | "actions_pinned_to_sha" | "trusted_action_sources" | "workflow_trigger_scope" | "stale_collaborators" | "broad_team_permissions" | "default_branch_permissions";
             /**
              * Created At
              * Format: date-time
@@ -1909,11 +2119,41 @@ export interface components {
             } | null;
             /** Id */
             id: string;
+            /** Pr Url */
+            pr_url?: string | null;
             /**
              * Status
              * @enum {string}
              */
             status: "pass" | "fail" | "advisory" | "unknown";
+        };
+        /** PostureCheckWire */
+        PostureCheckWire: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "repo_configuration" | "code_integrity" | "ci_supply_chain" | "collaborator_hygiene";
+            /** Detail */
+            detail?: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Fixable By */
+            fixable_by?: string | null;
+            /**
+             * Grade Impact
+             * @enum {string}
+             */
+            grade_impact: "counts" | "advisory";
+            /** Name */
+            name: string;
+            /** Pr Url */
+            pr_url?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pass" | "fail" | "done" | "advisory";
         };
         /**
          * PostureFixRequest
@@ -1943,6 +2183,43 @@ export interface components {
             check_name: "security_md" | "dependabot_config";
             /** Workspace Id */
             workspace_id: string;
+        };
+        /** PostureWire */
+        PostureWire: {
+            /** Advisory Count */
+            advisory_count: number;
+            /** Categories */
+            categories: components["schemas"]["PostureCategoryWire"][];
+            /** Pass Count */
+            pass_count: number;
+            /** Total Count */
+            total_count: number;
+        };
+        /**
+         * ProviderTestRequest
+         * @description Optional staged config. Alpha passes nothing and probes the currently
+         *     configured provider/model/key; a future UI can preview unsaved staged
+         *     config by populating these fields. Ignored today — probe uses whatever
+         *     OpenCode has configured — but kept so the wire shape is stable.
+         */
+        ProviderTestRequest: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Model */
+            model?: string | null;
+            /** Provider */
+            provider?: string | null;
+        };
+        /** ProviderTestResult */
+        ProviderTestResult: {
+            /** Error Code */
+            error_code?: string | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Ok */
+            ok: boolean;
         };
         /**
          * RegistryEntry
@@ -2217,6 +2494,21 @@ export interface components {
             /** Visibility */
             visibility: string;
         };
+        /** VulnerabilityCounts */
+        VulnerabilityCounts: {
+            /** By Severity */
+            by_severity?: {
+                [key: string]: number;
+            };
+            /** By Source */
+            by_source?: {
+                [key: string]: number;
+            };
+            /** Tool Credits */
+            tool_credits?: string[];
+            /** Total */
+            total: number;
+        };
         /** Workspace */
         Workspace: {
             /** Active Plan Version */
@@ -2234,17 +2526,24 @@ export interface components {
             /** Current Focus */
             current_focus?: string | null;
             /** Finding Id */
-            finding_id: string;
+            finding_id?: string | null;
             /** Id */
             id: string;
+            /**
+             * Kind
+             * @default finding_remediation
+             */
+            kind: string;
             /** Linked Ticket Id */
             linked_ticket_id?: string | null;
+            /** Source Check Name */
+            source_check_name?: string | null;
             /**
              * State
              * @default open
              * @enum {string}
              */
-            state: "open" | "waiting" | "ready_to_close" | "closed" | "reopened";
+            state: "open" | "waiting" | "ready_to_close" | "closed" | "reopened" | "pending" | "running" | "succeeded" | "failed" | "cancelled";
             /**
              * Updated At
              * Format: date-time
@@ -2273,7 +2572,7 @@ export interface components {
              * @default open
              * @enum {string}
              */
-            state: "open" | "waiting" | "ready_to_close" | "closed" | "reopened";
+            state: "open" | "waiting" | "ready_to_close" | "closed" | "reopened" | "pending" | "running" | "succeeded" | "failed" | "cancelled";
         };
         /** WorkspaceUpdate */
         WorkspaceUpdate: {
@@ -2284,7 +2583,7 @@ export interface components {
             /** Linked Ticket Id */
             linked_ticket_id?: string | null;
             /** State */
-            state?: ("open" | "waiting" | "ready_to_close" | "closed" | "reopened") | null;
+            state?: ("open" | "waiting" | "ready_to_close" | "closed" | "reopened" | "pending" | "running" | "succeeded" | "failed" | "cancelled") | null;
             /** Validation State */
             validation_state?: string | null;
         };
@@ -2388,6 +2687,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssessmentStatusResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_summary_seen_route_api_assessment__assessment_id__mark_summary_seen_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assessment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarkSummarySeenResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3615,6 +3945,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    test_provider_api_settings_providers_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ProviderTestRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderTestResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
