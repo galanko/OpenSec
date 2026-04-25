@@ -1,0 +1,29 @@
+{
+  "version": "1.70.0",
+  "results": [
+    {
+      "check_id": "python.django.security.audit.sqli.django-string-format-sql-query",
+      "path": "app/db.py",
+      "start": {"line": 88, "col": 5},
+      "end": {"line": 88, "col": 64},
+      "extra": {
+        "severity": "ERROR",
+        "message": "Potential SQL injection via string formatting",
+        "metadata": {"category": "security", "cwe": ["CWE-89"]}
+      }
+    },
+    {
+      "check_id": "javascript.lang.security.audit.eval.eval-detected",
+      "path": "src/runner.js",
+      "start": {"line": 14, "col": 1},
+      "end": {"line": 14, "col": 18},
+      "extra": {
+        "severity": "WARNING",
+        "message": "Use of eval() is dangerous",
+        "metadata": {"category": "security"}
+      }
+    }
+  ],
+  "errors": [],
+  "paths": {"scanned": ["app/db.py", "src/runner.js"]}
+}

@@ -1,0 +1,15 @@
+# Pinned scanner binaries (ADR-0028).
+#
+# Format:  <name> <version> <sha256-of-extracted-binary>
+#
+# `scripts/install-scanners.sh` downloads each binary from its upstream
+# release artifact, extracts the platform-specific archive, and verifies the
+# SHA256 of the binary on disk against this file. In strict mode (default)
+# any mismatch aborts; OPENSEC_SCANNER_VERIFY=warn lets local devs proceed
+# after a manual rebuild.
+#
+# To refresh: download the upstream binary, run `shasum -a 256 bin/<name>`
+# and copy the hex digest in here. Bump the version field at the same time.
+
+trivy 0.52.0 0000000000000000000000000000000000000000000000000000000000000000
+semgrep 1.70.0 0000000000000000000000000000000000000000000000000000000000000000
