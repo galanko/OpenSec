@@ -182,10 +182,19 @@ def test_dependabot_config_check_fail_when_absent(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_run_all_returns_seven_checks_covering_every_name(tmp_path: Path) -> None:
+async def test_run_all_returns_fifteen_checks_covering_every_name(tmp_path: Path) -> None:
     gh = AsyncMock()
     gh.get_branch_protection.return_value = None
     gh.list_recent_commits.return_value = []
+    # New checks call get_repo_info / list_collaborators / list_repo_teams. The
+    # AsyncMock responds with MagicMock by default; force a structured
+    # 'unable to verify' return so the checks degrade to status='unknown'.
+    from opensec.assessment.posture.github_client import UnableToVerify
+
+    gh.get_repo_info.return_value = UnableToVerify(reason="http_403")
+    gh.list_collaborators.return_value = UnableToVerify(reason="http_403")
+    gh.list_repo_teams.return_value = UnableToVerify(reason="http_403")
+
     results = await run_all_posture_checks(tmp_path, gh_client=gh, coords=COORDS)
     names = {r.check_name for r in results}
     assert names == {
@@ -196,8 +205,16 @@ async def test_run_all_returns_seven_checks_covering_every_name(tmp_path: Path) 
         "lockfile_present",
         "dependabot_config",
         "signed_commits",
+        "code_owners_exists",
+        "secret_scanning_enabled",
+        "actions_pinned_to_sha",
+        "trusted_action_sources",
+        "workflow_trigger_scope",
+        "stale_collaborators",
+        "broad_team_permissions",
+        "default_branch_permissions",
     }
-    assert len(results) == 7
+    assert len(results) == 15
 
 
 @pytest.mark.asyncio

@@ -93,7 +93,7 @@ async def test_run_assessment_on_path_produces_expected_findings_and_posture_che
 
     # Posture checks: exactly 7, with expected statuses.
     statuses = {pc["check_name"]: pc["status"] for pc in result.posture_checks}
-    assert len(statuses) == 7
+    assert len(statuses) == 15
     assert statuses["no_secrets_in_code"] == "fail"
     assert statuses["security_md"] == "fail"
     assert statuses["dependabot_config"] == "fail"
@@ -107,9 +107,11 @@ async def test_run_assessment_on_path_produces_expected_findings_and_posture_che
     assert snap.no_critical_vulns is True  # HIGH, not CRITICAL
     assert snap.security_md_present is False
     assert snap.dependabot_present is False
-    assert snap.posture_checks_total == 7
-    # Only lockfile_present should pass with this fixture.
-    assert snap.posture_checks_passing == 1
+    assert snap.posture_checks_total == 15
+    # Lockfile present + the two CI-supply-chain checks that vacuously pass
+    # when the fixture has no .github/workflows/ directory. The grade
+    # recalibration in Epic 3 tightens this to be category-aware.
+    assert snap.posture_checks_passing == 3
 
 
 @pytest.mark.asyncio
@@ -134,7 +136,7 @@ async def test_run_assessment_on_path_returns_assessment_even_when_osv_is_down(
     # Still produces a result; findings empty due to fallback sentinel.
     assert result.findings == []
     # Posture checks still ran.
-    assert len(result.posture_checks) == 7
+    assert len(result.posture_checks) == 15
 
 
 @pytest.mark.asyncio

@@ -14,15 +14,36 @@ from pydantic import BaseModel
 
 PostureCheckStatus = Literal["pass", "fail", "advisory", "unknown"]
 
-# Seven checks from IMPL-0002 B5 plus the two scanner-facing ones.
+# 15 checks total — the 7 frozen by IMPL-0002 plus 8 added in PRD-0003 v0.2.
+# Every check belongs to exactly one PostureCheckCategory; the API layer
+# (Epic 4) groups them into four sections on the report card.
 PostureCheckName = Literal[
+    # Repo configuration (carried from PRD-0002)
     "branch_protection",
     "no_force_pushes",
     "no_secrets_in_code",
     "security_md",
     "lockfile_present",
+    # Code integrity
     "dependabot_config",
     "signed_commits",
+    "code_owners_exists",
+    "secret_scanning_enabled",
+    # CI supply chain
+    "actions_pinned_to_sha",
+    "trusted_action_sources",
+    "workflow_trigger_scope",
+    # Collaborator hygiene
+    "stale_collaborators",
+    "broad_team_permissions",
+    "default_branch_permissions",
+]
+
+PostureCheckCategory = Literal[
+    "repo_configuration",
+    "code_integrity",
+    "ci_supply_chain",
+    "collaborator_hygiene",
 ]
 
 

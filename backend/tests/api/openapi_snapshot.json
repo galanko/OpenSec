@@ -1911,7 +1911,15 @@
               "security_md",
               "lockfile_present",
               "dependabot_config",
-              "signed_commits"
+              "signed_commits",
+              "code_owners_exists",
+              "secret_scanning_enabled",
+              "actions_pinned_to_sha",
+              "trusted_action_sources",
+              "workflow_trigger_scope",
+              "stale_collaborators",
+              "broad_team_permissions",
+              "default_branch_permissions"
             ],
             "title": "Check Name",
             "type": "string"
