@@ -52,6 +52,8 @@ class PostureCheckCreate(BaseModel):
     check_name: PostureCheckName
     status: PostureCheckStatus
     detail: dict[str, Any] | None = None
+    category: PostureCheckCategory | None = None
+    pr_url: str | None = None
 
 
 class PostureCheck(BaseModel):
@@ -61,3 +63,8 @@ class PostureCheck(BaseModel):
     status: PostureCheckStatus
     detail: dict[str, Any] | None = None
     created_at: datetime
+    # Migration 010 adds these columns. They're optional so older rows still
+    # rehydrate cleanly, and the API layer falls back to the CHECK_CATEGORY
+    # map when ``category`` is None.
+    category: PostureCheckCategory | None = None
+    pr_url: str | None = None

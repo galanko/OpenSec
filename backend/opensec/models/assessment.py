@@ -1,9 +1,10 @@
-"""Assessment domain model (IMPL-0002 Milestone A).
+"""Assessment domain model (IMPL-0002 Milestone A; PRD-0003 v0.2 expanded).
 
 An Assessment is one run of the deterministic scan engine against a repo. It
 emits a list of Findings plus a set of PostureCheck results. The grade is
-derived from five criteria at read-time; `criteria_snapshot` is only written to
-persist the values at completion time.
+derived from ten criteria at read-time; ``criteria_snapshot`` is only written
+to persist the values at completion time. Old five-criteria snapshots still
+load because the new fields default to ``False``.
 """
 
 from __future__ import annotations
@@ -18,26 +19,81 @@ Grade = Literal["A", "B", "C", "D", "F"]
 
 
 class CriteriaSnapshot(BaseModel):
-    """Five-criteria snapshot persisted at completion time.
+    """Ten-criteria snapshot persisted at completion time.
 
-    Values are derived at read-time elsewhere; this is the frozen record.
+    Five fields are carried from PRD-0002 (``no_critical_vulns``,
+    ``posture_checks_passing/total``, ``security_md_present``,
+    ``dependabot_present``). Seven additional booleans land in PRD-0003 v0.2;
+    they default to ``False`` so any old persisted JSON still rehydrates
+    cleanly. Of those seven, five count toward the ten-criteria grade and two
+    (``branch_protection_enabled`` is a duplicate-named convenience flag,
+    ``no_secrets_detected`` is the four-state-vocab name for the existing
+    ``no_secrets_in_code`` posture check).
     """
 
+    # Carried from PRD-0002.
     no_critical_vulns: bool = False
     posture_checks_passing: int = 0
     posture_checks_total: int = 0
     security_md_present: bool = False
     dependabot_present: bool = False
 
-    def all_met(self) -> bool:
-        """True only if every criterion is satisfied (ADR-0025 completion gate)."""
-        return (
-            self.no_critical_vulns
-            and self.security_md_present
-            and self.dependabot_present
-            and self.posture_checks_total > 0
-            and self.posture_checks_passing == self.posture_checks_total
+    # New in PRD-0003 v0.2.
+    no_high_vulns: bool = False
+    branch_protection_enabled: bool = False
+    no_secrets_detected: bool = False
+    actions_pinned_to_sha: bool = False
+    no_stale_collaborators: bool = False
+    code_owners_exists: bool = False
+    secret_scanning_enabled: bool = False
+
+    def met_count(self) -> int:
+        """How many of the 10 grading criteria are satisfied."""
+        return sum(
+            [
+                self.no_critical_vulns,
+                self.no_high_vulns,
+                self.security_md_present,
+                self.dependabot_present,
+                self.branch_protection_enabled,
+                self.no_secrets_detected,
+                self.actions_pinned_to_sha,
+                self.no_stale_collaborators,
+                self.code_owners_exists,
+                self.secret_scanning_enabled,
+            ]
         )
+
+    def all_met(self) -> bool:
+        """True when every one of the 10 criteria is satisfied (Grade A gate)."""
+        return self.met_count() == 10
+
+
+ToolState = Literal["pending", "active", "done", "skipped"]
+ToolResultKind = Literal["findings_count", "pass_count"]
+
+
+class AssessmentToolResult(BaseModel):
+    kind: ToolResultKind
+    value: int
+    text: str
+
+
+class AssessmentTool(BaseModel):
+    """Single entry in the ADR-0032 ``tools[]`` payload.
+
+    Replaces the parallel ``scanner_versions`` + ``tool_states[]`` payloads
+    from earlier drafts; the architect's regression test
+    ``test_dashboard_omits_legacy_scanner_versions`` guards against either of
+    those legacy keys leaking back in.
+    """
+
+    id: str  # "trivy" | "semgrep" | "posture"
+    label: str
+    version: str | None = None
+    icon: str
+    state: ToolState
+    result: AssessmentToolResult | None = None
 
 
 class AssessmentCreate(BaseModel):
@@ -49,6 +105,7 @@ class AssessmentUpdate(BaseModel):
     completed_at: datetime | None = None
     grade: Grade | None = None
     criteria_snapshot: CriteriaSnapshot | None = None
+    tools: list[AssessmentTool] | None = None
 
 
 class Assessment(BaseModel):
@@ -59,12 +116,14 @@ class Assessment(BaseModel):
     status: AssessmentStatus = "pending"
     grade: Grade | None = None
     criteria_snapshot: CriteriaSnapshot | None = None
+    tools: list[AssessmentTool] | None = None
+    summary_seen_at: datetime | None = None
 
 
 class AssessmentResult(BaseModel):
     """Ephemeral return shape from the assessment engine (Session A).
 
-    Route handlers in Session B call `run_assessment(repo_url) -> AssessmentResult`
+    Route handlers in Session B call ``run_assessment(repo_url) -> AssessmentResult``
     and persist the pieces to their respective tables.
     """
 
@@ -74,3 +133,4 @@ class AssessmentResult(BaseModel):
     criteria_snapshot: CriteriaSnapshot
     findings: list[dict[str, Any]] = []
     posture_checks: list[dict[str, Any]] = []
+    tools: list[AssessmentTool] = []

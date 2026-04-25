@@ -15,10 +15,17 @@ from tests.fakes.assessment_engine import FakeAssessmentEngine
 def _all_criteria_met() -> CriteriaSnapshot:
     return CriteriaSnapshot(
         no_critical_vulns=True,
-        posture_checks_passing=5,
-        posture_checks_total=5,
+        no_high_vulns=True,
+        posture_checks_passing=15,
+        posture_checks_total=15,
         security_md_present=True,
         dependabot_present=True,
+        branch_protection_enabled=True,
+        no_secrets_detected=True,
+        actions_pinned_to_sha=True,
+        no_stale_collaborators=True,
+        code_owners_exists=True,
+        secret_scanning_enabled=True,
     )
 
 
@@ -83,7 +90,7 @@ async def test_run_assessment_persists_result_and_posture(db_client, fake_engine
     a = await get_assessment(_db, aid)
     assert a.status == "complete"
     assert a.grade == "A"
-    assert a.criteria_snapshot.posture_checks_passing == 5
+    assert a.criteria_snapshot.posture_checks_passing == 15
 
     checks = await list_posture_checks_for_assessment(_db, aid)
     assert {c.check_name for c in checks} == {"branch_protection", "security_md"}
@@ -219,7 +226,7 @@ async def test_get_latest_assessment(db_client, fake_engine):
     data = resp.json()
     assert data["assessment"]["id"] == aid
     assert data["grade"] == "A"
-    assert data["criteria"]["posture_checks_passing"] == 5
+    assert data["criteria"]["posture_checks_passing"] == 15
     assert data["posture_total_count"] == 2
     assert data["posture_pass_count"] == 2
     assert data["findings_count_by_priority"] == {}

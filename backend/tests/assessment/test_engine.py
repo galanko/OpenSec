@@ -179,25 +179,27 @@ async def test_run_assessment_on_path_flags_critical_severity() -> None:
     assert result.criteria_snapshot.no_critical_vulns is False
 
 
-def test_derive_grade_a_when_all_five_criteria_met() -> None:
+def test_derive_grade_a_when_all_ten_criteria_met() -> None:
+    """Ten of ten criteria met → A (PRD-0003 v0.2 grading scale)."""
     snap = CriteriaSnapshot(
         no_critical_vulns=True,
-        posture_checks_passing=7,
-        posture_checks_total=7,
+        no_high_vulns=True,
         security_md_present=True,
         dependabot_present=True,
+        branch_protection_enabled=True,
+        no_secrets_detected=True,
+        actions_pinned_to_sha=True,
+        no_stale_collaborators=True,
+        code_owners_exists=True,
+        secret_scanning_enabled=True,
+        posture_checks_passing=15,
+        posture_checks_total=15,
     )
-    # All high-level criteria met: no criticals + no highs + branch_protection
-    # + no secrets + SECURITY.md present.
-    findings: list[dict] = []
-    posture_statuses = {
-        "branch_protection": "pass",
-        "no_secrets_in_code": "pass",
-    }
-    assert derive_grade(snap, findings, posture_statuses) == "A"
+    assert derive_grade(snap, [], {}) == "A"
 
 
 def test_derive_grade_f_when_criticals_present() -> None:
+    """A critical vuln knocks both no_critical_vulns and no_high_vulns off."""
     snap = CriteriaSnapshot(no_critical_vulns=False)
     findings = [{"raw_severity": "CRITICAL"}]
     posture_statuses = {"branch_protection": "fail", "no_secrets_in_code": "fail"}
@@ -205,21 +207,42 @@ def test_derive_grade_f_when_criticals_present() -> None:
 
 
 def test_derive_grade_counts_unknown_severity_against_criteria() -> None:
-    """An UNKNOWN-severity advisory fails both the no-critical and no-high
-    criteria — conservative policy per review finding #3.
-    """
+    """UNKNOWN severity is treated as could-be-critical and could-be-high."""
     snap = CriteriaSnapshot(
         security_md_present=True,
-        posture_checks_passing=7,
-        posture_checks_total=7,
+        dependabot_present=True,
     )
     findings = [{"raw_severity": "UNKNOWN"}]
     posture_statuses = {
         "branch_protection": "pass",
         "no_secrets_in_code": "pass",
     }
-    # 3 criteria met (bp, secrets, security_md), 2 missed (unknown counts).
-    assert derive_grade(snap, findings, posture_statuses) == "C"
+    grade = derive_grade(snap, findings, posture_statuses)
+    # 4 met (security_md, dependabot, branch_protection, no_secrets); UNKNOWN
+    # severity disqualifies no_critical and no_high. With the 10-criteria
+    # scale 4 met == D.
+    assert grade == "D"
+
+
+def test_criteria_snapshot_10_fields() -> None:
+    """Regression: the snapshot exposes all ten v0.2 grade criteria."""
+    snap = CriteriaSnapshot()
+    grading_fields = {
+        "no_critical_vulns",
+        "no_high_vulns",
+        "security_md_present",
+        "dependabot_present",
+        "branch_protection_enabled",
+        "no_secrets_detected",
+        "actions_pinned_to_sha",
+        "no_stale_collaborators",
+        "code_owners_exists",
+        "secret_scanning_enabled",
+    }
+    fields = set(snap.model_dump().keys())
+    missing = grading_fields - fields
+    assert not missing, f"missing grading criteria fields: {missing}"
+    assert snap.met_count() == 0
 
 
 # ---------------------------------------------------------------------------
