@@ -43,6 +43,21 @@ const runningAssessment: Assessment = {
 // security_md_present + dependabot_present, which are separate completion
 // criteria. This disjointness is what makes "3 of 5 criteria met" + "7 of 7
 // posture checks passing" + "2 failing items to fix" internally consistent.
+const _legacyEmptyCriteria = {
+  security_md_present: false,
+  dependabot_present: false,
+  no_critical_vulns: false,
+  posture_checks_passing: 0,
+  posture_checks_total: 0,
+  no_high_vulns: false,
+  branch_protection_enabled: false,
+  no_secrets_detected: false,
+  actions_pinned_to_sha: false,
+  no_stale_collaborators: false,
+  code_owners_exists: false,
+  secret_scanning_enabled: false,
+}
+
 const completedAssessmentC: Assessment = {
   id: 'asmt_c_001',
   repo_url: 'https://github.com/acme/fast-markdown',
@@ -51,8 +66,7 @@ const completedAssessmentC: Assessment = {
   started_at: EARLIER,
   completed_at: NOW,
   criteria_snapshot: {
-    security_md_present: false,
-    dependabot_present: false,
+    ..._legacyEmptyCriteria,
     no_critical_vulns: true,
     posture_checks_passing: 7,
     posture_checks_total: 7,
@@ -67,11 +81,19 @@ const completedAssessmentA: Assessment = {
   started_at: EARLIER,
   completed_at: NOW,
   criteria_snapshot: {
+    ..._legacyEmptyCriteria,
     security_md_present: true,
     dependabot_present: true,
     no_critical_vulns: true,
-    posture_checks_passing: 7,
-    posture_checks_total: 7,
+    no_high_vulns: true,
+    posture_checks_passing: 15,
+    posture_checks_total: 15,
+    branch_protection_enabled: true,
+    no_secrets_detected: true,
+    actions_pinned_to_sha: true,
+    no_stale_collaborators: true,
+    code_owners_exists: true,
+    secret_scanning_enabled: true,
   },
 }
 
@@ -79,33 +101,79 @@ const completedAssessmentA: Assessment = {
 // Payloads
 // ---------------------------------------------------------------------------
 
+// v0.2 (ADR-0032): `criteria` is the labeled list; `criteria_snapshot` keeps
+// the legacy boolean record for backward compatibility.
+const _emptySnapshot = {
+  security_md_present: false,
+  dependabot_present: false,
+  no_critical_vulns: false,
+  posture_checks_passing: 0,
+  posture_checks_total: 0,
+  no_high_vulns: false,
+  branch_protection_enabled: false,
+  no_secrets_detected: false,
+  actions_pinned_to_sha: false,
+  no_stale_collaborators: false,
+  code_owners_exists: false,
+  secret_scanning_enabled: false,
+}
+
+const _criteriaForSnapshot = (snap: typeof _emptySnapshot) => [
+  { key: 'security_md_present', label: 'SECURITY.md present', met: snap.security_md_present },
+  { key: 'dependabot_configured', label: 'Dependabot configured', met: snap.dependabot_present },
+  { key: 'no_critical_vulns', label: 'No critical vulns', met: snap.no_critical_vulns },
+  { key: 'no_high_vulns', label: 'No high vulns', met: snap.no_high_vulns },
+  {
+    key: 'branch_protection_enabled',
+    label: 'Branch protection enabled',
+    met: snap.branch_protection_enabled,
+  },
+  { key: 'no_secrets_detected', label: 'No committed secrets', met: snap.no_secrets_detected },
+  {
+    key: 'actions_pinned_to_sha',
+    label: 'CI actions pinned to SHA',
+    met: snap.actions_pinned_to_sha,
+  },
+  {
+    key: 'no_stale_collaborators',
+    label: 'No stale collaborators',
+    met: snap.no_stale_collaborators,
+  },
+  { key: 'code_owners_exists', label: 'Code owners file exists', met: snap.code_owners_exists },
+  {
+    key: 'secret_scanning_enabled',
+    label: 'Secret scanning enabled',
+    met: snap.secret_scanning_enabled,
+  },
+]
+
 export const assessmentRunningPayload: DashboardPayload = {
   assessment: runningAssessment,
   completion_id: null,
-  criteria: {
-    security_md_present: false,
-    dependabot_present: false,
-    no_critical_vulns: false,
-    posture_checks_passing: 0,
-    posture_checks_total: 0,
-  },
+  criteria: _criteriaForSnapshot(_emptySnapshot),
+  criteria_snapshot: _emptySnapshot,
   findings_count_by_priority: {},
   grade: null,
   posture_checks: [],
+  posture: null,
   posture_pass_count: 0,
   posture_total_count: 0,
+  tools: [],
+  vulnerabilities: null,
+}
+
+const _snapshotC = {
+  ..._emptySnapshot,
+  no_critical_vulns: true,
+  posture_checks_passing: 7,
+  posture_checks_total: 7,
 }
 
 export const gradeCWithIssuesPayload: DashboardPayload = {
   assessment: completedAssessmentC,
   completion_id: null,
-  criteria: {
-    security_md_present: false,
-    dependabot_present: false,
-    no_critical_vulns: true,
-    posture_checks_passing: 7,
-    posture_checks_total: 7,
-  },
+  criteria: _criteriaForSnapshot(_snapshotC),
+  criteria_snapshot: _snapshotC,
   findings_count_by_priority: {
     critical: 1,
     high: 2,
@@ -114,20 +182,34 @@ export const gradeCWithIssuesPayload: DashboardPayload = {
   },
   grade: 'C',
   posture_checks: [],
+  posture: null,
   posture_pass_count: 7,
   posture_total_count: 7,
+  tools: [],
+  vulnerabilities: null,
+}
+
+const _snapshotA = {
+  ..._emptySnapshot,
+  security_md_present: true,
+  dependabot_present: true,
+  no_critical_vulns: true,
+  no_high_vulns: true,
+  posture_checks_passing: 15,
+  posture_checks_total: 15,
+  branch_protection_enabled: true,
+  no_secrets_detected: true,
+  actions_pinned_to_sha: true,
+  no_stale_collaborators: true,
+  code_owners_exists: true,
+  secret_scanning_enabled: true,
 }
 
 export const gradeACompletionHoldingPayload: DashboardPayload = {
   assessment: completedAssessmentA,
   completion_id: 'cmp_001',
-  criteria: {
-    security_md_present: true,
-    dependabot_present: true,
-    no_critical_vulns: true,
-    posture_checks_passing: 7,
-    posture_checks_total: 7,
-  },
+  criteria: _criteriaForSnapshot(_snapshotA),
+  criteria_snapshot: _snapshotA,
   findings_count_by_priority: {
     critical: 0,
     high: 0,
@@ -136,8 +218,11 @@ export const gradeACompletionHoldingPayload: DashboardPayload = {
   },
   grade: 'A',
   posture_checks: [],
+  posture: null,
   posture_pass_count: 7,
   posture_total_count: 7,
+  tools: [],
+  vulnerabilities: null,
 }
 
 // ---------------------------------------------------------------------------
@@ -199,42 +284,57 @@ export const sampleFindings: Finding[] = [
 // Assessment status progression (for poll/SSE — Session B upgrades to SSE later)
 // ---------------------------------------------------------------------------
 
+const _emptySteps: AssessmentStatusResponse['steps'] = []
+const _emptyTools: AssessmentStatusResponse['tools'] = []
+
 export const assessmentStatusSteps: AssessmentStatusResponse[] = [
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 10,
     step: 'cloning',
+    steps: _emptySteps,
+    tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 25,
     step: 'parsing_lockfiles',
+    steps: _emptySteps,
+    tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 50,
     step: 'looking_up_cves',
+    steps: _emptySteps,
+    tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 75,
     step: 'checking_posture',
+    steps: _emptySteps,
+    tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 90,
     step: 'grading',
+    steps: _emptySteps,
+    tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'complete',
     progress_pct: 100,
     step: null,
+    steps: _emptySteps,
+    tools: _emptyTools,
   },
 ]
 

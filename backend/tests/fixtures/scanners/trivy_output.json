@@ -1,0 +1,48 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "/tmp/repo",
+  "ArtifactType": "filesystem",
+  "Results": [
+    {
+      "Target": "package-lock.json",
+      "Class": "lang-pkgs",
+      "Type": "npm",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2021-23337",
+          "PkgName": "lodash",
+          "InstalledVersion": "4.17.19",
+          "FixedVersion": "4.17.21",
+          "Severity": "HIGH",
+          "Title": "Command injection in lodash",
+          "Description": "lodash before 4.17.21 is vulnerable to Command Injection via template.",
+          "PrimaryURL": "https://nvd.nist.gov/vuln/detail/CVE-2021-23337"
+        },
+        {
+          "VulnerabilityID": "CVE-2020-28469",
+          "PkgName": "glob-parent",
+          "InstalledVersion": "5.1.0",
+          "FixedVersion": "5.1.2",
+          "Severity": "MEDIUM",
+          "Title": "Regular expression denial of service",
+          "PrimaryURL": "https://nvd.nist.gov/vuln/detail/CVE-2020-28469"
+        }
+      ]
+    },
+    {
+      "Target": "src/config.js",
+      "Class": "secret",
+      "Secrets": [
+        {
+          "RuleID": "aws-access-key-id",
+          "Category": "AWS",
+          "Severity": "CRITICAL",
+          "Title": "AWS Access Key ID",
+          "StartLine": 42,
+          "EndLine": 42,
+          "Match": "AKIA****"
+        }
+      ]
+    }
+  ]
+}

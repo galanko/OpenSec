@@ -271,7 +271,9 @@ function ReportCard({ data }: { data: DashboardPayload }) {
   >({})
 
   const repoName = repoNameFromUrl(data.assessment?.repo_url)
-  const criteria = data.criteria
+  // v0.2 dashboard: data.criteria is the labeled list per ADR-0032; the boolean
+  // record we inspect for legacy synth/render paths lives at criteria_snapshot.
+  const criteria = data.criteria_snapshot
   const criteriaMet = countCriteriaMet(criteria)
   const remaining = Math.max(0, CRITERIA_TOTAL - criteriaMet)
 
@@ -615,8 +617,12 @@ function PostureCard({
   feedback: PostureFeedback | null
   activeWorkspaceIds: Partial<Record<PostureFixableCheck, string>>
 }) {
-  const { posture_pass_count, posture_total_count, criteria, posture_checks } =
-    data
+  const {
+    posture_pass_count,
+    posture_total_count,
+    criteria_snapshot: criteria,
+    posture_checks,
+  } = data
 
   // Prefer the real per-check list. Fall back to a synthesized minimal list
   // for pre-2026-04 assessments whose payloads don't include posture_checks.
@@ -1024,7 +1030,7 @@ function statusCopy(status: PostureCheckStatus): string {
  * Criteria 4 and 5 are intentionally overlapping: hitting 100% implies 80%,
  * so perfect posture counts for both. A repo at 80–99% earns only criterion 4.
  */
-function countCriteriaMet(c: DashboardPayload['criteria']): number {
+function countCriteriaMet(c: DashboardPayload['criteria_snapshot']): number {
   return [
     c.security_md_present,
     c.dependabot_present,

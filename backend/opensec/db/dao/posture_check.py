@@ -27,7 +27,16 @@ def _row_to_posture_check(row: aiosqlite.Row) -> PostureCheck:
         status=row["status"],
         detail=json.loads(detail_json) if detail_json else None,
         created_at=row["created_at"],
+        category=_safe(row, "category"),
+        pr_url=_safe(row, "pr_url"),
     )
+
+
+def _safe(row: aiosqlite.Row, key: str) -> object | None:
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
 
 
 async def create_posture_check(
@@ -38,8 +47,8 @@ async def create_posture_check(
     await db.execute(
         """
         INSERT INTO posture_check
-            (id, assessment_id, check_name, status, detail, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (id, assessment_id, check_name, status, detail, created_at, category, pr_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             check_id,
@@ -48,6 +57,8 @@ async def create_posture_check(
             data.status,
             json.dumps(data.detail) if data.detail is not None else None,
             now,
+            data.category,
+            data.pr_url,
         ),
     )
     await db.commit()

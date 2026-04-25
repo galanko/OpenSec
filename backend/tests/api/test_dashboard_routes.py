@@ -19,7 +19,9 @@ async def test_dashboard_empty(db_client):
     data = resp.json()
     assert data["assessment"] is None
     assert data["grade"] is None
-    assert data["criteria"] == CriteriaSnapshot().model_dump()
+    # v0.2: criteria is the labeled list; criteria_snapshot keeps the legacy shape.
+    assert data["criteria_snapshot"] == CriteriaSnapshot().model_dump()
+    assert isinstance(data["criteria"], list) and len(data["criteria"]) == 10
     assert data["findings_count_by_priority"] == {}
     assert data["posture_pass_count"] == 0
     assert data["posture_total_count"] == 0
@@ -89,7 +91,7 @@ async def test_dashboard_seeded(db_client, criteria):
     data = resp.json()
     assert data["assessment"]["id"] == a.id
     assert data["grade"] == "B"
-    assert data["criteria"]["posture_checks_passing"] == 3
+    assert data["criteria_snapshot"]["posture_checks_passing"] == 3
     assert data["findings_count_by_priority"] == {"P1": 2, "P2": 1, "P3": 1}
     assert data["posture_pass_count"] == 3
     assert data["posture_total_count"] == 5
@@ -108,10 +110,17 @@ async def test_dashboard_surfaces_completion_when_grade_a_and_all_met(
 
     all_met = CriteriaSnapshot(
         no_critical_vulns=True,
-        posture_checks_passing=5,
-        posture_checks_total=5,
+        no_high_vulns=True,
+        posture_checks_passing=15,
+        posture_checks_total=15,
         security_md_present=True,
         dependabot_present=True,
+        branch_protection_enabled=True,
+        no_secrets_detected=True,
+        actions_pinned_to_sha=True,
+        no_stale_collaborators=True,
+        code_owners_exists=True,
+        secret_scanning_enabled=True,
     )
 
     assert _db is not None

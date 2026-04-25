@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from opensec.models import (
     Assessment,
     AssessmentCreate,
+    AssessmentTool,
     AssessmentUpdate,
     CriteriaSnapshot,
     Grade,
@@ -28,6 +29,12 @@ def _row_to_assessment(row: aiosqlite.Row) -> Assessment:
     criteria = (
         CriteriaSnapshot.model_validate(json.loads(criteria_json)) if criteria_json else None
     )
+    # tools_json + summary_seen_at land in migration 010 (ADR-0032). Older
+    # databases that haven't run that migration yet just return None for both.
+    tools_json = _safe_get(row, "tools_json")
+    tools: list[AssessmentTool] | None = None
+    if tools_json:
+        tools = [AssessmentTool.model_validate(t) for t in json.loads(tools_json)]
     return Assessment(
         id=row["id"],
         repo_url=row["repo_url"],
@@ -36,7 +43,17 @@ def _row_to_assessment(row: aiosqlite.Row) -> Assessment:
         status=row["status"],
         grade=row["grade"],
         criteria_snapshot=criteria,
+        tools=tools,
+        summary_seen_at=_safe_get(row, "summary_seen_at"),
     )
+
+
+def _safe_get(row: aiosqlite.Row, key: str) -> object | None:
+    """Tolerant column access: returns None when the column doesn't exist."""
+    try:
+        return row[key]
+    except (IndexError, KeyError):
+        return None
 
 
 async def create_assessment(db: aiosqlite.Connection, data: AssessmentCreate) -> Assessment:
@@ -80,6 +97,13 @@ async def update_assessment(
     if "criteria_snapshot" in fields and fields["criteria_snapshot"] is not None:
         # model_dump already converted it to a dict; re-serialize to JSON text.
         fields["criteria_snapshot"] = json.dumps(fields["criteria_snapshot"])
+    if "tools" in fields:
+        # AssessmentUpdate carries a list[AssessmentTool]; persist via the
+        # tools_json column (ADR-0032).
+        tools_value = fields.pop("tools")
+        fields["tools_json"] = (
+            json.dumps([t for t in tools_value]) if tools_value is not None else None
+        )
     if "completed_at" in fields and fields["completed_at"] is not None:
         completed_at = fields["completed_at"]
         if isinstance(completed_at, datetime):
@@ -94,6 +118,29 @@ async def update_assessment(
     await db.commit()
     if cursor.rowcount == 0:
         return None
+    return await get_assessment(db, assessment_id)
+
+
+async def mark_summary_seen(
+    db: aiosqlite.Connection, assessment_id: str
+) -> Assessment | None:
+    """Idempotently flip ``summary_seen_at`` from NULL to ``now()``.
+
+    The interstitial gate (ADR-0032 §summary_seen_at) is one-way: the very
+    first call writes the timestamp; subsequent calls read it back unchanged
+    so the dashboard's gating logic is stable across reloads.
+    """
+    now_iso = datetime.now(UTC).isoformat()
+    await db.execute(
+        """
+        UPDATE assessment
+           SET summary_seen_at = ?
+         WHERE id = ?
+           AND summary_seen_at IS NULL
+        """,
+        (now_iso, assessment_id),
+    )
+    await db.commit()
     return await get_assessment(db, assessment_id)
 
 

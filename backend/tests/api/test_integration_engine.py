@@ -161,7 +161,7 @@ async def test_real_engine_persists_findings_posture_and_assessment(
         assert "security_md" in names
         assert "dependabot_config" in names
         assert "lockfile_present" in names
-        assert len(checks) == 7  # Session A's checklist
+        assert len(checks) == 15  # PRD-0003 v0.2: 15-check posture
 
         # Gap #3: engine finding landed in the DB with the expected source_type.
         findings = await list_findings(_db)

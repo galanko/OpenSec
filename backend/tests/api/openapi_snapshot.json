@@ -353,6 +353,32 @@
             ],
             "title": "Status",
             "type": "string"
+          },
+          "summary_seen_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Seen At"
+          },
+          "tools": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AssessmentTool"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tools"
           }
         },
         "required": [
@@ -464,6 +490,33 @@
               }
             ],
             "title": "Step"
+          },
+          "steps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AssessmentStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "summary_seen_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary Seen At"
+          },
+          "tools": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AssessmentTool"
+            },
+            "title": "Tools",
+            "type": "array"
           }
         },
         "required": [
@@ -472,6 +525,157 @@
           "progress_pct"
         ],
         "title": "AssessmentStatusResponse",
+        "type": "object"
+      },
+      "AssessmentStep": {
+        "description": "One row in the assessment progress timeline (ADR-0032 \u00a71.7).",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "progress_pct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Pct"
+          },
+          "result_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Summary"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "state"
+        ],
+        "title": "AssessmentStep",
+        "type": "object"
+      },
+      "AssessmentTool": {
+        "description": "Single entry in the ADR-0032 ``tools[]`` payload.\n\nReplaces the parallel ``scanner_versions`` + ``tool_states[]`` payloads\nfrom earlier drafts; the architect's regression test\n``test_dashboard_omits_legacy_scanner_versions`` guards against either of\nthose legacy keys leaking back in.",
+        "properties": {
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentToolResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "active",
+              "done",
+              "skipped"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "icon",
+          "state"
+        ],
+        "title": "AssessmentTool",
+        "type": "object"
+      },
+      "AssessmentToolResult": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "findings_count",
+              "pass_count"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "value",
+          "text"
+        ],
+        "title": "AssessmentToolResult",
         "type": "object"
       },
       "BootstrapState": {
@@ -491,6 +695,24 @@
           "has_any_assessment"
         ],
         "title": "BootstrapState",
+        "type": "object"
+      },
+      "CategoryProgress": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "CategoryProgress",
         "type": "object"
       },
       "ChatPermissionDecision": {
@@ -692,8 +914,23 @@
         "type": "object"
       },
       "CriteriaSnapshot": {
-        "description": "Five-criteria snapshot persisted at completion time.\n\nValues are derived at read-time elsewhere; this is the frozen record.",
+        "description": "Ten-criteria snapshot persisted at completion time.\n\nFive fields are carried from PRD-0002 (``no_critical_vulns``,\n``posture_checks_passing/total``, ``security_md_present``,\n``dependabot_present``). Seven additional booleans land in PRD-0003 v0.2;\nthey default to ``False`` so any old persisted JSON still rehydrates\ncleanly. Of those seven, five count toward the ten-criteria grade and two\n(``branch_protection_enabled`` is a duplicate-named convenience flag,\n``no_secrets_detected`` is the four-state-vocab name for the existing\n``no_secrets_in_code`` posture check).",
         "properties": {
+          "actions_pinned_to_sha": {
+            "default": false,
+            "title": "Actions Pinned To Sha",
+            "type": "boolean"
+          },
+          "branch_protection_enabled": {
+            "default": false,
+            "title": "Branch Protection Enabled",
+            "type": "boolean"
+          },
+          "code_owners_exists": {
+            "default": false,
+            "title": "Code Owners Exists",
+            "type": "boolean"
+          },
           "dependabot_present": {
             "default": false,
             "title": "Dependabot Present",
@@ -702,6 +939,21 @@
           "no_critical_vulns": {
             "default": false,
             "title": "No Critical Vulns",
+            "type": "boolean"
+          },
+          "no_high_vulns": {
+            "default": false,
+            "title": "No High Vulns",
+            "type": "boolean"
+          },
+          "no_secrets_detected": {
+            "default": false,
+            "title": "No Secrets Detected",
+            "type": "boolean"
+          },
+          "no_stale_collaborators": {
+            "default": false,
+            "title": "No Stale Collaborators",
             "type": "boolean"
           },
           "posture_checks_passing": {
@@ -714,6 +966,11 @@
             "title": "Posture Checks Total",
             "type": "integer"
           },
+          "secret_scanning_enabled": {
+            "default": false,
+            "title": "Secret Scanning Enabled",
+            "type": "boolean"
+          },
           "security_md_present": {
             "default": false,
             "title": "Security Md Present",
@@ -723,7 +980,32 @@
         "title": "CriteriaSnapshot",
         "type": "object"
       },
+      "CriterionLabel": {
+        "description": "One row of the labeled ``criteria[]`` list (ADR-0032 \u00a71.4).",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "met": {
+            "title": "Met",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "met"
+        ],
+        "title": "CriterionLabel",
+        "type": "object"
+      },
       "DashboardPayload": {
+        "description": "v0.2 dashboard wire shape \u2014 see ADR-0032 for the full design rationale.",
         "properties": {
           "assessment": {
             "anyOf": [
@@ -747,6 +1029,13 @@
             "title": "Completion Id"
           },
           "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionLabel"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "criteria_snapshot": {
             "$ref": "#/components/schemas/CriteriaSnapshot"
           },
           "findings_count_by_priority": {
@@ -774,6 +1063,16 @@
             ],
             "title": "Grade"
           },
+          "posture": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostureWire"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "posture_checks": {
             "default": [],
             "items": {
@@ -789,12 +1088,30 @@
           "posture_total_count": {
             "title": "Posture Total Count",
             "type": "integer"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentTool"
+            },
+            "title": "Tools",
+            "type": "array"
+          },
+          "vulnerabilities": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VulnerabilityCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "assessment",
           "grade",
           "criteria",
+          "criteria_snapshot",
           "findings_count_by_priority",
           "posture_pass_count",
           "posture_total_count"
@@ -1643,6 +1960,25 @@
         "title": "IntegrationHealthStatus",
         "type": "object"
       },
+      "MarkSummarySeenResponse": {
+        "description": "Idempotent response: ``summary_seen_at`` is set on first call.",
+        "properties": {
+          "assessment_id": {
+            "title": "Assessment Id",
+            "type": "string"
+          },
+          "summary_seen_at": {
+            "title": "Summary Seen At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assessment_id",
+          "summary_seen_at"
+        ],
+        "title": "MarkSummarySeenResponse",
+        "type": "object"
+      },
       "Message": {
         "properties": {
           "content_markdown": {
@@ -1897,11 +2233,64 @@
         "title": "PermissionDecision",
         "type": "object"
       },
+      "PostureCategoryWire": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/PostureCheckWire"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "name": {
+            "enum": [
+              "repo_configuration",
+              "code_integrity",
+              "ci_supply_chain",
+              "collaborator_hygiene"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/CategoryProgress"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "progress",
+          "checks"
+        ],
+        "title": "PostureCategoryWire",
+        "type": "object"
+      },
       "PostureCheck": {
         "properties": {
           "assessment_id": {
             "title": "Assessment Id",
             "type": "string"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "enum": [
+                  "repo_configuration",
+                  "code_integrity",
+                  "ci_supply_chain",
+                  "collaborator_hygiene"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
           },
           "check_name": {
             "enum": [
@@ -1911,7 +2300,15 @@
               "security_md",
               "lockfile_present",
               "dependabot_config",
-              "signed_commits"
+              "signed_commits",
+              "code_owners_exists",
+              "secret_scanning_enabled",
+              "actions_pinned_to_sha",
+              "trusted_action_sources",
+              "workflow_trigger_scope",
+              "stale_collaborators",
+              "broad_team_permissions",
+              "default_branch_permissions"
             ],
             "title": "Check Name",
             "type": "string"
@@ -1937,6 +2334,17 @@
             "title": "Id",
             "type": "string"
           },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
           "status": {
             "enum": [
               "pass",
@@ -1956,6 +2364,88 @@
           "created_at"
         ],
         "title": "PostureCheck",
+        "type": "object"
+      },
+      "PostureCheckWire": {
+        "properties": {
+          "category": {
+            "enum": [
+              "repo_configuration",
+              "code_integrity",
+              "ci_supply_chain",
+              "collaborator_hygiene"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "fixable_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixable By"
+          },
+          "grade_impact": {
+            "enum": [
+              "counts",
+              "advisory"
+            ],
+            "title": "Grade Impact",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
+          "state": {
+            "enum": [
+              "pass",
+              "fail",
+              "done",
+              "advisory"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "category",
+          "state",
+          "grade_impact"
+        ],
+        "title": "PostureCheckWire",
         "type": "object"
       },
       "PostureFixRequest": {
@@ -2029,6 +2519,37 @@
           "check_name"
         ],
         "title": "PostureFixResponse",
+        "type": "object"
+      },
+      "PostureWire": {
+        "properties": {
+          "advisory_count": {
+            "title": "Advisory Count",
+            "type": "integer"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/PostureCategoryWire"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "pass_count": {
+            "title": "Pass Count",
+            "type": "integer"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pass_count",
+          "total_count",
+          "advisory_count",
+          "categories"
+        ],
+        "title": "PostureWire",
         "type": "object"
       },
       "ProviderTestRequest": {
@@ -2850,6 +3371,40 @@
         "title": "VerifiedRepo",
         "type": "object"
       },
+      "VulnerabilityCounts": {
+        "properties": {
+          "by_severity": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Severity",
+            "type": "object"
+          },
+          "by_source": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Source",
+            "type": "object"
+          },
+          "tool_credits": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tool Credits",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total"
+        ],
+        "title": "VulnerabilityCounts",
+        "type": "object"
+      },
       "Workspace": {
         "properties": {
           "active_plan_version": {
@@ -3248,6 +3803,49 @@
         ]
       }
     },
+    "/api/assessment/{assessment_id}/mark-summary-seen": {
+      "post": {
+        "description": "Idempotent: flips ``summary_seen_at`` to ``now()`` only when NULL.\n\nThe first call writes the timestamp; subsequent calls return the same\nvalue. The frontend invokes this once when the user dismisses the\nassessment-complete interstitial (Surface 3 of PRD-0003 v0.2).",
+        "operationId": "mark_summary_seen_route_api_assessment__assessment_id__mark_summary_seen_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_id",
+            "required": true,
+            "schema": {
+              "title": "Assessment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkSummarySeenResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Summary Seen Route",
+        "tags": [
+          "assessment"
+        ]
+      }
+    },
     "/api/audit": {
       "get": {
         "description": "Query audit events with optional filters.",
@@ -3621,7 +4219,6 @@
     },
     "/api/dashboard": {
       "get": {
-        "description": "Aggregate dashboard payload: latest assessment + findings + posture.\n\nThe findings count is scoped to the current assessment window (source\n``opensec-assessment``, created at or after the latest assessment's start)\nso the Vulnerabilities tile always matches what the Findings page shows.",
         "operationId": "get_dashboard_api_dashboard_get",
         "responses": {
           "200": {

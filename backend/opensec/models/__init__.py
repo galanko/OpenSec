@@ -19,9 +19,13 @@ from opensec.models.assessment import (
     AssessmentCreate,
     AssessmentResult,
     AssessmentStatus,
+    AssessmentTool,
+    AssessmentToolResult,
     AssessmentUpdate,
     CriteriaSnapshot,
     Grade,
+    ToolResultKind,
+    ToolState,
 )
 from opensec.models.completion import (
     Completion,
@@ -36,6 +40,7 @@ from opensec.models.finding import (
 )
 from opensec.models.posture_check import (
     PostureCheck,
+    PostureCheckCategory,
     PostureCheckCreate,
     PostureCheckName,
     PostureCheckStatus,
@@ -388,11 +393,16 @@ __all__ = [
     "AssessmentCreate",
     "AssessmentResult",
     "AssessmentStatus",
+    "AssessmentTool",
+    "AssessmentToolResult",
     "AssessmentUpdate",
     "CriteriaSnapshot",
     "Grade",
+    "ToolResultKind",
+    "ToolState",
     # PostureCheck
     "PostureCheck",
+    "PostureCheckCategory",
     "PostureCheckCreate",
     "PostureCheckName",
     "PostureCheckStatus",

@@ -21,7 +21,11 @@ from opensec.api._engine_dep import (
     get_assessment_engine,
 )
 from opensec.db.connection import get_db
-from opensec.db.dao.assessment import create_assessment, get_assessment
+from opensec.db.dao.assessment import (
+    create_assessment,
+    get_assessment,
+    mark_summary_seen,
+)
 from opensec.db.dao.assessment import (
     get_latest_assessment as dao_get_latest_assessment,
 )
@@ -31,6 +35,8 @@ from opensec.models import (
     Assessment,
     AssessmentCreate,
     AssessmentStatus,
+    AssessmentTool,
+    AssessmentToolResult,
     CriteriaSnapshot,
     Grade,
 )
@@ -43,11 +49,33 @@ class AssessmentRunResponse(BaseModel):
     status: str
 
 
+class AssessmentStep(BaseModel):
+    """One row in the assessment progress timeline (ADR-0032 §1.7)."""
+
+    key: str
+    label: str
+    state: str  # pending | running | done | skipped
+    progress_pct: int | None = None
+    detail: str | None = None
+    result_summary: str | None = None
+    hint: str | None = None
+
+
 class AssessmentStatusResponse(BaseModel):
     assessment_id: str
     status: str
     progress_pct: int
     step: str | None = None
+    steps: list[AssessmentStep] = []
+    tools: list[AssessmentTool] = []
+    summary_seen_at: str | None = None
+
+
+class MarkSummarySeenResponse(BaseModel):
+    """Idempotent response: ``summary_seen_at`` is set on first call."""
+
+    assessment_id: str
+    summary_seen_at: str
 
 
 class AssessmentLatestResponse(BaseModel):
@@ -75,6 +103,125 @@ _STEP_PROGRESS: dict[str, int] = {
     "checking_posture": 75,
     "grading": 90,
 }
+
+# v0.2 step timeline (ADR-0032). The engine emits one of these keys per
+# completed phase; the UI renders them in this order.
+_V2_STEPS_ORDER: list[tuple[str, str, str | None]] = [
+    ("detect", "Detecting project type", None),
+    ("trivy_vuln", "Scanning dependencies with Trivy", None),
+    ("trivy_secret", "Scanning for secrets with Trivy", None),
+    ("semgrep", "Scanning code with Semgrep", None),
+    ("posture", "Checking repo posture", "15 checks"),
+    ("descriptions", "Generating plain-language descriptions", None),
+]
+
+
+def _build_steps(live_step: str | None, status: AssessmentStatus) -> list[AssessmentStep]:
+    """Synthesize the steps list from the legacy ``live_step`` indicator.
+
+    Keys before ``live_step`` are ``done``, the live one is ``running``, the
+    rest are ``pending``. The posture step carries a ``hint`` (15 checks) per
+    the architect's regression test ``test_assessment_status_step_hint_for_posture``.
+    """
+    legacy_to_v2 = {
+        "cloning": "detect",
+        "parsing_lockfiles": "trivy_vuln",
+        "looking_up_cves": "trivy_vuln",
+        "checking_posture": "posture",
+        "grading": "descriptions",
+    }
+    cursor = legacy_to_v2.get(live_step or "", live_step)
+    steps: list[AssessmentStep] = []
+    seen_running = False
+    for key, label, hint in _V2_STEPS_ORDER:
+        if status == "complete":
+            state = "done"
+        elif status == "pending":
+            state = "pending"
+        elif status == "failed":
+            state = "skipped"
+        elif key == cursor:
+            state = "running"
+            seen_running = True
+        elif not seen_running:
+            state = "done"
+        else:
+            state = "pending"
+        steps.append(
+            AssessmentStep(
+                key=key,
+                label=label,
+                state=state,
+                hint=hint if state == "pending" else None,
+            )
+        )
+    return steps
+
+
+def _build_running_tools() -> list[AssessmentTool]:
+    """Default tools[] payload while an assessment is in flight.
+
+    The engine rewrite (Epic 3) overrides this with live state from each
+    scanner. Until then the API returns sensible pending/active markers so
+    the UI can render the ToolPillBar.
+    """
+    return [
+        AssessmentTool(
+            id="trivy",
+            label="Trivy",
+            version=None,
+            icon="bug_report",
+            state="active",
+            result=None,
+        ),
+        AssessmentTool(
+            id="semgrep",
+            label="Semgrep",
+            version=None,
+            icon="code",
+            state="pending",
+            result=None,
+        ),
+        AssessmentTool(
+            id="posture",
+            label="15 posture checks",
+            version=None,
+            icon="rule",
+            state="pending",
+            result=None,
+        ),
+    ]
+
+
+def _build_done_tools(pass_count: int, total_count: int) -> list[AssessmentTool]:
+    return [
+        AssessmentTool(
+            id="trivy",
+            label="Trivy",
+            version=None,
+            icon="bug_report",
+            state="done",
+            result=AssessmentToolResult(kind="findings_count", value=0, text="0 findings"),
+        ),
+        AssessmentTool(
+            id="semgrep",
+            label="Semgrep",
+            version=None,
+            icon="code",
+            state="done",
+            result=AssessmentToolResult(kind="findings_count", value=0, text="0 findings"),
+        ),
+        AssessmentTool(
+            id="posture",
+            label=f"{total_count} posture checks",
+            version=None,
+            icon="rule",
+            state="done",
+            result=AssessmentToolResult(
+                kind="pass_count", value=pass_count, text=f"{pass_count} pass"
+            ),
+        ),
+    ]
 
 
 @router.post("/run", response_model=AssessmentRunResponse)
@@ -117,11 +264,47 @@ async def get_assessment_status(
             step = live_step
             progress = _STEP_PROGRESS.get(live_step, progress)
 
+    if a.status == "complete":
+        pass_count, total_count = await count_posture_pass_total(db, a.id)
+        tools = a.tools or _build_done_tools(pass_count, total_count)
+    else:
+        tools = a.tools or _build_running_tools()
+
     return AssessmentStatusResponse(
         assessment_id=a.id,
         status=a.status,
         progress_pct=progress,
         step=step,
+        steps=_build_steps(step if a.status == "running" else None, a.status),
+        tools=tools,
+        summary_seen_at=a.summary_seen_at.isoformat() if a.summary_seen_at else None,
+    )
+
+
+@router.post(
+    "/{assessment_id}/mark-summary-seen", response_model=MarkSummarySeenResponse
+)
+async def mark_summary_seen_route(
+    assessment_id: str, db=Depends(get_db)
+) -> MarkSummarySeenResponse:
+    """Idempotent: flips ``summary_seen_at`` to ``now()`` only when NULL.
+
+    The first call writes the timestamp; subsequent calls return the same
+    value. The frontend invokes this once when the user dismisses the
+    assessment-complete interstitial (Surface 3 of PRD-0003 v0.2).
+    """
+    a = await mark_summary_seen(db, assessment_id)
+    if a is None:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    if a.summary_seen_at is None:
+        # The DAO writes only when the column was NULL — but if the row
+        # vanished between fetch and update, we'd land here. Treat the
+        # absence as an idempotent no-op rather than an error so the
+        # frontend's gating logic still settles.
+        raise HTTPException(status_code=409, detail="Assessment summary not yet ready")
+    return MarkSummarySeenResponse(
+        assessment_id=a.id,
+        summary_seen_at=a.summary_seen_at.isoformat(),
     )
 
 

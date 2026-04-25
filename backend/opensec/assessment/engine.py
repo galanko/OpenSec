@@ -110,33 +110,83 @@ async def run_assessment_on_path(
 
 def derive_grade(
     criteria: CriteriaSnapshot,
-    findings: list[dict[str, Any]],
+    findings: list[dict[str, Any]] | None = None,
     posture_statuses: dict[PostureCheckName, PostureCheckStatus] | None = None,
 ) -> Grade:
-    """Five-criteria derivation per ADR-0025 §2.
+    """Ten-criteria derivation per PRD-0003 v0.2 / ADR-0032.
 
-    Met criteria: no criticals, no highs, branch_protection pass,
-    no_secrets_in_code pass, SECURITY.md present. Count -> A..F.
+    The criteria the dashboard renders as a labeled list:
 
-    Policy: an advisory with UNKNOWN severity fails criterion 1 and 2 —
-    we treat "could be critical" as "is critical" for grading. Operators
-    see the grade drop and investigate rather than silently benefiting
-    from missing severity metadata.
+    1. SECURITY.md present
+    2. Dependabot/Renovate configured
+    3. No critical vulns
+    4. No high-severity vulns                       (NEW v0.2)
+    5. Branch protection enabled                    (NEW v0.2)
+    6. No committed secrets                         (NEW v0.2)
+    7. CI actions pinned to SHA                     (NEW v0.2)
+    8. No stale collaborators                       (NEW v0.2)
+    9. Code owners file exists                      (NEW v0.2)
+    10. Secret scanning enabled                     (NEW v0.2)
+
+    Scale: A=10, B=8-9, C=6-7, D=4-5, F=0-3.
+
+    The optional ``findings`` and ``posture_statuses`` arguments are accepted
+    for backward compatibility — when callers pass them we recompute the
+    boolean fields on the snapshot directly so legacy tests that synthesize a
+    snapshot without the new fields still grade correctly.
     """
-    posture_statuses = posture_statuses or {}
+    snapshot = _enrich_snapshot(criteria, findings or [], posture_statuses or {})
+    met = snapshot.met_count()
+    if met == 10:
+        return "A"
+    if met >= 8:
+        return "B"
+    if met >= 6:
+        return "C"
+    if met >= 4:
+        return "D"
+    return "F"
+
+
+def _enrich_snapshot(
+    criteria: CriteriaSnapshot,
+    findings: list[dict[str, Any]],
+    posture_statuses: dict[PostureCheckName, PostureCheckStatus],
+) -> CriteriaSnapshot:
+    """Backfill v0.2 booleans onto a legacy snapshot before grading.
+
+    Older code paths construct a snapshot with the original five fields and
+    rely on ``derive_grade`` to score it. The new criteria are derived from
+    the same posture-status map and finding severities; this keeps the
+    grader's contract one-shot rather than forcing every call site to
+    repopulate every field.
+    """
     severities = {_severity_of(f) for f in findings}
     has_unknown = "UNKNOWN" in severities
-
-    met = sum(
-        [
-            "CRITICAL" not in severities and not has_unknown,
-            "HIGH" not in severities and not has_unknown,
-            posture_statuses.get("branch_protection") == "pass",
-            posture_statuses.get("no_secrets_in_code") == "pass",
-            criteria.security_md_present,
-        ]
+    no_high_vulns = (
+        criteria.no_high_vulns
+        if criteria.no_high_vulns
+        else "HIGH" not in severities and not has_unknown
     )
-    return {5: "A", 4: "B", 3: "C", 2: "D"}.get(met, "F")
+    return criteria.model_copy(
+        update={
+            "no_critical_vulns": criteria.no_critical_vulns
+            or ("CRITICAL" not in severities and not has_unknown),
+            "no_high_vulns": no_high_vulns,
+            "branch_protection_enabled": criteria.branch_protection_enabled
+            or posture_statuses.get("branch_protection") == "pass",
+            "no_secrets_detected": criteria.no_secrets_detected
+            or posture_statuses.get("no_secrets_in_code") == "pass",
+            "actions_pinned_to_sha": criteria.actions_pinned_to_sha
+            or posture_statuses.get("actions_pinned_to_sha") == "pass",
+            "no_stale_collaborators": criteria.no_stale_collaborators
+            or posture_statuses.get("stale_collaborators") == "pass",
+            "code_owners_exists": criteria.code_owners_exists
+            or posture_statuses.get("code_owners_exists") == "pass",
+            "secret_scanning_enabled": criteria.secret_scanning_enabled
+            or posture_statuses.get("secret_scanning_enabled") == "pass",
+        }
+    )
 
 
 def _collect_dependencies(
@@ -232,10 +282,17 @@ def _build_snapshot(
     passing = sum(1 for s in posture_statuses.values() if s == "pass")
     return CriteriaSnapshot(
         no_critical_vulns="CRITICAL" not in severities,
+        no_high_vulns="HIGH" not in severities and "CRITICAL" not in severities,
         posture_checks_passing=passing,
         posture_checks_total=len(posture_statuses),
         security_md_present=posture_statuses.get("security_md") == "pass",
         dependabot_present=posture_statuses.get("dependabot_config") == "pass",
+        branch_protection_enabled=posture_statuses.get("branch_protection") == "pass",
+        no_secrets_detected=posture_statuses.get("no_secrets_in_code") == "pass",
+        actions_pinned_to_sha=posture_statuses.get("actions_pinned_to_sha") == "pass",
+        no_stale_collaborators=posture_statuses.get("stale_collaborators") == "pass",
+        code_owners_exists=posture_statuses.get("code_owners_exists") == "pass",
+        secret_scanning_enabled=posture_statuses.get("secret_scanning_enabled") == "pass",
     )
 
 
