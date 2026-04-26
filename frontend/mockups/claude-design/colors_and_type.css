@@ -1,0 +1,281 @@
+/* =============================================================
+   OpenSec — "The Serene Sentinel" design system
+   Creative direction: Editorial Assurance.
+   Light-mode-first. Tonal layering > borders. No pure black.
+   ============================================================= */
+
+/* -- Fonts (self-hosted via Google Fonts CDN) ------------------ */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block');
+
+:root {
+  /* ------------------------------------------------------------
+     COLOR — Material Tonal system, 50+ tokens from Stitch.
+     Source of truth: frontend/tailwind.config.ts
+     ------------------------------------------------------------ */
+
+  /* Brand / primary */
+  --primary:              #4d44e3;  /* OpenSec indigo */
+  --primary-dim:          #4034d7;
+  --primary-container:    #e2dfff;
+  --primary-fixed:        #e2dfff;
+  --primary-fixed-dim:    #d2d0ff;
+  --on-primary:           #faf6ff;
+  --on-primary-container: #3f33d6;
+  --on-primary-fixed:     #2a13c5;
+  --on-primary-fixed-variant: #4a40e0;
+  --inverse-primary:      #8582ff;
+
+  /* Secondary (muted lavender-grey) */
+  --secondary:            #595e78;
+  --secondary-dim:        #4d526b;
+  --secondary-container:  #dde1ff;
+  --secondary-fixed:      #dde1ff;
+  --secondary-fixed-dim:  #cfd3f2;
+  --on-secondary:         #faf8ff;
+  --on-secondary-container: #4c506a;
+  --on-secondary-fixed:   #393e57;
+  --on-secondary-fixed-variant: #555a74;
+
+  /* Tertiary — the positive / "success" voice */
+  --tertiary:             #575e78;
+  --tertiary-dim:         #4b526c;
+  --tertiary-container:   #d2d9f8;
+  --tertiary-fixed:       #d2d9f8;
+  --tertiary-fixed-dim:   #c4cbe9;
+  --on-tertiary:          #faf8ff;
+  --on-tertiary-container:#444c65;
+  --on-tertiary-fixed:    #323951;
+  --on-tertiary-fixed-variant: #4e556f;
+
+  /* Error / warning voice — muted burgundy, never tomato-red */
+  --error:                #9e3f4e;
+  --error-dim:            #4f0116;
+  --error-container:      #ff8b9a;
+  --on-error:             #fff7f7;
+  --on-error-container:   #782232;
+
+  /* Surfaces (tonal layering system) */
+  --background:           #f8f9fa;  /* L0 page */
+  --surface:              #f8f9fa;  /* alias */
+  --surface-bright:       #f8f9fa;
+  --surface-dim:          #d1dce0;
+  --surface-container-lowest: #ffffff;      /* L2 elevated card */
+  --surface-container-low:    #f1f4f6;      /* L1 tonal shift */
+  --surface-container:        #eaeff1;
+  --surface-container-high:   #e3e9ec;
+  --surface-container-highest:#dbe4e7;
+  --surface-variant:      #dbe4e7;
+  --surface-tint:         #4d44e3;
+  --inverse-surface:      #0c0f10;
+  --inverse-on-surface:   #9b9d9e;
+
+  /* Foreground text — NEVER pure #000 */
+  --on-surface:           #2b3437;
+  --on-background:        #2b3437;
+  --on-surface-variant:   #586064;
+  --outline:              #737c7f;
+  --outline-variant:      #abb3b7;
+
+  /* ------------------------------------------------------------
+     SEMANTIC color aliases — the ones most designs reach for
+     ------------------------------------------------------------ */
+  --fg-1:                 var(--on-surface);         /* body text */
+  --fg-2:                 var(--on-surface-variant); /* secondary text */
+  --fg-3:                 var(--outline);            /* muted label */
+  --fg-4:                 var(--outline-variant);    /* placeholder */
+  --bg-page:              var(--background);
+  --bg-tonal:             var(--surface-container-low);  /* subtle shift */
+  --bg-card:              var(--surface-container-lowest); /* elevated */
+  --accent:               var(--primary);
+  --accent-soft:          var(--primary-container);
+
+  /* Severity semantic */
+  --sev-critical-fg:      var(--error);
+  --sev-critical-bg:      color-mix(in oklab, var(--error-container) 30%, transparent);
+  --sev-high-fg:          var(--error);
+  --sev-high-bg:          color-mix(in oklab, var(--error-container) 20%, transparent);
+  --sev-medium-fg:        var(--tertiary);
+  --sev-medium-bg:        color-mix(in oklab, var(--tertiary-container) 30%, transparent);
+  --sev-low-fg:           var(--on-surface-variant);
+  --sev-low-bg:           var(--surface-container-high);
+
+  /* ------------------------------------------------------------
+     TYPE
+     Manrope  — headlines (600–800)
+     Inter    — body + labels (400–600)
+     JetBrains Mono — CVEs, IDs, code
+     ------------------------------------------------------------ */
+  --font-headline:        'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-body:            'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-label:           'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:            'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-icon:            'Material Symbols Outlined';
+
+  /* Type scale — the one used across Queue / Workspace / History */
+  --text-display:         2.25rem;  /* 36px — page H1 "Work queue" */
+  --text-title:           1.25rem;  /* 20px — workspace finding title */
+  --text-heading:         1.0625rem;/* 17px — card titles */
+  --text-body:            0.875rem; /* 14px — body copy */
+  --text-label:           0.75rem;  /* 12px — metadata */
+  --text-caption:         0.625rem; /* 10px — eyebrow / uppercase */
+
+  --lh-tight:             1.15;
+  --lh-snug:              1.35;
+  --lh-normal:            1.55;
+  --lh-relaxed:           1.625;
+
+  --tracking-tight:       -0.02em;
+  --tracking-eyebrow:     0.12em;
+
+  /* ------------------------------------------------------------
+     RADII — four steps only. No stray one-offs.
+     ------------------------------------------------------------ */
+  --radius-xs:            0.25rem;  /*  4px — chips / inline code */
+  --radius-sm:            0.5rem;   /*  8px — buttons, inputs     */
+  --radius-md:            0.75rem;  /* 12px — tiles, action chips */
+  --radius-lg:            1rem;     /* 16px — cards, side panels  */
+  --radius-xl:            1.25rem;  /* 20px — hero surfaces       */
+  --radius-pill:          9999px;
+
+  /* ------------------------------------------------------------
+     SHADOWS — soft, diffused. No harsh 10px+ blacks.
+     ------------------------------------------------------------ */
+  --shadow-xs:            0 1px 2px rgba(43, 52, 55, 0.04);
+  --shadow-sm:            0 1px 3px rgba(43, 52, 55, 0.05), 0 1px 2px rgba(43, 52, 55, 0.03);
+  --shadow-md:            0 4px 12px rgba(43, 52, 55, 0.06), 0 1px 3px rgba(43, 52, 55, 0.04);
+  --shadow-lg:            0 12px 32px rgba(43, 52, 55, 0.08), 0 2px 6px rgba(43, 52, 55, 0.04);
+  --shadow-primary:       0 8px 24px rgba(77, 68, 227, 0.18);
+
+  /* ------------------------------------------------------------
+     SPACING / RHYTHM (4px base)
+     ------------------------------------------------------------ */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* Page / chrome dimensions */
+  --nav-width:            5rem;     /* 80px — fixed left rail */
+  --topbar-height:        4rem;     /* 64px — sticky header */
+  --sidebar-width:        20rem;    /* 320px — workspace context */
+  --page-padding-x:       2rem;     /* px-8 */
+  --page-padding-y:       1.5rem;   /* py-6 */
+
+  /* ------------------------------------------------------------
+     MOTION
+     ------------------------------------------------------------ */
+  --ease-standard:        cubic-bezier(0.2, 0.0, 0.0, 1.0);
+  --ease-emphasized:      cubic-bezier(0.3, 0.0, 0.0, 1.0);
+  --duration-fast:        120ms;
+  --duration-base:        200ms;
+  --duration-slow:        320ms;
+}
+
+/* ===============================================================
+   Semantic element styles (opt in by applying the .sentinel class
+   to a root, or by using these vars/selectors directly).
+   =============================================================== */
+
+.sentinel,
+.sentinel * { box-sizing: border-box; }
+
+.sentinel {
+  background: var(--bg-page);
+  color: var(--fg-1);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Headings ------------------------------------------------- */
+.sentinel h1,
+.sentinel .h1 {
+  font-family: var(--font-headline);
+  font-weight: 800;
+  font-size: var(--text-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+.sentinel h2,
+.sentinel .h2 {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  font-size: var(--text-title);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-1);
+}
+.sentinel h3,
+.sentinel .h3 {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  font-size: var(--text-heading);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+
+/* --- Body / meta --------------------------------------------- */
+.sentinel p,
+.sentinel .p  { font-family: var(--font-body); font-size: var(--text-body); line-height: var(--lh-relaxed); color: var(--fg-1); }
+.sentinel .muted { color: var(--fg-2); }
+.sentinel .meta  { font-size: var(--text-label); color: var(--fg-2); }
+.sentinel .eyebrow {
+  font-family: var(--font-label);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-eyebrow);
+  color: var(--fg-2);
+}
+
+/* --- Mono / code --------------------------------------------- */
+.sentinel code,
+.sentinel .mono {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: color-mix(in oklab, var(--primary-container) 35%, transparent);
+  color: var(--on-primary-container);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+}
+
+/* --- Links --------------------------------------------------- */
+.sentinel a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+.sentinel a:hover { color: var(--primary-dim); text-decoration: underline; text-underline-offset: 2px; }
+
+/* --- Material Symbols reset --------------------------------- */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+}
+
+/* --- Selection (Editorial Assurance accent) ------------------ */
+.sentinel ::selection {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}

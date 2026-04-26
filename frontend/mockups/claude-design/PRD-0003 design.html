@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>PRD-0003 · Security assessment v2 — design pass</title>
+
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: { extend: {
+    colors: {
+      "primary":"#4d44e3","primary-dim":"#4034d7","primary-container":"#e2dfff","primary-fixed":"#e2dfff","primary-fixed-dim":"#d2d0ff",
+      "on-primary":"#faf6ff","on-primary-container":"#3f33d6","on-primary-fixed":"#2a13c5","on-primary-fixed-variant":"#4a40e0",
+      "secondary":"#595e78","secondary-dim":"#4d526b","secondary-container":"#dde1ff","secondary-fixed":"#dde1ff","secondary-fixed-dim":"#cfd3f2",
+      "on-secondary":"#faf8ff","on-secondary-container":"#4c506a","on-secondary-fixed":"#393e57","on-secondary-fixed-variant":"#555a74",
+      "tertiary":"#575e78","tertiary-dim":"#4b526c","tertiary-container":"#d2d9f8","tertiary-fixed":"#d2d9f8","tertiary-fixed-dim":"#c4cbe9",
+      "on-tertiary":"#faf8ff","on-tertiary-container":"#444c65","on-tertiary-fixed":"#323951","on-tertiary-fixed-variant":"#4e556f",
+      "error":"#9e3f4e","error-dim":"#4f0116","error-container":"#ff8b9a","on-error":"#fff7f7","on-error-container":"#782232",
+      "background":"#f8f9fa","surface":"#f8f9fa","surface-bright":"#f8f9fa","surface-dim":"#d1dce0",
+      "surface-container-lowest":"#ffffff","surface-container-low":"#f1f4f6","surface-container":"#eaeff1",
+      "surface-container-high":"#e3e9ec","surface-container-highest":"#dbe4e7","surface-variant":"#dbe4e7",
+      "on-surface":"#2b3437","on-background":"#2b3437","on-surface-variant":"#586064",
+      "outline":"#737c7f","outline-variant":"#abb3b7","inverse-surface":"#0c0f10","inverse-on-surface":"#9b9d9e","inverse-primary":"#8582ff",
+      "surface-tint":"#4d44e3"
+    },
+    fontFamily: { "headline":["Manrope","sans-serif"], "body":["Inter","sans-serif"], "label":["Inter","sans-serif"], "mono":["JetBrains Mono","monospace"] },
+  } },
+};
+</script>
+
+<style>
+  body { font-family: 'Inter', sans-serif; margin: 0; }
+  h1,h2,h3,h4,h5 { font-family: 'Manrope', sans-serif; }
+  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; vertical-align: middle; }
+  .msym-filled { font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+
+  /* Spinner reused across running states (PRD-0004 inheritance) */
+  .spinner { width: 14px; height: 14px; border-radius: 9999px; border: 2px solid rgba(77,68,227,0.3); border-top-color: #4d44e3; animation: spin 0.9s linear infinite; display: inline-block; }
+  .spinner-lg { width: 28px; height: 28px; border-width: 3px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @keyframes pulse-subtle { 0%,100% { opacity: 1; } 50% { opacity: 0.65; } }
+  .animate-pulse-subtle { animation: pulse-subtle 2.4s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .spinner, .animate-pulse-subtle { animation: none; }
+  }
+
+  /* Grade ring */
+  .grade-ring { background: conic-gradient(#4d44e3 var(--p, 80%), #d2d0ff 0); }
+
+  /* Shareable summary card paper texture */
+  .share-card { background:
+    radial-gradient(ellipse at top right, rgba(255,255,255,0.06), transparent 50%),
+    radial-gradient(ellipse at bottom left, rgba(255,255,255,0.04), transparent 60%),
+    linear-gradient(135deg, #2a13c5 0%, #4034d7 50%, #4d44e3 100%);
+  }
+
+  /* Custom scrollbar in artboards */
+  .artboard-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+  .artboard-scroll::-webkit-scrollbar-thumb { background: #abb3b7; border-radius: 9999px; }
+  .artboard-scroll::-webkit-scrollbar-track { background: transparent; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="surfaces/shared.jsx"></script>
+<script type="text/babel" src="surfaces/report-card.jsx"></script>
+<script type="text/babel" src="surfaces/assessment-progress.jsx"></script>
+<script type="text/babel" src="surfaces/assessment-complete.jsx"></script>
+<script type="text/babel" src="surfaces/onboarding-step3.jsx"></script>
+<script type="text/babel" src="surfaces/completion-progress.jsx"></script>
+<script type="text/babel" src="surfaces/share-card.jsx"></script>
+<script type="text/babel" src="surfaces/app.jsx"></script>
+
+</body>
+</html>
