@@ -1,22 +1,64 @@
-"""FakeAssessmentEngine — test double standing in for Session A's real engine.
+"""FakeAssessmentEngine — test double standing in for the real engine.
 
-Conforms to ``AssessmentEngineProtocol``. Returns a canned ``AssessmentResult`` so
-Session B's route tests can exercise the full happy path before Session A's engine
-ships. Session G replaces this with the real engine through the same DI seam.
+Conforms to ``AssessmentEngineProtocol``. Returns a canned ``AssessmentResult``
+so route tests can exercise the full happy path without touching subprocesses
+or the network. Updated for PR-B (PRD-0003 v0.2): emits the six v0.2 step keys
+and supports the ``on_tool`` callback.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from opensec.models import AssessmentResult, CriteriaSnapshot, Grade
+from opensec.models import (
+    AssessmentResult,
+    AssessmentTool,
+    AssessmentToolResult,
+    CriteriaSnapshot,
+    Grade,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
 
+def _default_tools() -> list[AssessmentTool]:
+    return [
+        AssessmentTool(
+            id="trivy",
+            label="Trivy 0.52.0",
+            version="0.52.0",
+            icon="bug_report",
+            state="done",
+            result=AssessmentToolResult(
+                kind="findings_count", value=0, text="0 findings"
+            ),
+        ),
+        AssessmentTool(
+            id="semgrep",
+            label="Semgrep 1.70.0",
+            version="1.70.0",
+            icon="code",
+            state="done",
+            result=AssessmentToolResult(
+                kind="findings_count", value=0, text="0 findings"
+            ),
+        ),
+        AssessmentTool(
+            id="posture",
+            label="15 posture checks",
+            version=None,
+            icon="rule",
+            state="done",
+            result=AssessmentToolResult(
+                kind="pass_count", value=0, text="0 pass"
+            ),
+        ),
+    ]
+
+
 class FakeAssessmentEngine:
-    """In-memory stub that mirrors Session A's interface."""
+    """In-memory stub that mirrors the v0.2 engine interface."""
 
     def __init__(
         self,
@@ -25,6 +67,7 @@ class FakeAssessmentEngine:
         criteria: CriteriaSnapshot | None = None,
         posture_checks: list[dict] | None = None,
         findings: list[dict] | None = None,
+        tools: list[AssessmentTool] | None = None,
         raise_on_run: Exception | None = None,
     ) -> None:
         self.grade = grade
@@ -40,6 +83,7 @@ class FakeAssessmentEngine:
             {"check_name": "signed_commits", "status": "advisory"},
         ]
         self.findings = findings or []
+        self.tools = tools if tools is not None else _default_tools()
         self.raise_on_run = raise_on_run
         self.call_count = 0
 
@@ -49,18 +93,24 @@ class FakeAssessmentEngine:
         *,
         assessment_id: str,
         on_step: Callable[[str], Awaitable[None]] | None = None,
+        on_tool: Callable[[AssessmentTool], Awaitable[None]] | None = None,
     ) -> AssessmentResult:
         self.call_count += 1
         if on_step is not None:
-            # Mirror the real engine's phase sequence so route tests that
-            # poll ``GET /assessment/status`` get meaningful step values.
+            # Mirror the real engine's six v0.2 phase keys so route tests that
+            # poll ``GET /assessment/status`` get realistic step values.
             for step in (
-                "parsing_lockfiles",
-                "looking_up_cves",
-                "checking_posture",
-                "grading",
+                "detect",
+                "trivy_vuln",
+                "trivy_secret",
+                "semgrep",
+                "posture",
+                "descriptions",
             ):
                 await on_step(step)
+        if on_tool is not None:
+            for tool in self.tools:
+                await on_tool(tool)
         if self.raise_on_run is not None:
             raise self.raise_on_run
         return AssessmentResult(
@@ -70,4 +120,5 @@ class FakeAssessmentEngine:
             criteria_snapshot=self.criteria,
             findings=self.findings,
             posture_checks=self.posture_checks,
+            tools=self.tools,
         )

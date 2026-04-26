@@ -24,7 +24,6 @@ from opensec.models.posture_check import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from opensec.assessment.parsers import Ecosystem, ParserFn
     from opensec.models.posture_check import PostureCheckStatus
 
 
@@ -136,7 +135,6 @@ async def run_all_posture_checks(
     gh_client: GithubAPI,
     coords: RepoCoords,
     assessment_id: str = "",
-    pre_detected_lockfiles: list[tuple[Ecosystem, Path, ParserFn]] | None = None,
 ) -> list[PostureCheckCreate]:
     from opensec.assessment.posture.branch import (
         build_branch_protection_result,
@@ -181,7 +179,7 @@ async def run_all_posture_checks(
         gh_client.list_recent_commits(coords.owner, coords.repo, coords.branch),
         asyncio.to_thread(scan_for_secrets, repo_path),
         asyncio.to_thread(check_security_md, repo_path),
-        asyncio.to_thread(check_lockfile_present, repo_path, pre_detected_lockfiles),
+        asyncio.to_thread(check_lockfile_present, repo_path),
         asyncio.to_thread(check_dependabot_config, repo_path),
         asyncio.to_thread(check_code_owners_exists, repo_path),
         asyncio.to_thread(check_actions_pinned_to_sha, repo_path),

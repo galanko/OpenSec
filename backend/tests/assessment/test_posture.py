@@ -152,12 +152,15 @@ def test_lockfile_present_check_fail_when_absent(tmp_path: Path) -> None:
     assert check_lockfile_present(tmp_path).status == "fail"
 
 
-def test_lockfile_present_uses_pre_detected_hits_without_re_walking(
-    tmp_path: Path,
-) -> None:
-    fake_hit = ("npm", tmp_path / "package-lock.json", lambda _p: [])
-    result = check_lockfile_present(tmp_path, pre_detected=[fake_hit])
+def test_lockfile_present_finds_lockfiles_in_subdirectories(tmp_path: Path) -> None:
+    """The check walks the tree (rglob) so monorepo lockfiles are picked up."""
+    sub = tmp_path / "packages" / "demo"
+    sub.mkdir(parents=True)
+    (sub / "package-lock.json").write_text("{}")
+    result = check_lockfile_present(tmp_path)
     assert result.status == "pass"
+    assert result.detail is not None
+    assert any("package-lock.json" in p for p in result.detail["lockfiles"])
 
 
 @pytest.mark.parametrize(

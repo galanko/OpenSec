@@ -1,8 +1,7 @@
 """Shallow git clone helper (Epic 1).
 
-Extracted from :mod:`opensec.assessment.production_engine` for use by both the
-production engine and any future agentic remediation code paths. The two
-guarantees here:
+Used by :class:`opensec.assessment.engine.RepoCloner` and any future agentic
+remediation code paths. The two guarantees here:
 
 * Tokens never appear in subprocess args unsanitized — we redact stderr before
   logging on failure.

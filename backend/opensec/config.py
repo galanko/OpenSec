@@ -49,11 +49,16 @@ class Settings(BaseSettings):
     data_dir: Path = Path(os.getenv("OPENSEC_DATA_DIR", ""))
     static_dir: str = ""  # Path to built frontend assets (set in Docker)
 
-    # Playwright E2E test seam — when both are set the assessment engine is
-    # constructed with a ``clone_strategy`` that copies from a fixture dir
-    # and an ``httpx.MockTransport`` that replays canned OSV responses. Not
-    # intended for end-user deployments; used only by ``frontend/tests/e2e``.
-    # Env vars: OPENSEC_TEST_FIXTURE_REPO_DIR / OPENSEC_TEST_FIXTURE_OSV_DIR
+    # Scanner binaries (PRD-0003 v0.2 / ADR-0028). Trivy + Semgrep are invoked
+    # as subprocesses; ``scanner_bin_dir`` points at the directory holding
+    # both. Empty defaults to ``<home>/.opensec/bin/`` which the install
+    # script populates; override with OPENSEC_SCANNER_BIN_DIR.
+    scanner_bin_dir: str = ""
+
+    # Playwright E2E test seam — retired pre-PR-B (the legacy seam targeted
+    # the OSV/parser pipeline). Kept as a no-op placeholder so existing env
+    # configs don't break loading; a v0.2-shape seam (mocked subprocess
+    # transport) lands in a follow-up if/when the Playwright path returns.
     test_fixture_repo_dir: str = ""
     test_fixture_osv_dir: str = ""
 
@@ -112,6 +117,16 @@ class Settings(BaseSettings):
         d = self.data_dir if self.data_dir and str(self.data_dir) else self.repo_root / "data"
         d.mkdir(parents=True, exist_ok=True)
         return d
+
+    def resolve_scanner_bin_dir(self) -> Path:
+        """Directory holding the Trivy + Semgrep binaries.
+
+        Defaults to ``<home>/.opensec/bin/`` (the install script's target).
+        Override with ``OPENSEC_SCANNER_BIN_DIR``.
+        """
+        if self.scanner_bin_dir:
+            return Path(self.scanner_bin_dir)
+        return Path.home() / ".opensec" / "bin"
 
 
 settings = Settings()

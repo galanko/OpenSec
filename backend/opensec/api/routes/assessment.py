@@ -15,7 +15,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Request as FastAPIRequest
 from pydantic import BaseModel
 
-from opensec.api._background import get_assessment_step, schedule_assessment_run
+from opensec.api._background import (
+    get_assessment_step,
+    get_assessment_tools,
+    schedule_assessment_run,
+)
 from opensec.api._engine_dep import (
     AssessmentEngineProtocol,
     get_assessment_engine,
@@ -94,14 +98,15 @@ _STATUS_TO_PROGRESS: dict[AssessmentStatus, int] = {
     "failed": 0,
 }
 
-# Progress percentage per phase — used when the assessment is running and we
-# have a live step. Ordered to match the user-visible sequence.
+# Progress percentage per v0.2 step key — used when the assessment is running
+# and we have a live step. Ordered to match the user-visible sequence.
 _STEP_PROGRESS: dict[str, int] = {
-    "cloning": 10,
-    "parsing_lockfiles": 25,
-    "looking_up_cves": 50,
-    "checking_posture": 75,
-    "grading": 90,
+    "detect": 10,
+    "trivy_vuln": 25,
+    "trivy_secret": 40,
+    "semgrep": 60,
+    "posture": 80,
+    "descriptions": 95,
 }
 
 # v0.2 step timeline (ADR-0032). The engine emits one of these keys per
@@ -117,20 +122,13 @@ _V2_STEPS_ORDER: list[tuple[str, str, str | None]] = [
 
 
 def _build_steps(live_step: str | None, status: AssessmentStatus) -> list[AssessmentStep]:
-    """Synthesize the steps list from the legacy ``live_step`` indicator.
+    """Synthesize the steps list from the engine's live ``live_step`` key.
 
     Keys before ``live_step`` are ``done``, the live one is ``running``, the
     rest are ``pending``. The posture step carries a ``hint`` (15 checks) per
     the architect's regression test ``test_assessment_status_step_hint_for_posture``.
     """
-    legacy_to_v2 = {
-        "cloning": "detect",
-        "parsing_lockfiles": "trivy_vuln",
-        "looking_up_cves": "trivy_vuln",
-        "checking_posture": "posture",
-        "grading": "descriptions",
-    }
-    cursor = legacy_to_v2.get(live_step or "", live_step)
+    cursor = live_step
     steps: list[AssessmentStep] = []
     seen_running = False
     for key, label, hint in _V2_STEPS_ORDER:
@@ -268,7 +266,11 @@ async def get_assessment_status(
         pass_count, total_count = await count_posture_pass_total(db, a.id)
         tools = a.tools or _build_done_tools(pass_count, total_count)
     else:
-        tools = a.tools or _build_running_tools()
+        # Live in-flight tools[] from the engine's on_tool callback (PR-B).
+        # Falls back to the static "active/pending/pending" placeholder while
+        # the engine hasn't produced its first transition yet.
+        live_tools = get_assessment_tools(assessment_id)
+        tools = live_tools or a.tools or _build_running_tools()
 
     return AssessmentStatusResponse(
         assessment_id=a.id,
