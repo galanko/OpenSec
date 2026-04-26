@@ -30,7 +30,7 @@ export default function CompletionProgressCard({
           Completion progress
         </h2>
         <p className="mt-1 text-sm text-on-surface-variant">
-          Five criteria earn security completion for{' '}
+          Reach 10 of 10 criteria to complete{' '}
           <span className="font-semibold text-on-surface">{repoName}</span>.
         </p>
 

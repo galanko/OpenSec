@@ -65,6 +65,9 @@ const completedAssessmentC: Assessment = {
   grade: 'C',
   started_at: EARLIER,
   completed_at: NOW,
+  // PR-B (PRD-0003 v0.2): pre-mark the interstitial as seen so completed
+  // fixtures fall through to the report card instead of the Surface 3 gate.
+  summary_seen_at: NOW,
   criteria_snapshot: {
     ..._legacyEmptyCriteria,
     no_critical_vulns: true,
@@ -80,6 +83,7 @@ const completedAssessmentA: Assessment = {
   grade: 'A',
   started_at: EARLIER,
   completed_at: NOW,
+  summary_seen_at: NOW,
   criteria_snapshot: {
     ..._legacyEmptyCriteria,
     security_md_present: true,

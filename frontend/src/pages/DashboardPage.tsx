@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router'
 import {
   useDashboard,
   useFixPostureCheck,
+  useMarkSummarySeen,
   usePostureFixStatus,
   useRunAssessment,
 } from '@/api/dashboard'
@@ -27,8 +28,10 @@ import type {
 } from '@/api/dashboard'
 import { onboardingApi } from '@/api/onboarding'
 import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
+import AssessmentSummary from '@/components/dashboard/AssessmentSummary'
 import CompletionProgressCard from '@/components/dashboard/CompletionProgressCard'
 import GradeRing from '@/components/dashboard/GradeRing'
+import ScannedByLine from '@/components/dashboard/ScannedByLine'
 import ScorecardInfoLine from '@/components/dashboard/ScorecardInfoLine'
 import CompletionCelebration from '@/components/completion/CompletionCelebration'
 import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
@@ -39,7 +42,10 @@ import ErrorState from '@/components/ErrorState'
 import PageShell from '@/components/PageShell'
 import PageSpinner from '@/components/PageSpinner'
 
-const CRITERIA_TOTAL = 5
+// PRD-0003 v0.2 expands the grade from 5 to 10 criteria. The labeled list
+// comes from /api/dashboard.criteria; this constant is the gate for the
+// "all met" celebration check.
+const CRITERIA_TOTAL = 10
 
 const SEVERITY_ORDER: Array<{
   key: 'critical' | 'high' | 'medium' | 'low'
@@ -98,7 +104,56 @@ function DashboardContent() {
     return <EmptyDashboard />
   }
 
+  // Assessment-complete interstitial (PRD-0003 v0.2 Surface 3 / ADR-0032 §4):
+  // show once after the first completed assessment, gated server-side via
+  // ``summary_seen_at``. Clicking the CTA fires ``markSummarySeen`` and
+  // invalidates the dashboard query so the next render falls through to
+  // the report card.
+  if (
+    data.assessment.status === 'complete'
+    && data.assessment.summary_seen_at == null
+  ) {
+    return <AssessmentSummaryGate data={data} />
+  }
+
   return <ReportCard data={data} />
+}
+
+function AssessmentSummaryGate({ data }: { data: DashboardPayload }) {
+  const queryClient = useQueryClient()
+  const mutation = useMarkSummarySeen()
+  const a = data.assessment!
+  const grade = data.grade ?? 'F'
+  // The labeled ``criteria`` list is the v0.2 source of truth for "met"
+  // — count the entries flagged as met.
+  const criteriaMet =
+    (data.criteria ?? []).filter((c) => c.met).length
+  const vulnsTotal = data.vulnerabilities?.total ?? 0
+  const postureFailing = (data.posture_total_count ?? 0) - (data.posture_pass_count ?? 0)
+  return (
+    <PageShell title="Overview">
+      <AssessmentSummary
+        grade={grade}
+        criteriaMet={criteriaMet}
+        criteriaTotal={CRITERIA_TOTAL}
+        stats={{
+          vulnerabilitiesTotal: vulnsTotal,
+          postureFailing: Math.max(postureFailing, 0),
+          posturePassing: data.posture_pass_count ?? 0,
+          postureTotal: data.posture_total_count ?? 0,
+          quickWins: 0,
+        }}
+        onViewReportCard={() =>
+          mutation.mutate(a.id, {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+            },
+          })
+        }
+        pending={mutation.isPending}
+      />
+    </PageShell>
+  )
 }
 
 /**
@@ -379,6 +434,13 @@ function ReportCard({ data }: { data: DashboardPayload }) {
             </div>
           )}
         </section>
+
+        {/* PR-B: Scanned-by row sits directly under the hero so the brand
+            trust signal (Trivy 0.52 · 7 findings · ...) lands every time
+            the report card renders. */}
+        {data.tools && data.tools.length > 0 && (
+          <ScannedByLine tools={data.tools} />
+        )}
 
         <CompletionProgressCard
           criteriaMet={criteriaMet}

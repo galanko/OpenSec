@@ -78,6 +78,11 @@ export interface RunAssessmentResponse {
   status: string
 }
 
+export interface MarkSummarySeenResponse {
+  assessment_id: string
+  summary_seen_at: string
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
@@ -90,6 +95,11 @@ export const dashboardApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ repo_url: repoUrl }),
     }),
+  markSummarySeen: (assessmentId: string) =>
+    request<MarkSummarySeenResponse>(
+      `/api/assessment/${assessmentId}/mark-summary-seen`,
+      { method: 'POST' },
+    ),
   fixPostureCheck: (
     checkName: PostureFixableCheck,
     params?: PostureFixParams,
@@ -197,5 +207,20 @@ export function usePostureFixStatus(
       }
       return pollInterval
     },
+  })
+}
+
+/**
+ * Mark the assessment-complete interstitial as dismissed.
+ *
+ * Idempotent on the server side (ADR-0032 §4): the first call sets
+ * ``summary_seen_at`` to ``now()``; subsequent calls return the same
+ * timestamp without overwriting. The dashboard query is invalidated so
+ * the next render falls through from the interstitial to the report card.
+ */
+export function useMarkSummarySeen() {
+  return useMutation({
+    mutationFn: (assessmentId: string) =>
+      dashboardApi.markSummarySeen(assessmentId),
   })
 }
