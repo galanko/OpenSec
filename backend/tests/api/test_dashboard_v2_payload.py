@@ -25,7 +25,7 @@ import pytest
 from opensec.models import (
     AssessmentCreate,
     CriteriaSnapshot,
-    PostureCheckCreate,
+    FindingCreate,
 )
 
 
@@ -47,16 +47,19 @@ def _all_met_snapshot() -> CriteriaSnapshot:
 
 
 async def _seed_assessment(grade: str = "B", *, with_pr_url: bool = False) -> str:
+    """Seed an assessment with 15 posture findings via the unified UPSERT path."""
+    from opensec.assessment.posture import ADVISORY_CHECKS, CHECK_CATEGORY
     from opensec.db.connection import _db
     from opensec.db.dao.assessment import create_assessment, set_assessment_result
-    from opensec.db.dao.posture_check import upsert_posture_check
+    from opensec.db.repo_finding import create_finding
 
     assert _db is not None
-    a = await create_assessment(_db, AssessmentCreate(repo_url="https://github.com/a/b"))
+    repo_url = "https://github.com/a/b"
+    a = await create_assessment(_db, AssessmentCreate(repo_url=repo_url))
     snap = _all_met_snapshot()
     await set_assessment_result(_db, a.id, grade=grade, criteria_snapshot=snap)
 
-    # Seed all 15 posture checks: 12 pass (incl. 1 with pr_url), 3 advisory.
+    # 15 posture checks: 11-12 pass, 1 fail (or 1 done if with_pr_url), 3 advisory.
     seeds: list[tuple[str, str, str | None]] = [
         ("branch_protection", "pass", None),
         ("no_force_pushes", "pass", None),
@@ -65,11 +68,11 @@ async def _seed_assessment(grade: str = "B", *, with_pr_url: bool = False) -> st
         ("lockfile_present", "pass", None),
         ("dependabot_config", "pass", None),
         ("signed_commits", "advisory", None),
-        ("code_owners_exists", "fail" if not with_pr_url else "fail", None),
+        ("code_owners_exists", "fail", None),
         ("secret_scanning_enabled", "pass", None),
         (
             "actions_pinned_to_sha",
-            "fail",
+            "pass" if with_pr_url else "fail",
             "https://github.com/a/b/pull/14" if with_pr_url else None,
         ),
         ("trusted_action_sources", "pass", None),
@@ -78,14 +81,33 @@ async def _seed_assessment(grade: str = "B", *, with_pr_url: bool = False) -> st
         ("broad_team_permissions", "advisory", None),
         ("default_branch_permissions", "pass", None),
     ]
-    for name, status, pr_url in seeds:
-        await upsert_posture_check(
+    for name, scanner_status, pr_url in seeds:
+        is_advisory = name in ADVISORY_CHECKS or scanner_status == "advisory"
+        if is_advisory:
+            grade_impact = "advisory"
+            status = "new"
+        elif scanner_status == "pass":
+            grade_impact = "counts"
+            status = "passed"
+        else:
+            grade_impact = "counts"
+            status = "new"
+        await create_finding(
             _db,
-            PostureCheckCreate(
+            FindingCreate(
+                source_type="opensec-posture",
+                source_id=f"{repo_url}:{name}",
+                type="posture",
+                grade_impact=grade_impact,
+                category=CHECK_CATEGORY.get(name, "repo_configuration"),  # type: ignore[arg-type]
                 assessment_id=a.id,
-                check_name=name,
                 status=status,
+                title=name,
                 pr_url=pr_url,
+                raw_payload={
+                    "check_name": name,
+                    "scanner_status": scanner_status,
+                },
             ),
         )
     return a.id

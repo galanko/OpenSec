@@ -15,9 +15,8 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
-from opensec.models.posture_check import (
+from opensec.models.posture_check import (  # noqa: TC001 — used at runtime in dict[K, V] annotations
     PostureCheckCategory,
-    PostureCheckCreate,
     PostureCheckName,
 )
 
@@ -135,7 +134,7 @@ async def run_all_posture_checks(
     gh_client: GithubAPI,
     coords: RepoCoords,
     assessment_id: str = "",
-) -> list[PostureCheckCreate]:
+) -> list[PostureCheckResult]:
     from opensec.assessment.posture.branch import (
         build_branch_protection_result,
         build_no_force_pushes_result,
@@ -193,7 +192,8 @@ async def run_all_posture_checks(
     broad_team_res = await check_broad_team_permissions(gh_client, coords)
     default_branch_perms_res = await check_default_branch_permissions(gh_client, coords)
 
-    results: list[PostureCheckResult] = [
+    del assessment_id  # unused — assessment_id flows through the engine, not the orchestrator
+    return [
         build_branch_protection_result(protection, coords),
         build_no_force_pushes_result(protection),
         secrets_res,
@@ -209,15 +209,6 @@ async def run_all_posture_checks(
         stale_collab_res,
         broad_team_res,
         default_branch_perms_res,
-    ]
-    return [
-        PostureCheckCreate(
-            assessment_id=assessment_id,
-            check_name=r.check_name,
-            status=r.status,
-            detail=r.detail,
-        )
-        for r in results
     ]
 
 

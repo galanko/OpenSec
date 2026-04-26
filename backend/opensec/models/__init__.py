@@ -35,13 +35,13 @@ from opensec.models.completion import (
 from opensec.models.finding import (
     Finding,
     FindingCreate,
+    FindingGradeImpact,
     FindingStatus,
+    FindingType,
     FindingUpdate,
 )
 from opensec.models.posture_check import (
-    PostureCheck,
     PostureCheckCategory,
-    PostureCheckCreate,
     PostureCheckName,
     PostureCheckStatus,
 )
@@ -386,7 +386,9 @@ __all__ = [
     # Finding
     "Finding",
     "FindingCreate",
+    "FindingGradeImpact",
     "FindingStatus",
+    "FindingType",
     "FindingUpdate",
     # Assessment
     "Assessment",
@@ -400,10 +402,8 @@ __all__ = [
     "Grade",
     "ToolResultKind",
     "ToolState",
-    # PostureCheck
-    "PostureCheck",
+    # PostureCheck (literal types only post-IMPL-0003-p2)
     "PostureCheckCategory",
-    "PostureCheckCreate",
     "PostureCheckName",
     "PostureCheckStatus",
     # Completion

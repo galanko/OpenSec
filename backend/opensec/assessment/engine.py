@@ -1,4 +1,4 @@
-"""Assessment orchestrator (PRD-0003 v0.2 / IMPL-0003-p2 Phase 1).
+"""Assessment orchestrator (PRD-0003 v0.2 / IMPL-0003-p2 Phase 2).
 
 `run_assessment` is the canonical entry point for a full repo scan. It clones
 the target repo, runs Trivy + Semgrep via the :class:`ScannerRunner` (ADR-0028
@@ -6,15 +6,15 @@ subprocess-only execution), runs the 15 posture checks (PRD-0003 rev. 2), and
 returns an :class:`AssessmentResult` with the full ``tools[]`` payload from
 ADR-0032 already populated.
 
-The function is pure-ish — DB persistence happens in ``api/_background.py``;
-this module only emits in-memory results plus optional progress callbacks
-(``on_step`` for the six-stage timeline, ``on_tool`` for the three-pill
-ToolPillBar). Trivy failure is fatal; Semgrep failure is graceful (the tool
-becomes ``skipped`` and the assessment continues without it).
+Persistence happens inline (Phase 2): when ``db`` is provided, each scanner's
+output is mapped to ``FindingCreate`` rows via :mod:`opensec.assessment.to_findings`
+and UPSERTed into the unified ``finding`` table; after every scanner that ran
+successfully, a stale-close pass scoped by ``source_type`` marks rows that
+disappeared between runs.
 
-The legacy lockfile parsers and OSV/GHSA HTTP clients used by PRD-0002's engine
-are gone — Trivy subsumes both responsibilities. See IMPL-0003-p2 Phase 1 for
-the deletion list.
+Trivy failure is fatal; Semgrep failure is graceful (the tool becomes
+``skipped`` and the assessment continues without it). Per-check posture
+``unknown`` is absorbed by the orchestrator and never raises.
 """
 
 from __future__ import annotations
@@ -29,31 +29,37 @@ from urllib.parse import urlparse
 
 from opensec.assessment.clone import shallow_clone
 from opensec.assessment.posture import RepoCoords, run_all_posture_checks
+from opensec.assessment.to_findings import (
+    from_posture,
+    from_semgrep,
+    from_trivy_secrets,
+    from_trivy_vulns,
+)
 from opensec.models.assessment import (
     AssessmentResult,
     AssessmentTool,
     AssessmentToolResult,
     CriteriaSnapshot,
 )
-from opensec.models.finding import FindingCreate
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Awaitable, Callable
 
-    from opensec.assessment.posture import GithubAPI
+    import aiosqlite
+
+    from opensec.assessment.posture import GithubAPI, PostureCheckResult
     from opensec.assessment.scanners.models import (
         SemgrepResult,
         TrivyResult,
     )
     from opensec.assessment.scanners.runner import ScannerRunner
     from opensec.models.assessment import Grade
+    from opensec.models.finding import FindingCreate
     from opensec.models.posture_check import PostureCheckName, PostureCheckStatus
 
 logger = logging.getLogger(__name__)
 
 
-#: Hard timeout budget for each scanner subprocess. Trivy ships a vuln+secret
-#: scan on a mid-size repo in ~30s on cold cache; Semgrep is similar.
 _TRIVY_TIMEOUT_S: float = 120.0
 _SEMGREP_TIMEOUT_S: float = 120.0
 _CLONE_TIMEOUT_S: float = 60.0
@@ -63,15 +69,7 @@ _CLONE_TIMEOUT_S: float = 60.0
 
 
 class RepoCloner:
-    """Async context manager around :func:`shallow_clone` (ADR-0024).
-
-    Production usage::
-
-        async with cloner.clone("https://github.com/owner/repo") as repo_path:
-            ...
-
-    The temp directory is removed on exit regardless of success.
-    """
+    """Async context manager around :func:`shallow_clone` (ADR-0024)."""
 
     def __init__(
         self,
@@ -88,9 +86,7 @@ class RepoCloner:
     async def clone(
         self, repo_url: str, *, branch: str = "main"
     ) -> AsyncIterator[Path]:
-        # ``branch`` is accepted for API symmetry; ``shallow_clone`` already
-        # uses ``--single-branch`` and resolves the default branch on its own.
-        del branch
+        del branch  # ``shallow_clone`` already uses ``--single-branch``.
         token: str | None = None
         if self._token_provider is not None:
             token = await self._token_provider()
@@ -121,32 +117,23 @@ async def run_assessment(
     runner: ScannerRunner,
     cloner: RepoCloner,
     assessment_id: str,
+    db: aiosqlite.Connection | None = None,
     on_step: Callable[[str], Awaitable[None]] | None = None,
     on_tool: Callable[[AssessmentTool], Awaitable[None]] | None = None,
     branch: str = "main",
 ) -> AssessmentResult:
-    """Clone -> Trivy -> Semgrep -> posture -> assemble result.
+    """Clone -> Trivy -> Semgrep -> posture -> persist -> close-pass -> assemble.
 
-    ``assessment_id`` is supplied by the caller (the API layer creates the DB
-    row before scheduling the run). The engine never generates its own.
-
-    ``on_step`` receives one of the six stage keys per IMPL-0003-p2 Phase 1:
-    ``detect``, ``trivy_vuln``, ``trivy_secret``, ``semgrep``, ``posture``,
-    ``descriptions``. The route layer maps this onto a steps[] timeline.
-
-    ``on_tool`` receives an updated :class:`AssessmentTool` whenever a pill's
-    state transitions. The initial broadcast emits all three tools as
-    ``pending`` so the UI can render the bar from t=0.
-
-    Trivy failure is fatal: the engine raises and the orchestrator marks the
-    assessment ``failed``. Semgrep failure is graceful: the corresponding tool
-    becomes ``skipped`` and the assessment continues. Per-check posture
-    exceptions surface as ``status='unknown'`` from the posture orchestrator;
-    they do not abort the run.
+    When ``db`` is provided, every scanner's output is mapped via
+    :mod:`opensec.assessment.to_findings` and UPSERTed into the unified
+    ``finding`` table; after each scanner that ran successfully, the
+    stale-close pass marks prior rows for that ``source_type`` whose
+    ``source_id`` disappeared this run as ``status='closed'``. When ``db`` is
+    ``None`` (test mode), the engine still computes counts and emits the
+    callbacks but does not touch the DB.
     """
     coords = _coords_from_repo_url(repo_url, branch=branch)
 
-    # Initial tools[] broadcast — three pending pills.
     tools: dict[str, AssessmentTool] = {
         "trivy": AssessmentTool(
             id="trivy", label="Trivy", icon="bug_report", state="pending"
@@ -161,12 +148,10 @@ async def run_assessment(
     for tool in tools.values():
         await _emit_tool(on_tool, tool)
 
-    # 1. Clone (the "detect" stage covers clone + project-type sniffing).
     await _emit_step(on_step, "detect")
     async with cloner.clone(repo_url, branch=branch) as repo_path:
 
-        # 2. Trivy (vuln + secret in one invocation; UI shows two stage rows
-        #    but the tool transitions once).
+        # ---- Trivy ----
         tools["trivy"] = tools["trivy"].model_copy(update={"state": "active"})
         await _emit_tool(on_tool, tools["trivy"])
         await _emit_step(on_step, "trivy_vuln")
@@ -182,7 +167,7 @@ async def run_assessment(
 
         await _emit_step(on_step, "trivy_secret")
 
-        # 3. Semgrep (graceful skip).
+        # ---- Semgrep (graceful skip) ----
         tools["semgrep"] = tools["semgrep"].model_copy(update={"state": "active"})
         await _emit_tool(on_tool, tools["semgrep"])
         await _emit_step(on_step, "semgrep")
@@ -200,7 +185,7 @@ async def run_assessment(
             )
             await _emit_tool(on_tool, tools["semgrep"])
 
-        # 4. Posture (15 checks; per-check `unknown` is not a failure).
+        # ---- Posture ----
         tools["posture"] = tools["posture"].model_copy(update={"state": "active"})
         await _emit_tool(on_tool, tools["posture"])
         await _emit_step(on_step, "posture")
@@ -211,7 +196,18 @@ async def run_assessment(
             assessment_id=assessment_id,
         )
 
-    # 5. Finalize tool results.
+    # ---- Persistence + close pass (Phase 2) ----
+    if db is not None:
+        await _persist_findings(
+            db,
+            repo_url=repo_url,
+            assessment_id=assessment_id,
+            trivy_result=trivy_result,
+            semgrep_result=semgrep_result if semgrep_ran else None,
+            posture_results=posture_results,
+        )
+
+    # ---- Finalize tool results ----
     trivy_count = len(trivy_result.vulnerabilities) + len(trivy_result.secrets)
     tools["trivy"] = tools["trivy"].model_copy(
         update={
@@ -256,21 +252,20 @@ async def run_assessment(
     )
     await _emit_tool(on_tool, tools["posture"])
 
-    # 6. Snapshot + grade.
+    # ---- Snapshot + grade ----
     await _emit_step(on_step, "descriptions")
     posture_statuses: dict[PostureCheckName, PostureCheckStatus] = {
         pc.check_name: pc.status for pc in posture_results
     }
-    findings_dicts = _trivy_findings_to_dicts(trivy_result)
-    snapshot = _build_snapshot(findings_dicts, posture_statuses)
-    grade = derive_grade(snapshot, findings_dicts, posture_statuses)
+    snapshot = _build_snapshot(trivy_result, semgrep_result, posture_statuses)
+    grade = derive_grade(snapshot)
 
     return AssessmentResult(
         assessment_id=assessment_id,
         repo_url=repo_url,
         grade=grade,
         criteria_snapshot=snapshot,
-        findings=findings_dicts,
+        findings=[],  # persisted directly; the wire shape carries no dicts
         posture_checks=[
             {
                 "check_name": pc.check_name,
@@ -283,6 +278,74 @@ async def run_assessment(
     )
 
 
+# --------------------------------------------------------------------- persistence
+
+
+async def _persist_findings(
+    db: aiosqlite.Connection,
+    *,
+    repo_url: str,
+    assessment_id: str,
+    trivy_result: TrivyResult,
+    semgrep_result: SemgrepResult | None,
+    posture_results: list[PostureCheckResult],
+) -> None:
+    """UPSERT scanner outputs and run the stale-close pass per source_type."""
+    from opensec.db.repo_finding import (
+        close_disappeared_findings,
+        create_finding,
+    )
+
+    # 1. Map + UPSERT.
+    trivy_vuln_rows = from_trivy_vulns(trivy_result, assessment_id=assessment_id)
+    trivy_secret_rows = from_trivy_secrets(
+        trivy_result, assessment_id=assessment_id
+    )
+    semgrep_rows: list[FindingCreate] = []
+    if semgrep_result is not None:
+        semgrep_rows = from_semgrep(semgrep_result, assessment_id=assessment_id)
+    posture_rows = from_posture(
+        posture_results, repo_url=repo_url, assessment_id=assessment_id
+    )
+
+    for row in (*trivy_vuln_rows, *trivy_secret_rows, *semgrep_rows, *posture_rows):
+        try:
+            await create_finding(db, row)
+        except Exception:
+            logger.exception(
+                "create_finding failed for source_type=%s source_id=%s",
+                row.source_type,
+                row.source_id,
+            )
+
+    # 2. Close pass per source_type that ran successfully. Posture is
+    # excluded — every scan rewrites every check, so there's no
+    # "disappearance" to detect; a check that was failing and now passes is
+    # already handled by the type-conditional UPSERT.
+    await close_disappeared_findings(
+        db,
+        source_type="trivy",
+        kept_source_ids=[r.source_id for r in trivy_vuln_rows],
+        assessment_id=assessment_id,
+        repo_url=repo_url,
+    )
+    await close_disappeared_findings(
+        db,
+        source_type="trivy-secret",
+        kept_source_ids=[r.source_id for r in trivy_secret_rows],
+        assessment_id=assessment_id,
+        repo_url=repo_url,
+    )
+    if semgrep_result is not None:
+        await close_disappeared_findings(
+            db,
+            source_type="semgrep",
+            kept_source_ids=[r.source_id for r in semgrep_rows],
+            assessment_id=assessment_id,
+            repo_url=repo_url,
+        )
+
+
 # --------------------------------------------------------------------- helpers
 
 
@@ -293,7 +356,7 @@ async def _emit_step(
         return
     try:
         await cb(step)
-    except Exception:  # noqa: BLE001 — never let a UI callback break the run
+    except Exception:  # noqa: BLE001
         logger.debug("on_step callback raised for step=%s", step, exc_info=True)
 
 
@@ -319,83 +382,15 @@ def _pluralize(n: int, noun: str) -> str:
     return f"{n} {noun}{'' if n == 1 else 's'}"
 
 
-# Trivy → FindingCreate-shaped dicts. Phase 1 keeps the legacy ``finding`` table
-# shape; Phase 2 swaps this for the deterministic mappers in ``to_findings.py``.
-def _trivy_findings_to_dicts(result: TrivyResult) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    for v in result.vulnerabilities:
-        findings.append(
-            FindingCreate(
-                source_type="trivy",
-                source_id=f"{v.pkg_name}@{v.installed_version}:{v.vuln_id}",
-                title=v.title or v.vuln_id,
-                description=v.description,
-                raw_severity=v.severity,
-                normalized_priority=_priority_from_severity(v.severity),
-                asset_label=f"{v.pkg_name}@{v.installed_version}",
-                raw_payload={
-                    "vuln_id": v.vuln_id,
-                    "package": v.pkg_name,
-                    "version": v.installed_version,
-                    "fixed_version": v.fixed_version,
-                    "primary_url": v.primary_url,
-                },
-            ).model_dump()
-        )
-    for s in result.secrets:
-        findings.append(
-            FindingCreate(
-                source_type="trivy-secret",
-                source_id=f"{s.path}:{s.start_line}:{s.rule_id}",
-                title=s.title or s.rule_id,
-                description=s.match,
-                raw_severity=s.severity,
-                normalized_priority=_priority_from_severity(s.severity),
-                asset_label=s.path,
-                raw_payload={
-                    "rule_id": s.rule_id,
-                    "category": s.category,
-                    "path": s.path,
-                    "start_line": s.start_line,
-                    "end_line": s.end_line,
-                },
-            ).model_dump()
-        )
-    return findings
-
-
-_PRIORITY_BY_SEVERITY: dict[str, str] = {
-    "CRITICAL": "critical",
-    "HIGH": "high",
-    "MODERATE": "medium",
-    "MEDIUM": "medium",
-    "LOW": "low",
-    "WARNING": "medium",
-    "ERROR": "high",
-    "INFO": "low",
-}
-
-
-def _priority_from_severity(raw_severity: str | None) -> str | None:
-    if not isinstance(raw_severity, str):
-        return None
-    return _PRIORITY_BY_SEVERITY.get(raw_severity.upper())
-
-
-def derive_grade(
-    criteria: CriteriaSnapshot,
-    findings: list[dict[str, Any]] | None = None,
-    posture_statuses: dict[PostureCheckName, PostureCheckStatus] | None = None,
-) -> Grade:
+def derive_grade(criteria: CriteriaSnapshot, *_args: Any, **_kwargs: Any) -> Grade:
     """Ten-criteria grading per PRD-0003 v0.2 / ADR-0032.
 
-    A=10, B=8-9, C=6-7, D=4-5, F=0-3. The optional ``findings`` and
-    ``posture_statuses`` arguments allow legacy callers that synthesize a
-    snapshot without the v0.2 fields to grade correctly — we re-derive the
-    relevant booleans before counting.
+    A=10, B=8-9, C=6-7, D=4-5, F=0-3. Extra positional/keyword args are
+    accepted for backward compatibility with legacy call sites that passed
+    ``findings`` and ``posture_statuses`` — those values are ignored because
+    the snapshot is now authoritative end-to-end.
     """
-    snapshot = _enrich_snapshot(criteria, findings or [], posture_statuses or {})
-    met = snapshot.met_count()
+    met = criteria.met_count()
     if met == 10:
         return "A"
     if met >= 8:
@@ -407,44 +402,19 @@ def derive_grade(
     return "F"
 
 
-def _enrich_snapshot(
-    criteria: CriteriaSnapshot,
-    findings: list[dict[str, Any]],
-    posture_statuses: dict[PostureCheckName, PostureCheckStatus],
-) -> CriteriaSnapshot:
-    severities = {_severity_of(f) for f in findings}
-    has_unknown = "UNKNOWN" in severities
-    no_high = (
-        criteria.no_high_vulns
-        if criteria.no_high_vulns
-        else "HIGH" not in severities and not has_unknown
-    )
-    return criteria.model_copy(
-        update={
-            "no_critical_vulns": criteria.no_critical_vulns
-            or ("CRITICAL" not in severities and not has_unknown),
-            "no_high_vulns": no_high,
-            "branch_protection_enabled": criteria.branch_protection_enabled
-            or posture_statuses.get("branch_protection") == "pass",
-            "no_secrets_detected": criteria.no_secrets_detected
-            or posture_statuses.get("no_secrets_in_code") == "pass",
-            "actions_pinned_to_sha": criteria.actions_pinned_to_sha
-            or posture_statuses.get("actions_pinned_to_sha") == "pass",
-            "no_stale_collaborators": criteria.no_stale_collaborators
-            or posture_statuses.get("stale_collaborators") == "pass",
-            "code_owners_exists": criteria.code_owners_exists
-            or posture_statuses.get("code_owners_exists") == "pass",
-            "secret_scanning_enabled": criteria.secret_scanning_enabled
-            or posture_statuses.get("secret_scanning_enabled") == "pass",
-        }
-    )
-
-
 def _build_snapshot(
-    findings: list[dict[str, Any]],
+    trivy_result: TrivyResult,
+    semgrep_result: SemgrepResult | None,
     posture_statuses: dict[PostureCheckName, PostureCheckStatus],
 ) -> CriteriaSnapshot:
-    severities = {_severity_of(f) for f in findings}
+    severities: set[str] = set()
+    for v in trivy_result.vulnerabilities:
+        severities.add((v.severity or "").upper())
+    for s in trivy_result.secrets:
+        severities.add((s.severity or "").upper())
+    if semgrep_result is not None:
+        for f in semgrep_result.findings:
+            severities.add((f.severity or "").upper())
     has_unknown = "UNKNOWN" in severities
     passing = sum(1 for s in posture_statuses.values() if s == "pass")
     return CriteriaSnapshot(
@@ -452,6 +422,7 @@ def _build_snapshot(
         no_high_vulns=(
             "HIGH" not in severities
             and "CRITICAL" not in severities
+            and "ERROR" not in severities
             and not has_unknown
         ),
         posture_checks_passing=passing,
@@ -467,18 +438,8 @@ def _build_snapshot(
     )
 
 
-def _severity_of(finding: dict[str, Any]) -> str:
-    raw = finding.get("raw_severity")
-    return raw.upper() if isinstance(raw, str) else "UNKNOWN"
-
-
 def _coords_from_repo_url(repo_url: str, *, branch: str) -> RepoCoords:
-    """Parse `owner/repo` out of an HTTPS or SSH URL.
-
-    Raises ``ValueError`` on anything we can't confidently parse — the GitHub
-    API client would otherwise 404 silently and every protection-dependent
-    posture check would report ``unknown``.
-    """
+    """Parse `owner/repo` out of an HTTPS or SSH URL."""
     if repo_url.startswith("git@") and ":" in repo_url:
         path = repo_url.split(":", 1)[1]
     else:

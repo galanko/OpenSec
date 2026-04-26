@@ -336,10 +336,10 @@ async def test_engine_returns_assessment_result_with_tools_payload(
     semgrep = next(t for t in result.tools if t.id == "semgrep")
     assert semgrep.version == "1.70.0"
 
-    source_types = {f["source_type"] for f in result.findings}
-    assert "trivy" in source_types
-    assert "trivy-secret" in source_types
-
+    # Findings persist via the engine's UPSERT path when ``db`` is provided;
+    # the in-memory result no longer carries dict findings (Phase 2). Posture
+    # results are still surfaced through the in-memory list for inspection.
+    assert result.findings == []
     assert len(result.posture_checks) == 15
 
 
@@ -422,15 +422,22 @@ def test_derive_grade_f_when_criticals_present() -> None:
     assert derive_grade(snap, findings, posture_statuses) == "F"
 
 
-def test_derive_grade_counts_unknown_severity_against_criteria() -> None:
-    snap = CriteriaSnapshot(security_md_present=True, dependabot_present=True)
-    findings = [{"raw_severity": "UNKNOWN"}]
-    posture_statuses = {
-        "branch_protection": "pass",
-        "no_secrets_in_code": "pass",
-    }
-    grade = derive_grade(snap, findings, posture_statuses)
-    assert grade == "D"
+def test_derive_grade_uses_snapshot_directly() -> None:
+    """v0.2: ``derive_grade`` reads ``CriteriaSnapshot.met_count()`` only.
+
+    The engine's ``_build_snapshot`` does the severity + posture roll-up
+    end-to-end, so ``derive_grade`` is now a pure function over the snapshot.
+    Five out of ten criteria met → D.
+    """
+    snap = CriteriaSnapshot(
+        security_md_present=True,
+        dependabot_present=True,
+        branch_protection_enabled=True,
+        no_secrets_detected=True,
+        no_critical_vulns=True,
+    )
+    assert snap.met_count() == 5
+    assert derive_grade(snap) == "D"
 
 
 def test_criteria_snapshot_10_fields() -> None:

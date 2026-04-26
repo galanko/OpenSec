@@ -33,8 +33,10 @@ from opensec.db.dao.assessment import (
 from opensec.db.dao.assessment import (
     get_latest_assessment as dao_get_latest_assessment,
 )
-from opensec.db.dao.posture_check import count_posture_pass_total
-from opensec.db.repo_finding import count_findings_by_priority
+from opensec.db.repo_finding import (
+    count_findings_by_priority,
+    list_posture_findings,
+)
 from opensec.models import (
     Assessment,
     AssessmentCreate,
@@ -263,7 +265,11 @@ async def get_assessment_status(
             progress = _STEP_PROGRESS.get(live_step, progress)
 
     if a.status == "complete":
-        pass_count, total_count = await count_posture_pass_total(db, a.id)
+        posture_rows = await list_posture_findings(db, a.id)
+        pass_count = sum(
+            1 for r in posture_rows if r.status == "passed" and r.grade_impact == "counts"
+        )
+        total_count = sum(1 for r in posture_rows if r.grade_impact == "counts")
         tools = a.tools or _build_done_tools(pass_count, total_count)
     else:
         # Live in-flight tools[] from the engine's on_tool callback (PR-B).
@@ -319,7 +325,11 @@ async def get_latest_assessment(db=Depends(get_db)) -> AssessmentLatestResponse:
     if latest.grade is None:
         raise HTTPException(status_code=409, detail="Latest assessment is not yet complete")
 
-    pass_count, total_count = await count_posture_pass_total(db, latest.id)
+    posture_rows = await list_posture_findings(db, latest.id)
+    pass_count = sum(
+        1 for r in posture_rows if r.status == "passed" and r.grade_impact == "counts"
+    )
+    total_count = sum(1 for r in posture_rows if r.grade_impact == "counts")
     counts = await count_findings_by_priority(db)
 
     return AssessmentLatestResponse(

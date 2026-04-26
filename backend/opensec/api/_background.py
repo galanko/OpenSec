@@ -1,19 +1,20 @@
-"""Background orchestration for assessment runs (EXEC-0002 Session B).
+"""Background orchestration for assessment runs (PRD-0003 v0.2 / IMPL-0003-p2).
 
 Both ``/api/assessment/run`` and ``/api/onboarding/repo`` need to kick off an
 engine run without blocking the response. This module owns:
 
-  * ``run_and_persist_assessment`` — the single coroutine that drives the engine
-    and writes its results to the DB. Public (no underscore) so other routes can
-    import it without reaching across a module-private boundary.
+  * ``run_and_persist_assessment`` — the single coroutine that drives the
+    engine and finalises the assessment row. The engine itself persists every
+    finding (Trivy / Semgrep / posture) via the unified UPSERT in Phase 2;
+    this module only updates the assessment row's status, tools_json, grade,
+    and criteria_snapshot, plus opens a completion row when the user hits
+    Grade A.
   * ``schedule_assessment_run`` — fires the coroutine as a task tracked in
-    ``app.state.assessment_tasks`` and self-evicts on completion so the set
-    doesn't grow unboundedly over a long-running process.
+    ``app.state.assessment_tasks`` and self-evicts on completion.
 
-PR-B (PRD-0003 v0.2): also wires the ``on_tool`` callback so the in-flight UI
-gets live ``tools[]`` updates (ADR-0032) without polling the DB. Per-assessment
-state lives in two in-memory dicts (``_ASSESSMENT_STEPS``, ``_ASSESSMENT_TOOLS``)
-that the status route reads.
+Per-assessment in-memory state (``_ASSESSMENT_STEPS`` / ``_ASSESSMENT_TOOLS``)
+backs the live ToolPillBar in the running-state UI; the durable signals are
+the assessment row's ``status`` and ``tools_json``.
 """
 
 from __future__ import annotations
@@ -27,19 +28,7 @@ from opensec.db.dao.completion import (
     create_completion,
     get_completion_for_assessment,
 )
-from opensec.db.dao.posture_check import upsert_posture_check
-from opensec.db.repo_finding import create_finding
-from opensec.integrations.normalizer import normalize_findings
-from opensec.models import (
-    AssessmentTool,
-    AssessmentUpdate,
-    CompletionCreate,
-    FindingCreate,
-    PostureCheckCreate,
-)
-
-# Batch size for the LLM normalizer pass.
-_NORMALIZER_CHUNK_SIZE = 10
+from opensec.models import AssessmentTool, AssessmentUpdate, CompletionCreate
 
 if TYPE_CHECKING:
     import aiosqlite
@@ -50,9 +39,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# In-memory step / tools state per in-flight assessment. Lives next to the
-# running task; the status endpoint reads it back. State dies with the
-# process — a ``failed`` or ``complete`` row in the DB is the durable signal.
 _ASSESSMENT_STEPS: dict[str, str] = {}
 _ASSESSMENT_TOOLS: dict[str, dict[str, AssessmentTool]] = {}
 
@@ -76,7 +62,7 @@ async def run_and_persist_assessment(
     assessment_id: str,
     repo_url: str,
 ) -> None:
-    """Drive the engine for one assessment and persist every output it emits."""
+    """Drive the engine for one assessment and finalise the assessment row."""
 
     async def _on_step(step: str) -> None:
         _ASSESSMENT_STEPS[assessment_id] = step
@@ -91,6 +77,7 @@ async def run_and_persist_assessment(
         result = await engine.run_assessment(
             repo_url,
             assessment_id=assessment_id,
+            db=db,
             on_step=_on_step,
             on_tool=_on_tool,
         )
@@ -101,93 +88,9 @@ async def run_and_persist_assessment(
         _ASSESSMENT_TOOLS.pop(assessment_id, None)
         return
 
-    for check in result.posture_checks:
-        try:
-            await upsert_posture_check(
-                db,
-                PostureCheckCreate(
-                    assessment_id=assessment_id,
-                    check_name=check["check_name"],
-                    status=check["status"],
-                    detail=check.get("detail"),
-                ),
-            )
-        except Exception:
-            logger.exception(
-                "failed to persist posture check %s for assessment %s",
-                check.get("check_name"),
-                assessment_id,
-            )
-
-    # Findings land via the same ETL the /findings/ingest endpoint uses:
-    # engine emits deterministic FindingCreate-shaped dicts → LLM normalizer
-    # enriches them with ``plain_description`` (and re-confirms
-    # ``normalized_priority``) → DB. Phase 1 keeps this path; Phase 2 swaps it
-    # for the deterministic ``to_findings`` mappers + UPSERT.
-    findings_to_persist: list[FindingCreate] = []
-
-    if result.findings:
-        # Phase 1 of IMPL-0003-p2 keeps the legacy single-source persistence
-        # path: every assessment-emitted finding lands as ``opensec-assessment``
-        # so the existing dashboard query and Findings page filter still work.
-        # Phase 2 swaps this for the ``to_findings`` deterministic mappers
-        # which preserve real ``source_type`` values (``trivy``, ``trivy-secret``,
-        # ``semgrep``, ``opensec-posture``).
-        raw_data = [
-            {**f, "source_type": "opensec-assessment"} for f in result.findings
-        ]
-        normalized: list[FindingCreate] = []
-        normalizer_errors: list[str] = []
-        try:
-            for chunk_start in range(0, len(raw_data), _NORMALIZER_CHUNK_SIZE):
-                chunk = raw_data[chunk_start : chunk_start + _NORMALIZER_CHUNK_SIZE]
-                valid, errors = await normalize_findings(
-                    "opensec-assessment", chunk
-                )
-                normalized.extend(valid)
-                normalizer_errors.extend(errors)
-            if normalizer_errors:
-                logger.warning(
-                    "normalizer returned %d errors for assessment %s",
-                    len(normalizer_errors),
-                    assessment_id,
-                )
-        except Exception:
-            logger.warning(
-                "normalizer pass failed for assessment %s — falling back to "
-                "deterministic engine output",
-                assessment_id,
-                exc_info=True,
-            )
-            normalized = []
-
-        if normalized:
-            findings_to_persist.extend(normalized)
-        else:
-            for finding_data in result.findings:
-                try:
-                    payload = {
-                        **finding_data,
-                        "source_type": "opensec-assessment",
-                    }
-                    findings_to_persist.append(FindingCreate(**payload))
-                except Exception:
-                    logger.exception(
-                        "failed to build fallback FindingCreate for %r",
-                        finding_data.get("source_id") or finding_data.get("title"),
-                    )
-
-    for fc in findings_to_persist:
-        try:
-            await create_finding(db, fc)
-        except Exception:
-            logger.exception(
-                "failed to persist finding for assessment %s: %r",
-                assessment_id,
-                fc.source_id or fc.title,
-            )
-
-    # Persist final tools[] + grade + criteria.
+    # Persist final tools[] + grade + criteria. Findings + posture rows are
+    # already in the unified ``finding`` table (engine handled it); this
+    # finalises the assessment metadata.
     await update_assessment(
         db, assessment_id, AssessmentUpdate(tools=result.tools)
     )

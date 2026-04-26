@@ -24,6 +24,8 @@ from fastapi import Request  # noqa: TCH002
 from opensec.config import settings
 
 if TYPE_CHECKING:
+    import aiosqlite
+
     from opensec.engine.pool import WorkspaceProcessPool
     from opensec.models import AssessmentResult, AssessmentTool
     from opensec.workspace.workspace_dir_manager import WorkspaceKind
@@ -50,6 +52,7 @@ class AssessmentEngineProtocol(Protocol):
         repo_url: str,
         *,
         assessment_id: str,
+        db: aiosqlite.Connection | None = None,
         on_step: StepCallback | None = None,
         on_tool: ToolCallback | None = None,
     ) -> AssessmentResult: ...
@@ -99,6 +102,7 @@ class _RealAssessmentEngine:
         repo_url: str,
         *,
         assessment_id: str,
+        db: aiosqlite.Connection | None = None,
         on_step: StepCallback | None = None,
         on_tool: ToolCallback | None = None,
     ) -> AssessmentResult:
@@ -126,6 +130,7 @@ class _RealAssessmentEngine:
                 runner=runner,
                 cloner=cloner,
                 assessment_id=assessment_id,
+                db=db,
                 on_step=on_step,
                 on_tool=on_tool,
             )
