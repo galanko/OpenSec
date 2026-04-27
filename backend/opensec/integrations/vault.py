@@ -3,7 +3,16 @@
 Encryption key resolution priority:
 1. System keyring (macOS Keychain, GNOME Keyring, Windows Credential Manager)
 2. OPENSEC_CREDENTIAL_KEY environment variable (base64-encoded 32 bytes)
-3. Raises CredentialKeyError — UI layer must prompt user to configure a key
+3. File at ``<data_dir>/.credential-key`` — auto-generated on first run when
+   keyring + env aren't available (the Docker path). Written 0600.
+4. Raises CredentialKeyError — only when none of the above work AND the data
+   directory isn't writable.
+
+The file-based path means a fresh Docker run "just works" without the operator
+having to set ``OPENSEC_CREDENTIAL_KEY``. The key is generated once and lives
+in the persistent data volume, so credentials survive container restarts. To
+rotate the key, delete the file — but that invalidates every stored
+credential, so it's a deliberate operator action.
 
 Credentials are encrypted per-value with random 12-byte IVs and stored in the
 ``credential`` table. The vault never exposes plaintext via API — only internal
@@ -22,6 +31,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from opensec.db import repo_credential
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     import aiosqlite
 
 logger = logging.getLogger(__name__)
@@ -29,6 +40,7 @@ logger = logging.getLogger(__name__)
 _KEYRING_SERVICE = "opensec"
 _KEYRING_USERNAME = "credential-vault-key"
 _KEY_LENGTH = 32  # AES-256
+_KEY_FILE_NAME = ".credential-key"
 
 
 class CredentialKeyError(Exception):
@@ -92,6 +104,97 @@ def _try_env_var() -> bytes | None:
     return key
 
 
+def _resolve_key_file_path() -> Path | None:
+    """Return ``<data_dir>/.credential-key`` if the data dir is writable.
+
+    Imported lazily so this module doesn't pull in app config at import time
+    (and so tests can override the data dir via env vars before this fires).
+    Returns ``None`` if the data dir can't be created — the caller falls
+    through to the explicit error path.
+    """
+    try:
+        from opensec.config import settings  # late import — see docstring
+
+        data_dir = settings.resolve_data_dir()
+    except Exception:  # pragma: no cover — defensive
+        logger.debug("could not resolve data dir for credential key file", exc_info=True)
+        return None
+    return data_dir / _KEY_FILE_NAME
+
+
+def _try_key_file() -> bytes | None:
+    """Read or auto-generate ``<data_dir>/.credential-key``.
+
+    On first run the file does not exist; we generate a 32-byte random key,
+    write it with permissions ``0600``, and return it. On subsequent runs the
+    file is read back and decoded. A short, non-secret marker line at the top
+    explains the file's purpose so the next operator who finds it knows what
+    they're looking at.
+    """
+    path = _resolve_key_file_path()
+    if path is None:
+        return None
+
+    if path.exists():
+        try:
+            content = path.read_text().strip()
+            # Strip any header lines we wrote (commented with ``#``); accept
+            # the first non-comment, non-empty line as the base64 key.
+            lines = [
+                line.strip()
+                for line in content.splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            ]
+            if not lines:
+                msg = f"credential key file {path} is empty"
+                raise CredentialKeyError(msg)
+            key = base64.b64decode(lines[0])
+            if len(key) != _KEY_LENGTH:
+                msg = (
+                    f"credential key file {path} must decode to "
+                    f"{_KEY_LENGTH} bytes, got {len(key)} — refusing to "
+                    "auto-regenerate (would invalidate existing credentials). "
+                    "Either restore a valid key or delete the file to start over."
+                )
+                raise CredentialKeyError(msg)
+            return key
+        except CredentialKeyError:
+            raise
+        except Exception as exc:
+            logger.warning("could not read credential key file %s: %s", path, exc)
+            return None
+
+    # First run — generate and persist.
+    new_key = os.urandom(_KEY_LENGTH)
+    encoded = base64.b64encode(new_key).decode()
+    body = (
+        "# OpenSec credential vault key — auto-generated on first run.\n"
+        "# Do not edit, share, or commit this file. Deleting it invalidates\n"
+        "# every credential stored in this OpenSec instance.\n"
+        "#\n"
+        "# To rotate: stop OpenSec, delete this file, restart, then re-enter\n"
+        "# any integration credentials from Settings.\n"
+        f"{encoded}\n"
+    )
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        # Write atomically via a temp file so a crash mid-write doesn't leave
+        # a half-written key on disk.
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(body)
+        os.chmod(tmp, 0o600)
+        tmp.replace(path)
+        logger.info(
+            "Generated new credential vault key at %s (0600). "
+            "This file is now the source of truth for the credential vault.",
+            path,
+        )
+        return new_key
+    except OSError as exc:
+        logger.warning("could not write credential key file %s: %s", path, exc)
+        return None
+
+
 def resolve_key() -> bytes:
     """Resolve encryption key via priority chain. Raises CredentialKeyError on failure."""
     key = _try_keyring()
@@ -102,9 +205,15 @@ def resolve_key() -> bytes:
     if key is not None:
         return key
 
+    key = _try_key_file()
+    if key is not None:
+        return key
+
     msg = (
-        "No credential encryption key configured. "
-        "Set OPENSEC_CREDENTIAL_KEY (base64-encoded 32 bytes) or install the 'keyring' package."
+        "No credential encryption key configured and could not auto-generate one. "
+        "Set OPENSEC_CREDENTIAL_KEY (base64-encoded 32 bytes), install the "
+        "'keyring' package, or ensure the data directory is writable so OpenSec "
+        f"can persist a key at <data_dir>/{_KEY_FILE_NAME}."
     )
     raise CredentialKeyError(msg)
 
