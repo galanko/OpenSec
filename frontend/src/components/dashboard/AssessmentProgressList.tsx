@@ -41,10 +41,18 @@ function stateFor(step: Step, activeIdx: number, isComplete: boolean): StepState
 
 export interface AssessmentProgressListProps {
   assessmentId: string | null | undefined
+  /**
+   * When true, render only the bare step list — no surrounding card,
+   * spinner hero, or headline. Used by ``AssessmentInProgressView`` which
+   * already provides its own editorial chrome. Direct callers leave it
+   * false to get the standalone card.
+   */
+  chromeless?: boolean
 }
 
 export default function AssessmentProgressList({
   assessmentId,
+  chromeless = false,
 }: AssessmentProgressListProps) {
   const { data } = useAssessmentStatus(assessmentId)
   const isComplete = data?.status === 'complete'
@@ -58,6 +66,52 @@ export default function AssessmentProgressList({
       ? 0
       : backendIdx
   const isCompleteForDisplay = isComplete
+
+  const stepList = (
+    <ul
+      role="list"
+      aria-label="Assessment progress"
+      className={
+        chromeless
+          ? 'w-full space-y-2 text-left'
+          : 'w-full max-w-md space-y-3 text-left'
+      }
+    >
+      {STEPS.map((step) => {
+        const state = stateFor(step, displayedIdx, isCompleteForDisplay)
+        return (
+          <li
+            key={step.key}
+            data-testid="assessment-step"
+            data-state={state}
+            className={
+              state === 'running'
+                ? 'flex items-center gap-3 rounded-xl bg-primary-container/30 px-3 py-2 transition-colors'
+                : 'flex items-center gap-3 px-3 py-1.5'
+            }
+          >
+            <StepIcon state={state} />
+            <span
+              className={
+                state === 'pending'
+                  ? 'text-sm text-on-surface-variant/70'
+                  : 'text-sm font-medium text-on-surface'
+              }
+            >
+              {step.label}
+            </span>
+            {state === 'running' && data?.progress_pct != null && (
+              <span className="ml-auto text-xs font-bold tabular-nums text-primary">
+                {data.progress_pct}%
+              </span>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+
+  if (chromeless) return stepList
 
   return (
     <section
@@ -83,39 +137,7 @@ export default function AssessmentProgressList({
         </p>
       </div>
 
-      <ul
-        role="list"
-        aria-label="Assessment progress"
-        className="w-full max-w-md space-y-3 text-left"
-      >
-        {STEPS.map((step) => {
-          const state = stateFor(step, displayedIdx, isCompleteForDisplay)
-          return (
-            <li
-              key={step.key}
-              data-testid="assessment-step"
-              data-state={state}
-              className="flex items-center gap-3"
-            >
-              <StepIcon state={state} />
-              <span
-                className={
-                  state === 'pending'
-                    ? 'text-sm text-on-surface-variant/70'
-                    : 'text-sm font-medium text-on-surface'
-                }
-              >
-                {step.label}
-              </span>
-              {state === 'running' && data?.progress_pct != null && (
-                <span className="ml-auto text-xs font-medium text-primary">
-                  {data.progress_pct}%
-                </span>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      {stepList}
     </section>
   )
 }

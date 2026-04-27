@@ -27,7 +27,7 @@ import type {
   PostureFixParams,
 } from '@/api/dashboard'
 import { onboardingApi } from '@/api/onboarding'
-import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
+import AssessmentInProgressView from '@/components/dashboard/AssessmentInProgressView'
 import AssessmentSummary from '@/components/dashboard/AssessmentSummary'
 import CompletionProgressCard from '@/components/dashboard/CompletionProgressCard'
 import GradeRing from '@/components/dashboard/GradeRing'
@@ -227,6 +227,9 @@ function RunAssessmentButton({
 
 function RunningDashboard({ data }: { data: DashboardPayload }) {
   const repoName = repoNameFromUrl(data.assessment?.repo_url)
+  const headline = data.assessment?.completed_at
+    ? 'Re-assessing your repository'
+    : 'Assessment in progress'
   return (
     <PageShell
       title="Overview"
@@ -240,7 +243,11 @@ function RunningDashboard({ data }: { data: DashboardPayload }) {
       }
     >
       {data.assessment && (
-        <AssessmentProgressList assessmentId={data.assessment.id} />
+        <AssessmentInProgressView
+          assessmentId={data.assessment.id}
+          headline={headline}
+          startedAt={data.assessment.started_at ?? null}
+        />
       )}
     </PageShell>
   )
