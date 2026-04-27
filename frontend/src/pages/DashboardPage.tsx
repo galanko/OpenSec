@@ -645,6 +645,119 @@ const POSTURE_META: Record<
       'Re-assess once the lockfile is on main.',
     ],
   },
+  code_owners_exists: {
+    label: 'CODEOWNERS file is committed',
+    failLabel: 'CODEOWNERS file is missing',
+    description:
+      'CODEOWNERS auto-requests review from the right owners and is a prereq for owner-required branch protection.',
+    steps: [
+      'Create .github/CODEOWNERS at the repo root.',
+      'Map paths to teams or individuals: e.g. "* @your-org/maintainers".',
+      'Commit and push — GitHub auto-requests reviews on the next PR.',
+    ],
+    docHref:
+      'https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners',
+    docLabel: 'GitHub: about code owners',
+  },
+  secret_scanning_enabled: {
+    label: 'Secret scanning is enabled',
+    failLabel: 'Secret scanning is disabled',
+    description:
+      'GitHub-side secret scanning catches credentials in pushed commits before they hit a public mirror.',
+    steps: [
+      'Open Settings → Code security and analysis.',
+      'Enable "Secret scanning" (and "Push protection" if available on your plan).',
+      'Re-assess once the toggle is on.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/secret-scanning/enabling-secret-scanning-features/enabling-secret-scanning-for-your-repository',
+    docLabel: 'GitHub: enabling secret scanning',
+  },
+  actions_pinned_to_sha: {
+    label: 'CI actions are pinned to commit SHAs',
+    failLabel: 'CI actions are pinned to mutable refs',
+    description:
+      'Pinning third-party Actions to commit SHAs (not tags or branches) prevents a rolled tag from silently swapping in malicious code.',
+    steps: [
+      'Replace each "uses: actions/checkout@v4" in .github/workflows/*.yml with the full commit SHA.',
+      'Add a comment with the version label so renovate-style bumpers can still find it.',
+      'Repeat for every third-party action in the workflows.',
+    ],
+    docHref:
+      'https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions',
+    docLabel: 'GitHub: hardening third-party actions',
+  },
+  trusted_action_sources: {
+    label: 'Workflows only call trusted Action sources',
+    failLabel: 'Workflows call untrusted Action sources',
+    description:
+      'Restricting Actions to verified creators and your org reduces the supply-chain blast radius for CI.',
+    steps: [
+      'Open Settings → Actions → General → Allow specific actions.',
+      'Switch to "Allow <org>, and select non-<org> actions" with the verified-creator + reusable-workflows toggles.',
+      'Re-assess after saving.',
+    ],
+  },
+  workflow_trigger_scope: {
+    label: 'Workflow triggers are scoped (advisory)',
+    failLabel: 'Workflow trigger scope is broad (advisory)',
+    description:
+      'Workflows that combine pull_request_target with checkout of the PR head can run untrusted code with org secrets. Advisory — review every match.',
+    steps: [
+      'Open the flagged workflow files (linked in the detail).',
+      'Remove or replace pull_request_target with pull_request where possible.',
+      'If you must keep pull_request_target, never check out the PR head ref in the same job that has secrets.',
+    ],
+    docHref:
+      'https://securitylab.github.com/research/github-actions-preventing-pwn-requests/',
+    docLabel: 'Preventing pwn-requests in Actions',
+  },
+  stale_collaborators: {
+    label: 'No stale collaborators',
+    failLabel: 'Stale collaborators detected',
+    description:
+      'Outside collaborators that never touch the repo are credential sprawl — revoke access until they need it.',
+    steps: [
+      'Open Settings → Collaborators and review the inactive list.',
+      'Remove or downgrade access for collaborators who have not contributed in 6+ months.',
+      'Re-invite when needed; the audit trail beats permanent access.',
+    ],
+  },
+  broad_team_permissions: {
+    label: 'Team permissions are scoped (advisory)',
+    failLabel: 'Team permissions are too broad (advisory)',
+    description:
+      'A team with write access and 20+ members is a wide blast radius. Advisory — judge per team.',
+    steps: [
+      'Open Settings → Manage access → Team list.',
+      'Either split the team into a smaller "writers" subset or downgrade write to triage / read.',
+    ],
+  },
+  default_branch_permissions: {
+    label: 'Default branch permissions are scoped',
+    failLabel: 'Default branch is writable by too many roles',
+    description:
+      'Anyone with write access can push to an unprotected default branch — combine with branch protection above.',
+    steps: [
+      'Open Settings → Branches → Default branch rule.',
+      'Add "Restrict who can push to matching branches" and pick a small reviewer set.',
+      'Re-assess once saved.',
+    ],
+  },
+}
+
+// Defensive fallback for any check name the backend might emit that we
+// don't yet have detailed copy for — keeps the row rendering instead of
+// crashing the dashboard.
+const FALLBACK_POSTURE_META: (typeof POSTURE_META)[PostureCheckName] = {
+  label: 'Posture check',
+  failLabel: 'Posture check failed',
+  description:
+    'See the detail payload for this check’s findings. OpenSec is rolling out per-check guidance; a detailed remediation walkthrough lands in a follow-up release.',
+  steps: [
+    'Open the "detail" payload to see exactly what the scanner reported.',
+    'Re-assess after addressing the underlying configuration.',
+  ],
 }
 
 const FIXABLE_NAMES: PostureFixableCheck[] = [
@@ -856,7 +969,7 @@ function PostureCheckRow({
   pending: boolean
   activeWorkspaceId?: string
 }) {
-  const meta = POSTURE_META[check.check_name]
+  const meta = POSTURE_META[check.check_name] ?? FALLBACK_POSTURE_META
   const [open, setOpen] = useState(check.status === 'fail')
   // security_md is the only auto-fix that benefits from a user-supplied
   // parameter today (the contact email on the generated SECURITY.md).

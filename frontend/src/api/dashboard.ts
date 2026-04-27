@@ -12,15 +12,28 @@ import type { components } from './types'
 
 // Names match backend/opensec/models/posture_check.py :: PostureCheckName.
 // Frontend-owned so we don't wait on an OpenAPI regen every time we add
-// state to the PostureCard.
+// state to the PostureCard. PR-B (PRD-0003 v0.2) extended the set from 7
+// to 15 — keep both halves below in lockstep with the backend.
 export type PostureCheckName =
+  // Repo configuration (PRD-0002)
   | 'branch_protection'
   | 'no_force_pushes'
   | 'no_secrets_in_code'
   | 'security_md'
   | 'lockfile_present'
+  // Code integrity
   | 'dependabot_config'
   | 'signed_commits'
+  | 'code_owners_exists'
+  | 'secret_scanning_enabled'
+  // CI supply chain
+  | 'actions_pinned_to_sha'
+  | 'trusted_action_sources'
+  | 'workflow_trigger_scope'
+  // Collaborator hygiene
+  | 'stale_collaborators'
+  | 'broad_team_permissions'
+  | 'default_branch_permissions'
 
 export type PostureCheckStatus = 'pass' | 'fail' | 'advisory' | 'unknown'
 
