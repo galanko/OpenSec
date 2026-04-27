@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import AssessmentInProgressView from '@/components/dashboard/AssessmentInProgressView'
 import * as dashboardApi from '@/api/dashboard'
@@ -44,6 +44,13 @@ const PILLS_RUNNING = [
 ]
 
 describe('AssessmentInProgressView', () => {
+  // ``vi.spyOn`` does not auto-restore between tests by default; without
+  // this, our mocks leak into ``AssessmentProgressList`` and other tests
+  // that share ``useAssessmentStatus``.
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('renders custom headline + description + the step ladder', async () => {
     vi.spyOn(dashboardApi, 'useAssessmentStatus').mockReturnValue({
       data: {

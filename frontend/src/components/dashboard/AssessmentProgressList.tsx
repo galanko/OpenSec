@@ -1,43 +1,26 @@
 /**
  * AssessmentProgressList — step-by-step progress card shown while an
- * assessment is running (frame 2.1).
+ * assessment is running (PRD-0003 v0.2 / surfaces/assessment-progress.jsx).
  *
- * Polls /api/assessment/status/{id} via the useAssessmentStatus hook. The
- * backend emits the current phase in the ``step`` field; this component
- * renders the five fixed rows and highlights whichever one is active.
+ * Drives off ``data.steps[]`` directly — the backend route is the
+ * single source of truth for the step taxonomy, the per-step state, and
+ * the labels/hints. An earlier version hard-coded a frontend ``STEPS``
+ * array which silently broke when PR-B widened the engine's step
+ * vocabulary from 5 keys (``cloning``, ``parsing_lockfiles``, ...) to
+ * 6 (``detect``, ``trivy_vuln``, ``trivy_secret``, ``semgrep``,
+ * ``posture``, ``descriptions``); the running cursor never matched any
+ * frontend key, so the row sat stuck on "Clone Repository" until the
+ * assessment completed and the cursor jumped to the last entry.
  *
- * No artificial pacing — the backend drives the UI. An earlier version
- * enforced a 2 s-per-step dwell so tiny demo repos wouldn't flicker, but
- * that floored the whole run at 10 s regardless of actual backend speed
- * and made re-assessment feel much slower than it is. If a run really
- * does finish in a flash we'd rather show it in a flash.
+ * No artificial pacing — the backend drives the UI. If a run finishes
+ * in a flash we'd rather show it in a flash than fake five seconds of
+ * progress.
  */
 
 import { useAssessmentStatus } from '@/api/dashboard'
+import type { components } from '@/api/types'
 
-interface Step {
-  key: string
-  label: string
-}
-
-const STEPS: Step[] = [
-  { key: 'cloning', label: 'Clone repository' },
-  { key: 'parsing_lockfiles', label: 'Parse lockfiles' },
-  { key: 'looking_up_cves', label: 'Cross-reference CVEs' },
-  { key: 'checking_posture', label: 'Run posture checks' },
-  { key: 'grading', label: 'Compute grade' },
-]
-
-type StepState = 'done' | 'running' | 'pending'
-
-function stateFor(step: Step, activeIdx: number, isComplete: boolean): StepState {
-  if (isComplete) return 'done'
-  if (activeIdx < 0) return 'pending'
-  const idx = STEPS.findIndex((s) => s.key === step.key)
-  if (idx < activeIdx) return 'done'
-  if (idx === activeIdx) return 'running'
-  return 'pending'
-}
+type AssessmentStep = components['schemas']['AssessmentStep']
 
 export interface AssessmentProgressListProps {
   assessmentId: string | null | undefined
@@ -55,17 +38,7 @@ export default function AssessmentProgressList({
   chromeless = false,
 }: AssessmentProgressListProps) {
   const { data } = useAssessmentStatus(assessmentId)
-  const isComplete = data?.status === 'complete'
-  // When the backend reports complete, jump straight to "all done" —
-  // grading is the last step, hold the cursor there until the Report
-  // Card swap happens.
-  const backendIdx = STEPS.findIndex((s) => s.key === data?.step)
-  const displayedIdx = isComplete
-    ? STEPS.length - 1
-    : backendIdx < 0
-      ? 0
-      : backendIdx
-  const isCompleteForDisplay = isComplete
+  const steps = data?.steps ?? []
 
   const stepList = (
     <ul
@@ -73,41 +46,24 @@ export default function AssessmentProgressList({
       aria-label="Assessment progress"
       className={
         chromeless
-          ? 'w-full space-y-2 text-left'
+          ? 'w-full space-y-1.5 text-left'
           : 'w-full max-w-md space-y-3 text-left'
       }
     >
-      {STEPS.map((step) => {
-        const state = stateFor(step, displayedIdx, isCompleteForDisplay)
-        return (
-          <li
-            key={step.key}
-            data-testid="assessment-step"
-            data-state={state}
-            className={
-              state === 'running'
-                ? 'flex items-center gap-3 rounded-xl bg-primary-container/30 px-3 py-2 transition-colors'
-                : 'flex items-center gap-3 px-3 py-1.5'
-            }
-          >
-            <StepIcon state={state} />
-            <span
-              className={
-                state === 'pending'
-                  ? 'text-sm text-on-surface-variant/70'
-                  : 'text-sm font-medium text-on-surface'
-              }
-            >
-              {step.label}
-            </span>
-            {state === 'running' && data?.progress_pct != null && (
-              <span className="ml-auto text-xs font-bold tabular-nums text-primary">
-                {data.progress_pct}%
-              </span>
-            )}
-          </li>
-        )
-      })}
+      {steps.length === 0 ? (
+        <li
+          data-testid="assessment-step"
+          data-state="pending"
+          className="flex items-center gap-3 px-3 py-1.5"
+        >
+          <PendingDot />
+          <span className="text-sm text-on-surface-variant/70">
+            Waiting for the engine to report progress…
+          </span>
+        </li>
+      ) : (
+        steps.map((step) => <StepRow key={step.key} step={step} />)
+      )}
     </ul>
   )
 
@@ -142,26 +98,149 @@ export default function AssessmentProgressList({
   )
 }
 
-function StepIcon({ state }: { state: StepState }) {
-  if (state === 'done') {
-    return (
-      <span
-        className="material-symbols-outlined text-tertiary"
-        style={{ fontSize: '20px' }}
-        aria-hidden
-      >
-        check_circle
-      </span>
-    )
-  }
+// --------------------------------------------------------------------- row
+
+function StepRow({ step }: { step: AssessmentStep }) {
+  const state = (step.state ?? 'pending') as
+    | 'pending'
+    | 'running'
+    | 'done'
+    | 'skipped'
   if (state === 'running') {
     return (
-      <span
-        className="h-4 w-4 flex-none animate-spin rounded-full border-2 border-primary border-t-transparent"
-        aria-hidden
-      />
+      <li
+        data-testid="assessment-step"
+        data-state="running"
+        data-step-key={step.key}
+        className="flex flex-col gap-2 rounded-2xl bg-primary-container/30 px-3 py-2.5"
+      >
+        <div className="flex items-center gap-3">
+          <RunningSpinner />
+          <span className="text-sm font-semibold text-on-surface">
+            {step.label}
+          </span>
+          {step.progress_pct != null && (
+            <span className="ml-auto text-xs font-bold tabular-nums text-primary">
+              {step.progress_pct}%
+            </span>
+          )}
+        </div>
+        {step.detail && (
+          <p className="ml-7 text-xs text-on-surface-variant">{step.detail}</p>
+        )}
+        {step.progress_pct != null && (
+          <div
+            className="ml-7 h-1.5 overflow-hidden rounded-full bg-surface-container-high"
+            aria-hidden
+          >
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-500"
+              style={{ width: `${step.progress_pct}%` }}
+            />
+          </div>
+        )}
+      </li>
     )
   }
+
+  if (state === 'done') {
+    return (
+      <li
+        data-testid="assessment-step"
+        data-state="done"
+        data-step-key={step.key}
+        className="flex items-center gap-3 px-3 py-1.5"
+      >
+        <DoneIcon />
+        <span className="text-sm font-medium text-on-surface">
+          {step.label}
+        </span>
+        {step.result_summary && (
+          <span className="ml-auto rounded-full bg-surface-container px-2 py-0.5 text-[10px] font-medium text-on-surface-variant">
+            {step.result_summary}
+          </span>
+        )}
+      </li>
+    )
+  }
+
+  if (state === 'skipped') {
+    return (
+      <li
+        data-testid="assessment-step"
+        data-state="skipped"
+        data-step-key={step.key}
+        className="flex items-center gap-3 px-3 py-1.5"
+      >
+        <SkippedIcon />
+        <span className="text-sm text-on-surface-variant/55 line-through">
+          {step.label}
+        </span>
+        <span className="ml-auto text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant/55">
+          Skipped
+        </span>
+      </li>
+    )
+  }
+
+  // pending
+  return (
+    <li
+      data-testid="assessment-step"
+      data-state="pending"
+      data-step-key={step.key}
+      className="flex items-center gap-3 px-3 py-1.5"
+    >
+      <PendingDot />
+      <span className="text-sm text-on-surface-variant/70">{step.label}</span>
+      {step.hint && (
+        <span className="ml-auto text-[10px] text-on-surface-variant/55">
+          {step.hint}
+        </span>
+      )}
+    </li>
+  )
+}
+
+// --------------------------------------------------------------------- icons
+
+function DoneIcon() {
+  return (
+    <span
+      className="material-symbols-outlined text-tertiary"
+      style={{
+        fontSize: 18,
+        fontVariationSettings: "'FILL' 1",
+      }}
+      aria-hidden
+    >
+      check_circle
+    </span>
+  )
+}
+
+function RunningSpinner() {
+  return (
+    <span
+      className="h-4 w-4 flex-none animate-spin rounded-full border-2 border-primary border-t-transparent"
+      aria-hidden
+    />
+  )
+}
+
+function SkippedIcon() {
+  return (
+    <span
+      className="material-symbols-outlined text-on-surface-variant/55"
+      style={{ fontSize: 16 }}
+      aria-hidden
+    >
+      remove_circle
+    </span>
+  )
+}
+
+function PendingDot() {
   return (
     <span
       className="h-2 w-2 flex-none rounded-full bg-outline-variant"
