@@ -60,6 +60,9 @@
     "vite": "^8.0.1",
     "vitest": "^4.1.4"
   },
+  "overrides": {
+    "braces": "^3.0.3"
+  },
   "msw": {
     "workerDirectory": [
       "public"
