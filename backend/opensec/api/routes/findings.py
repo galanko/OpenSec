@@ -108,28 +108,29 @@ async def list_findings_endpoint(
 ):
     """List findings.
 
-    When ``scope=current`` the list is scoped to the latest assessment's
-    window (``source_type='opensec-assessment'`` + ``created_at`` at or after
-    the latest assessment's ``started_at``) so the Findings page matches the
-    dashboard's Vulnerabilities tile.
+    When ``scope=current`` the list is scoped to the latest assessment via
+    ``assessment_id`` and limited to vulnerability types (``dependency``,
+    ``code``, ``secret``) so the Findings page matches the dashboard's
+    Vulnerabilities tile. Posture rows (``type='posture'``) live on the
+    dashboard's posture card and are excluded here.
     """
-    source_type: str | None = None
-    created_since_iso: str | None = None
+    assessment_id: str | None = None
+    type_filter: list[str] | None = None
     if scope == "current":
         from opensec.db.dao.assessment import get_latest_assessment
 
         latest = await get_latest_assessment(db)
         if latest is None:
             return []
-        source_type = "opensec-assessment"
-        created_since_iso = latest.started_at
+        assessment_id = latest.id
+        type_filter = ["dependency", "code", "secret"]
 
     return await list_findings(
         db,
         status=status,
         has_workspace=has_workspace,
-        source_type=source_type,
-        created_since_iso=created_since_iso,
+        type=type_filter,
+        assessment_id=assessment_id,
         limit=limit,
         offset=offset,
     )

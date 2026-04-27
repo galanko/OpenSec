@@ -1,12 +1,17 @@
-"""Dashboard routes (PRD-0003 v0.2 / ADR-0032).
+"""Dashboard routes (PRD-0003 v0.2 / ADR-0032 / ADR-0027).
 
 Read-only aggregation over the latest assessment, the posture sweep, finding
 priority counts, and (if any) completion row. The wire shape exposes the v0.2
-contract: a single ``tools[]`` payload (no parallel ``scanner_versions`` /
-``tool_states[]``), a four-state posture vocabulary (``pass | fail | done |
-advisory``) with per-category progress that excludes advisory rows, the labeled
-``criteria[]`` list, vulnerability counts split by source, and the
-``summary_seen_at`` flag that gates the assessment-complete interstitial.
+contract: a single ``tools[]`` payload, a four-state posture vocabulary
+(``pass | fail | done | advisory``) with per-category progress that excludes
+advisory rows, the labeled ``criteria[]`` list, vulnerability counts split by
+type, and the ``summary_seen_at`` flag that gates the assessment-complete
+interstitial.
+
+Phase 2 of IMPL-0003-p2 swaps every posture query from the legacy
+``posture_check`` DAO to the unified ``finding`` table (ADR-0027). The
+four-state projection now reads ``(status, pr_url, grade_impact)`` from the
+posture finding row.
 """
 
 from __future__ import annotations
@@ -24,18 +29,18 @@ from opensec.assessment.posture import (
 from opensec.db.connection import get_db
 from opensec.db.dao.assessment import get_latest_assessment
 from opensec.db.dao.completion import get_completion_for_assessment
-from opensec.db.dao.posture_check import (
-    count_posture_pass_total,
-    list_posture_checks_for_assessment,
+from opensec.db.repo_finding import (
+    count_findings_by_priority,
+    list_findings,
+    list_posture_findings,
 )
-from opensec.db.repo_finding import count_findings_by_priority, list_findings
 from opensec.models import (
     Assessment,
     AssessmentTool,
     AssessmentToolResult,
     CriteriaSnapshot,
+    Finding,
     Grade,
-    PostureCheck,
     PostureCheckCategory,
 )
 
@@ -96,15 +101,12 @@ class DashboardPayload(BaseModel):
 
     assessment: Assessment | None
     grade: Grade | None
-    # Labeled list (ADR-0032 §1.4). The legacy field shape lives on as
-    # ``criteria_snapshot`` for any internal caller that still wants the
-    # boolean record directly.
     criteria: list[CriterionLabel]
     criteria_snapshot: CriteriaSnapshot
     findings_count_by_priority: dict[str, int]
     posture_pass_count: int
     posture_total_count: int
-    posture_checks: list[PostureCheck] = []
+    posture_checks: list[Finding] = []
     posture: PostureWire | None = None
     tools: list[AssessmentTool] = Field(default_factory=list)
     vulnerabilities: VulnerabilityCounts | None = None
@@ -119,10 +121,6 @@ _CATEGORY_DISPLAY: dict[PostureCheckCategory, str] = {
     "collaborator_hygiene": "Collaborator hygiene",
 }
 
-# The 10 grading criteria, in the order PRD-0003 v0.2 freezes them — used to
-# project ``CriteriaSnapshot`` onto the labeled wire shape. The architect's
-# regression test ``test_dashboard_criteria_with_labels`` asserts the labels
-# come from the backend, not the frontend.
 _CRITERIA_ORDER: list[tuple[str, str, str]] = [
     ("security_md_present", "SECURITY.md present", "security_md_present"),
     ("dependabot_configured", "Dependabot configured", "dependabot_present"),
@@ -145,32 +143,39 @@ def _criteria_to_labeled(snapshot: CriteriaSnapshot) -> list[CriterionLabel]:
     ]
 
 
-def _project_posture_state(check: PostureCheck) -> tuple[PostureWireState, str | None]:
-    """Apply ADR-0032 §1.2 four-state projection.
+def _check_name_for(finding: Finding) -> str:
+    """Extract the posture check name from a ``type='posture'`` finding."""
+    payload = finding.raw_payload or {}
+    name = payload.get("check_name") if isinstance(payload, dict) else None
+    if isinstance(name, str) and name:
+        return name
+    # Fallback: the title is the check_name when the mapper writes it.
+    return finding.title
 
-    Internal status maps to the wire state; ``advisory`` checks always emit
-    ``advisory`` regardless of pass/fail. A ``pr_url`` on the row indicates a
-    fix PR has landed, which the dashboard surfaces as ``done`` per the
-    architect's read-time projection rule.
+
+def _project_posture_state(finding: Finding) -> tuple[PostureWireState, str | None]:
+    """Apply ADR-0032 §1.2 four-state projection to a unified posture row.
+
+    * ``status='passed'`` + ``pr_url`` not null → ``done``
+    * ``status='passed'`` + ``pr_url`` null    → ``pass``
+    * ``grade_impact='advisory'``               → ``advisory``
+    * everything else                           → ``fail`` (the row is still
+      actionable; agent-submitted PRs without a confirmed pass land here too)
     """
-    is_advisory = (
-        check.check_name in ADVISORY_CHECKS
-        or check.status == "advisory"
-    )
-    if check.pr_url:
-        return "done", check.pr_url
-    if is_advisory or check.status == "unknown":
-        return "advisory", None
-    if check.status == "pass":
+    if finding.grade_impact == "advisory":
+        return "advisory", finding.pr_url
+    if finding.status == "passed" and finding.pr_url:
+        return "done", finding.pr_url
+    if finding.status == "passed":
         return "pass", None
-    return "fail", None
+    return "fail", finding.pr_url
 
 
-def _grade_impact(check_name: str) -> Literal["counts", "advisory"]:
+def _grade_impact_for(check_name: str) -> Literal["counts", "advisory"]:
     return "advisory" if check_name in ADVISORY_CHECKS else "counts"
 
 
-def _build_posture_payload(checks: list[PostureCheck]) -> PostureWire:
+def _build_posture_payload(checks: list[Finding]) -> PostureWire:
     by_category: dict[PostureCheckCategory, list[PostureCheckWire]] = {
         "repo_configuration": [],
         "code_integrity": [],
@@ -180,18 +185,25 @@ def _build_posture_payload(checks: list[PostureCheck]) -> PostureWire:
     pass_count = 0
     advisory_count = 0
     for c in checks:
-        category = c.category or CHECK_CATEGORY.get(c.check_name, "repo_configuration")
+        check_name = _check_name_for(c)
+        category = c.category or CHECK_CATEGORY.get(
+            check_name, "repo_configuration"  # type: ignore[arg-type]
+        )
+        category_typed: PostureCheckCategory = category  # type: ignore[assignment]
         state, pr_url = _project_posture_state(c)
         wire = PostureCheckWire(
-            name=c.check_name,
-            display_name=CHECK_DISPLAY_NAME.get(c.check_name, c.check_name),
-            category=category,
+            name=check_name,
+            display_name=CHECK_DISPLAY_NAME.get(check_name, check_name),  # type: ignore[arg-type]
+            category=category_typed,
             state=state,
-            grade_impact=_grade_impact(c.check_name),
-            detail=(c.detail or {}).get("reason") if isinstance(c.detail, dict) else None,
+            grade_impact=_grade_impact_for(check_name),
+            detail=(c.raw_payload or {}).get("detail", {}).get("reason")
+            if isinstance(c.raw_payload, dict)
+            and isinstance(c.raw_payload.get("detail"), dict)
+            else None,
             pr_url=pr_url,
         )
-        by_category.setdefault(category, []).append(wire)
+        by_category.setdefault(category_typed, []).append(wire)
         if state == "advisory":
             advisory_count += 1
         elif state in ("pass", "done"):
@@ -214,7 +226,9 @@ def _build_posture_payload(checks: list[PostureCheck]) -> PostureWire:
                 checks=items,
             )
         )
-    total = sum(1 for c in checks if _grade_impact(c.check_name) == "counts")
+    total = sum(
+        1 for c in checks if _grade_impact_for(_check_name_for(c)) == "counts"
+    )
     return PostureWire(
         pass_count=pass_count,
         total_count=total,
@@ -224,21 +238,18 @@ def _build_posture_payload(checks: list[PostureCheck]) -> PostureWire:
 
 
 _TYPE_TO_SOURCE = {
-    "trivy": "dependency",
-    "snyk": "dependency",
-    "wiz": "dependency",
-    "trivy-secret": "secret",
-    "gitleaks": "secret",
-    "semgrep": "code",
-    "codeql": "code",
+    "dependency": "dependency",
+    "secret": "secret",
+    "code": "code",
 }
 
 
-async def _build_vuln_counts(db, started_at_iso: str) -> VulnerabilityCounts:
+async def _build_vuln_counts(db, assessment_id: str) -> VulnerabilityCounts:
     findings = await list_findings(
         db,
-        source_type="opensec-assessment",
-        created_since_iso=started_at_iso,
+        type=["dependency", "secret", "code"],
+        assessment_id=assessment_id,
+        limit=10_000,
     )
     by_severity: dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
     by_source: dict[str, int] = {"dependency": 0, "code": 0, "secret": 0}
@@ -246,7 +257,7 @@ async def _build_vuln_counts(db, started_at_iso: str) -> VulnerabilityCounts:
     for f in findings:
         if f.normalized_priority and f.normalized_priority in by_severity:
             by_severity[f.normalized_priority] += 1
-        source_kind = _TYPE_TO_SOURCE.get((f.source_type or "").lower(), "dependency")
+        source_kind = _TYPE_TO_SOURCE.get(f.type, "dependency")
         by_source[source_kind] = by_source.get(source_kind, 0) + 1
         if f.source_type:
             credits.add(f.source_type)
@@ -264,12 +275,6 @@ def _synthesize_tools(
     total_count: int,
     vulns: VulnerabilityCounts | None,
 ) -> list[AssessmentTool]:
-    """Fall back to a synthesized ``tools[]`` when no row was persisted yet.
-
-    The IMPL plan has the engine emit ``tools_json`` directly; until the
-    engine rewrite lands the dashboard projects sensible defaults from the
-    posture pass count and the vulnerability totals so the UI can render.
-    """
     if persisted:
         return persisted
     by_source = (vulns.by_source if vulns else {}) or {}
@@ -337,13 +342,18 @@ async def get_dashboard(db=Depends(get_db)) -> DashboardPayload:
 
     counts = await count_findings_by_priority(
         db,
-        source_type="opensec-assessment",
-        created_since_iso=latest.started_at.isoformat(),
+        type="dependency",
+        assessment_id=latest.id,
     )
-    pass_count, total_count = await count_posture_pass_total(db, latest.id)
-    posture_checks = await list_posture_checks_for_assessment(db, latest.id)
+    posture_checks = await list_posture_findings(db, latest.id)
+    pass_count = sum(
+        1
+        for c in posture_checks
+        if c.status == "passed" and c.grade_impact == "counts"
+    )
+    total_count = sum(1 for c in posture_checks if c.grade_impact == "counts")
     completion = await get_completion_for_assessment(db, latest.id)
-    vulnerabilities = await _build_vuln_counts(db, latest.started_at.isoformat())
+    vulnerabilities = await _build_vuln_counts(db, latest.id)
 
     snapshot = latest.criteria_snapshot or CriteriaSnapshot()
     completion_id = (

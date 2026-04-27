@@ -1,4 +1,20 @@
-"""Repository functions for the Finding entity."""
+"""Repository functions for the unified ``finding`` entity (ADR-0027).
+
+Phase 2 of IMPL-0003-p2 collapses the legacy ``posture_check`` table into the
+single ``finding`` table with a typed ``type`` column. Persistence happens via
+an UPSERT keyed on ``(source_type, source_id)`` so re-running an assessment
+refreshes scanner truth without losing user lifecycle state.
+
+Type-conditional preservation rule (CEO direction, 2026-04-26):
+
+* For ``type='posture'``: ``status`` is REFRESHED on conflict — the scanner
+  is the source of truth for whether a posture check is currently passing,
+  and there's no user lifecycle on a passing check. Other preserved columns
+  (``id``, ``created_at``, ``likely_owner``, ``plain_description``,
+  ``why_this_matters``, ``pr_url``) still survive the UPSERT.
+* For all other types: ``status`` is PRESERVED — re-running Trivy must not
+  reset a finding the user marked ``triaged`` or ``in_progress``.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +26,19 @@ from typing import TYPE_CHECKING
 from opensec.models import Finding, FindingCreate, FindingUpdate
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     import aiosqlite
+
+# Wire-shape "user lifecycle" preserved statuses for non-posture findings.
+_USER_LIFECYCLE_STATUSES = (
+    "triaged",
+    "in_progress",
+    "remediated",
+    "validated",
+    "closed",
+    "exception",
+)
 
 
 def _row_to_finding(row: aiosqlite.Row) -> Finding:
@@ -29,43 +57,97 @@ def _row_to_finding(row: aiosqlite.Row) -> Finding:
         likely_owner=row["likely_owner"],
         why_this_matters=row["why_this_matters"],
         raw_payload=json.loads(row["raw_payload"]) if row["raw_payload"] else None,
+        type=row["type"],
+        grade_impact=row["grade_impact"],
+        category=row["category"],
+        assessment_id=row["assessment_id"],
+        pr_url=row["pr_url"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
 
 
 async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Finding:
+    """UPSERT on ``(source_type, source_id)`` with type-conditional preservation.
+
+    See module docstring + IMPL-0003-p2 §"UPSERT preservation table".
+    """
     finding_id = str(uuid.uuid4())
     now = datetime.now(UTC).isoformat()
+
+    if data.type == "posture":
+        status_clause = "status = excluded.status"
+    else:
+        # Preserve any user-lifecycle status; only let the scanner overwrite
+        # the default 'new' state.
+        status_clause = (
+            "status = CASE "
+            "WHEN finding.status IN ("
+            + ",".join(f"'{s}'" for s in _USER_LIFECYCLE_STATUSES)
+            + ") THEN finding.status "
+            "ELSE excluded.status END"
+        )
+
+    sql = f"""
+        INSERT INTO finding (
+            id, source_type, source_id, type, grade_impact, category,
+            assessment_id, title, description, plain_description,
+            raw_severity, normalized_priority, status, likely_owner,
+            why_this_matters, asset_id, asset_label, raw_payload, pr_url,
+            created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_type, source_id) DO UPDATE SET
+            title               = excluded.title,
+            description         = excluded.description,
+            raw_severity        = excluded.raw_severity,
+            normalized_priority = excluded.normalized_priority,
+            raw_payload         = excluded.raw_payload,
+            type                = excluded.type,
+            grade_impact        = excluded.grade_impact,
+            category            = excluded.category,
+            assessment_id       = excluded.assessment_id,
+            asset_id            = excluded.asset_id,
+            asset_label         = excluded.asset_label,
+            updated_at          = excluded.updated_at,
+            {status_clause}
+    """  # noqa: S608
+
     await db.execute(
-        """
-        INSERT INTO finding
-            (id, source_type, source_id, title, description, plain_description,
-             raw_severity, normalized_priority, asset_id, asset_label, status,
-             likely_owner, why_this_matters, raw_payload, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
+        sql,
         (
             finding_id,
             data.source_type,
             data.source_id,
+            data.type,
+            data.grade_impact,
+            data.category,
+            data.assessment_id,
             data.title,
             data.description,
             data.plain_description,
             data.raw_severity,
             data.normalized_priority,
-            data.asset_id,
-            data.asset_label,
             data.status,
             data.likely_owner,
             data.why_this_matters,
+            data.asset_id,
+            data.asset_label,
             json.dumps(data.raw_payload) if data.raw_payload is not None else None,
+            data.pr_url,
             now,
             now,
         ),
     )
     await db.commit()
-    return await get_finding(db, finding_id)  # type: ignore[return-value]
+
+    cursor = await db.execute(
+        "SELECT * FROM finding WHERE source_type = ? AND source_id = ?",
+        (data.source_type, data.source_id),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    return _row_to_finding(row)
 
 
 async def get_finding(db: aiosqlite.Connection, finding_id: str) -> Finding | None:
@@ -80,16 +162,14 @@ async def list_findings(
     status: str | None = None,
     has_workspace: bool | None = None,
     source_type: str | None = None,
+    type: str | list[str] | None = None,
+    grade_impact: str | None = None,
+    assessment_id: str | None = None,
     created_since_iso: str | None = None,
     limit: int = 100,
     offset: int = 0,
 ) -> list[Finding]:
-    """List findings, optionally scoped to an assessment window.
-
-    ``source_type`` + ``created_since_iso`` together act as an "assessment
-    scope": pass ``source_type='opensec-assessment'`` + the latest assessment's
-    ``started_at`` to return only findings the current run surfaced.
-    """
+    """List findings, with v0.2 ``type`` / ``grade_impact`` / ``assessment_id`` filters."""
     conditions: list[str] = []
     params: list[str | int] = []
 
@@ -100,6 +180,23 @@ async def list_findings(
     if source_type is not None:
         conditions.append("f.source_type = ?")
         params.append(source_type)
+
+    if type is not None:
+        if isinstance(type, str):
+            conditions.append("f.type = ?")
+            params.append(type)
+        else:
+            placeholders = ",".join("?" for _ in type)
+            conditions.append(f"f.type IN ({placeholders})")
+            params.extend(type)
+
+    if grade_impact is not None:
+        conditions.append("f.grade_impact = ?")
+        params.append(grade_impact)
+
+    if assessment_id is not None:
+        conditions.append("f.assessment_id = ?")
+        params.append(assessment_id)
 
     if created_since_iso is not None:
         conditions.append("f.created_at >= ?")
@@ -124,6 +221,21 @@ async def list_findings(
     return [_row_to_finding(row) for row in await cursor.fetchall()]
 
 
+async def list_posture_findings(
+    db: aiosqlite.Connection, assessment_id: str
+) -> list[Finding]:
+    """All posture rows for one assessment (pass + fail + advisory)."""
+    cursor = await db.execute(
+        """
+        SELECT f.* FROM finding f
+        WHERE f.type = 'posture' AND f.assessment_id = ?
+        ORDER BY f.created_at ASC, f.id ASC
+        """,
+        (assessment_id,),
+    )
+    return [_row_to_finding(row) for row in await cursor.fetchall()]
+
+
 async def update_finding(
     db: aiosqlite.Connection, finding_id: str, data: FindingUpdate
 ) -> Finding | None:
@@ -131,7 +243,6 @@ async def update_finding(
     if not fields:
         return await get_finding(db, finding_id)
 
-    # Serialize JSON field if present.
     if "raw_payload" in fields and fields["raw_payload"] is not None:
         fields["raw_payload"] = json.dumps(fields["raw_payload"])
 
@@ -154,18 +265,22 @@ async def count_findings_by_priority(
     db: aiosqlite.Connection,
     *,
     source_type: str | None = None,
+    type: str | None = None,
+    assessment_id: str | None = None,
     created_since_iso: str | None = None,
 ) -> dict[str, int]:
-    """Return ``{priority: count}`` for findings with a non-null priority.
-
-    ``source_type`` + ``created_since_iso`` together scope the count to an
-    assessment window so the dashboard stat matches the findings list.
-    """
+    """Return ``{priority: count}`` for findings with a non-null priority."""
     conditions: list[str] = ["normalized_priority IS NOT NULL"]
     params: list[str] = []
     if source_type is not None:
         conditions.append("source_type = ?")
         params.append(source_type)
+    if type is not None:
+        conditions.append("type = ?")
+        params.append(type)
+    if assessment_id is not None:
+        conditions.append("assessment_id = ?")
+        params.append(assessment_id)
     if created_since_iso is not None:
         conditions.append("created_at >= ?")
         params.append(created_since_iso)
@@ -180,3 +295,85 @@ async def count_findings_by_priority(
         params,
     )
     return {row["normalized_priority"]: row["n"] for row in await cursor.fetchall()}
+
+
+# --------------------------------------------------------------------- close pass
+
+
+async def close_disappeared_findings(
+    db: aiosqlite.Connection,
+    *,
+    source_type: str,
+    kept_source_ids: Iterable[str],
+    assessment_id: str,
+    repo_url: str,
+) -> int:
+    """Mark prior open rows for ``source_type`` as closed if not seen this run.
+
+    Implements the stale-close pass from ADR-0027 §7 / IMPL-0003-p2:
+
+    1. Scope strictly by ``source_type``: a Trivy rescan never closes a Snyk
+       finding even though both have ``type='dependency'``.
+    2. First-run guard: if no prior assessment exists for ``repo_url`` (other
+       than the current one), the close pass is a no-op.
+    3. ``status NOT IN ('closed','remediated','validated','passed')`` — we
+       don't reset terminal states, and posture pass rows are managed by the
+       type-conditional UPSERT, not by this pass.
+    4. Appends an audit note to ``raw_payload.system_notes``.
+
+    Returns the number of rows transitioned.
+    """
+    cursor = await db.execute(
+        """
+        SELECT COUNT(*) AS n FROM assessment
+         WHERE repo_url = ? AND id != ?
+        """,
+        (repo_url, assessment_id),
+    )
+    prior = await cursor.fetchone()
+    if prior is None or prior["n"] == 0:
+        return 0  # first-run guard
+
+    kept = list(kept_source_ids)
+    now_iso = datetime.now(UTC).isoformat()
+
+    if kept:
+        placeholders = ",".join("?" for _ in kept)
+        select_sql = (
+            "SELECT id, raw_payload FROM finding "
+            "WHERE source_type = ? "
+            "AND source_id NOT IN (" + placeholders + ") "
+            "AND status NOT IN ('closed','remediated','validated','passed')"
+        )
+        select_params: list[str] = [source_type, *kept]
+    else:
+        select_sql = (
+            "SELECT id, raw_payload FROM finding "
+            "WHERE source_type = ? "
+            "AND status NOT IN ('closed','remediated','validated','passed')"
+        )
+        select_params = [source_type]
+
+    cursor = await db.execute(select_sql, select_params)
+    rows = list(await cursor.fetchall())
+    closed = 0
+    for row in rows:
+        existing = json.loads(row["raw_payload"]) if row["raw_payload"] else {}
+        if not isinstance(existing, dict):
+            existing = {"_legacy": existing}
+        notes = existing.setdefault("system_notes", [])
+        notes.append(
+            {
+                "event": "auto_closed",
+                "reason": "not seen in scan",
+                "assessment_id": assessment_id,
+                "ts": now_iso,
+            }
+        )
+        await db.execute(
+            "UPDATE finding SET status = 'closed', raw_payload = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(existing), now_iso, row["id"]),
+        )
+        closed += 1
+    await db.commit()
+    return closed

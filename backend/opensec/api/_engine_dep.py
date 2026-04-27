@@ -1,11 +1,10 @@
 """DI seam for the assessment engine.
 
-Session B landed the protocol + a stub provider; Session G wires the real engine
-here so callers don't have to change. Route code declares::
-
-    engine: AssessmentEngineProtocol = Depends(get_assessment_engine)
-
-Tests override via ``app.dependency_overrides[get_assessment_engine] = lambda: fake``.
+Session B landed the protocol + a stub provider; PR-B (PRD-0003 v0.2) wires
+the v0.2 engine here — Trivy + Semgrep via :class:`SubprocessScannerRunner`,
+posture via the 15-check orchestrator, cloning via :class:`RepoCloner`. The
+protocol gains an ``on_tool`` callback so the route layer can stream the
+ADR-0032 ``tools[]`` payload to the in-flight UI.
 """
 
 from __future__ import annotations
@@ -25,23 +24,27 @@ from fastapi import Request  # noqa: TCH002
 from opensec.config import settings
 
 if TYPE_CHECKING:
+    import aiosqlite
+
     from opensec.engine.pool import WorkspaceProcessPool
-    from opensec.models import AssessmentResult
+    from opensec.models import AssessmentResult, AssessmentTool
     from opensec.workspace.workspace_dir_manager import WorkspaceKind
 
 logger = logging.getLogger(__name__)
 
 
 StepCallback = Callable[[str], Awaitable[None]]
+ToolCallback = Callable[["AssessmentTool"], Awaitable[None]]
 
 
 class AssessmentEngineProtocol(Protocol):
-    """Minimal contract for the assessment engine.
+    """Contract for the assessment engine.
 
-    ``on_step`` is an optional async callback invoked when the engine enters
-    a new phase (``cloning``, ``parsing_lockfiles``, ``looking_up_cves``,
-    ``checking_posture``, ``grading``) so the API layer can surface progress.
-    Implementations may ignore it.
+    ``on_step`` receives one of the six v0.2 stage keys (``detect``,
+    ``trivy_vuln``, ``trivy_secret``, ``semgrep``, ``posture``,
+    ``descriptions``) so the API layer can surface progress to the status
+    endpoint. ``on_tool`` receives the per-pill state of the ``tools[]``
+    payload (ADR-0032). Implementations may ignore either.
     """
 
     async def run_assessment(
@@ -49,20 +52,14 @@ class AssessmentEngineProtocol(Protocol):
         repo_url: str,
         *,
         assessment_id: str,
+        db: aiosqlite.Connection | None = None,
         on_step: StepCallback | None = None,
-    ) -> AssessmentResult:
-        ...
+        on_tool: ToolCallback | None = None,
+    ) -> AssessmentResult: ...
 
 
 async def _github_token_from_integration() -> str | None:
-    """Resolve the GitHub PAT from the ``github`` Integrations row + vault.
-
-    This is the single accessor every consumer (assessment engine, posture-fix
-    spawner, "solve a finding" workspace builder, onboarding's GitHub probe)
-    calls. Returns ``None`` when the vault is not initialized or no GitHub
-    integration has been configured yet.
-    """
-    # Late imports — avoid circulars with ``opensec.db.connection`` at module load.
+    """Resolve the GitHub PAT from the ``github`` Integrations row + vault."""
     from opensec.db.connection import _db
     from opensec.db.repo_integration import list_integrations
     from opensec.main import app
@@ -78,59 +75,80 @@ async def _github_token_from_integration() -> str | None:
     if vault is None:
         return None
 
-    # Canonical credential key, matched by the GitHub registry entry and the
-    # remediation workspace's env setup. Onboarding writes under this exact
-    # name; the engine/posture-fix spawner read from the same place.
     try:
         return await vault.retrieve(github.id, "github_personal_access_token")
     except Exception:
         return None
 
 
-def get_assessment_engine() -> AssessmentEngineProtocol:
-    """Return the production engine, or a fixture-backed variant under the E2E test seam.
+class _RealAssessmentEngine:
+    """Production engine wired for use by the FastAPI lifespan.
 
-    When both ``opensec_test_fixture_repo_dir`` and
-    ``opensec_test_fixture_osv_dir`` are set in config (via env vars), this
-    returns an engine that copies from the fixture directory instead of
-    shelling out to git and mocks OSV/GitHub responses from JSON files on
-    disk. That seam is for the Playwright E2E backend only — production
-    deployments leave both empty and get the real shallow-clone path.
+    Constructs a :class:`SubprocessScannerRunner` per call (cheap — no state
+    beyond the bin dir), a :class:`RepoCloner` with the same token provider
+    every other agent path uses, and a fresh ``httpx.AsyncClient`` per run for
+    the GitHub posture-check probes.
     """
-    # Late imports — ``production_engine`` pulls in httpx which shouldn't be a
-    # load-time cost for tests that never touch the real engine.
-    from opensec.assessment.production_engine import ProductionAssessmentEngine
 
-    tmp_root = settings.resolve_data_dir() / "clones"
+    def __init__(
+        self,
+        *,
+        token_provider: Callable[[], Awaitable[str | None]],
+    ) -> None:
+        self._token_provider = token_provider
 
-    fixture_repo_dir = settings.test_fixture_repo_dir.strip()
-    fixture_osv_dir = settings.test_fixture_osv_dir.strip()
-    if fixture_repo_dir and fixture_osv_dir:
-        # Deferred import so production doesn't load test-only helpers.
-        from opensec.assessment._test_seam import build_fixture_engine
+    async def run_assessment(
+        self,
+        repo_url: str,
+        *,
+        assessment_id: str,
+        db: aiosqlite.Connection | None = None,
+        on_step: StepCallback | None = None,
+        on_tool: ToolCallback | None = None,
+    ) -> AssessmentResult:
+        # Late imports — these pull in httpx + the scanner runner which we
+        # don't want at module load on test paths that never touch the engine.
+        import httpx
 
-        return build_fixture_engine(
-            fixture_repo_dir=fixture_repo_dir,
-            fixture_osv_dir=fixture_osv_dir,
-            tmp_root=tmp_root,
+        from opensec.assessment.engine import RepoCloner, run_assessment
+        from opensec.assessment.posture.github_client import GithubClient
+        from opensec.assessment.scanners.runner import SubprocessScannerRunner
+
+        bin_dir = settings.resolve_scanner_bin_dir()
+        runner = SubprocessScannerRunner(bin_dir=bin_dir)
+        cloner = RepoCloner(
+            token_provider=self._token_provider,
+            tmp_root=settings.resolve_data_dir() / "clones",
         )
 
-    return ProductionAssessmentEngine(
-        token_provider=_github_token_from_integration,
-        tmp_root=tmp_root,
-    )
+        token = await self._token_provider()
+        async with httpx.AsyncClient(timeout=30.0) as http:
+            gh = GithubClient(http, token=token)
+            return await run_assessment(
+                repo_url,
+                gh_client=gh,
+                runner=runner,
+                cloner=cloner,
+                assessment_id=assessment_id,
+                db=db,
+                on_step=on_step,
+                on_tool=on_tool,
+            )
+
+
+def get_assessment_engine() -> AssessmentEngineProtocol:
+    """Return the production engine.
+
+    Tests override via ``app.dependency_overrides[get_assessment_engine] = lambda: fake``.
+    """
+    return _RealAssessmentEngine(token_provider=_github_token_from_integration)
 
 
 # --- Workspace dir manager seam (Milestone D3) ----------------------------------
 
 
 class RepoWorkspaceSpawnerProtocol(Protocol):
-    """Minimal contract for spawning a posture-fix repo workspace (Session C).
-
-    ``params`` are passed through to the generator template (e.g.
-    ``contact_email`` for SECURITY.md). ``None`` keeps the pre-params
-    call shape for existing callers/tests.
-    """
+    """Minimal contract for spawning a posture-fix repo workspace (Session C)."""
 
     async def spawn_repo_workspace(
         self,
@@ -138,37 +156,19 @@ class RepoWorkspaceSpawnerProtocol(Protocol):
         kind: WorkspaceKind,
         repo_url: str,
         params: dict[str, Any] | None = None,
-    ) -> str:  # returns workspace_id
-        ...
+    ) -> str: ...  # returns workspace_id
 
 
 _CHECK_NAME_FOR_KIND: dict[str, str] = {
-    # ``WorkspaceKind`` enum value -> posture check natural key.
     "repo_action_security_md": "security_md",
     "repo_action_dependabot": "dependabot_config",
 }
 
 
 class _DefaultRepoWorkspaceSpawner:
-    """Production spawner backed by ``WorkspaceDirManager.create_repo_workspace``.
-
-    Before IMPL-0002 B6 this class only scaffolded a directory — the generator
-    agent never actually ran. Now the spawner also kicks off a background
-    ``RepoAgentRunner.run`` task against the shared ``WorkspaceProcessPool``
-    so ``POST /api/posture/fix/...`` produces a real draft PR.
-
-    PRD-0004 / ADR-0030: the spawner now also INSERTs a ``workspace`` DB row
-    with ``kind=<WorkspaceKind.value>``, ``source_check_name=<check>`` and
-    ``state='pending'`` so the partial unique index
-    ``idx_workspace_active_per_check`` can enforce at most one active
-    workspace per posture check. ``IntegrityError`` bubbles up and the
-    posture route converts it to HTTP 409.
-    """
+    """Production spawner backed by ``WorkspaceDirManager.create_repo_workspace``."""
 
     def __init__(self, pool: WorkspaceProcessPool | None) -> None:
-        # ``pool=None`` keeps the old stub behaviour for tests that haven't
-        # provided one; in production ``get_repo_workspace_spawner`` always
-        # supplies the app's pool.
         self._pool = pool
 
     async def spawn_repo_workspace(
@@ -189,10 +189,6 @@ class _DefaultRepoWorkspaceSpawner:
         data_dir = settings.resolve_data_dir()
         base_dir = data_dir / "workspaces"
         manager = WorkspaceDirManager(base_dir=base_dir)
-        # The model is stored in the repo-root opencode.json (updated by the
-        # AI onboarding step). Without it, the workspace process rejects every
-        # message with "The requested model is not supported." — so we have
-        # to copy it into each repo-workspace config.
         model = settings.opencode_model or None
         workspace_id = manager.create_repo_workspace(
             kind,
@@ -203,10 +199,6 @@ class _DefaultRepoWorkspaceSpawner:
         )
         workspace_root = base_dir / workspace_id
 
-        # ADR-0030: persist the workspace row so the 409 guard has something
-        # to collide on. Do this AFTER filesystem scaffolding so a stale dir
-        # doesn't outlive a failed DB insert — on any DB error we tear down
-        # the scaffolded directory and re-raise.
         if _db is not None:
             check_name = _CHECK_NAME_FOR_KIND.get(kind.value)
             if check_name is not None:
@@ -223,8 +215,6 @@ class _DefaultRepoWorkspaceSpawner:
                     raise
 
         if self._pool is None:
-            # Tests / degraded deployments: scaffold only. The scaffolded
-            # directory is still useful as an inspection artefact.
             logger.warning(
                 "repo workspace %s created without a pool — agent will not run",
                 workspace_id,
@@ -243,10 +233,9 @@ class _DefaultRepoWorkspaceSpawner:
                     gh_token=token,
                     params=params,
                 )
-            except Exception:  # noqa: BLE001 — runner is supposed to swallow
+            except Exception:  # noqa: BLE001
                 logger.exception(
-                    "RepoAgentRunner raised unexpectedly for %s",
-                    workspace_id,
+                    "RepoAgentRunner raised unexpectedly for %s", workspace_id
                 )
 
         asyncio.create_task(_run(), name=f"repo-agent:{workspace_id}")
@@ -254,11 +243,6 @@ class _DefaultRepoWorkspaceSpawner:
 
 
 def get_repo_workspace_spawner(request: Request) -> RepoWorkspaceSpawnerProtocol:
-    """Default provider — returns the real spawner wired to the app's pool.
-
-    Route tests override this via ``app.dependency_overrides``.
-    """
+    """Default provider — returns the real spawner wired to the app's pool."""
     pool = getattr(request.app.state, "process_pool", None)
     return _DefaultRepoWorkspaceSpawner(pool=pool)
-
-

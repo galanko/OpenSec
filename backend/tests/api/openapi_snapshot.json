@@ -1076,7 +1076,7 @@
           "posture_checks": {
             "default": [],
             "items": {
-              "$ref": "#/components/schemas/PostureCheck"
+              "$ref": "#/components/schemas/Finding"
             },
             "title": "Posture Checks",
             "type": "array"
@@ -1144,6 +1144,17 @@
       },
       "Finding": {
         "properties": {
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id"
+          },
           "asset_id": {
             "anyOf": [
               {
@@ -1166,6 +1177,17 @@
             ],
             "title": "Asset Label"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1181,6 +1203,15 @@
               }
             ],
             "title": "Description"
+          },
+          "grade_impact": {
+            "default": "counts",
+            "enum": [
+              "counts",
+              "advisory"
+            ],
+            "title": "Grade Impact",
+            "type": "string"
           },
           "id": {
             "title": "Id",
@@ -1219,6 +1250,17 @@
             ],
             "title": "Plain Description"
           },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
           "raw_payload": {
             "anyOf": [
               {
@@ -1259,13 +1301,25 @@
               "remediated",
               "validated",
               "closed",
-              "exception"
+              "exception",
+              "passed"
             ],
             "title": "Status",
             "type": "string"
           },
           "title": {
             "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "default": "dependency",
+            "enum": [
+              "dependency",
+              "code",
+              "secret",
+              "posture"
+            ],
+            "title": "Type",
             "type": "string"
           },
           "updated_at": {
@@ -1298,6 +1352,17 @@
       },
       "FindingCreate": {
         "properties": {
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id"
+          },
           "asset_id": {
             "anyOf": [
               {
@@ -1320,6 +1385,17 @@
             ],
             "title": "Asset Label"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
           "description": {
             "anyOf": [
               {
@@ -1330,6 +1406,15 @@
               }
             ],
             "title": "Description"
+          },
+          "grade_impact": {
+            "default": "counts",
+            "enum": [
+              "counts",
+              "advisory"
+            ],
+            "title": "Grade Impact",
+            "type": "string"
           },
           "likely_owner": {
             "anyOf": [
@@ -1363,6 +1448,17 @@
               }
             ],
             "title": "Plain Description"
+          },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
           },
           "raw_payload": {
             "anyOf": [
@@ -1404,13 +1500,25 @@
               "remediated",
               "validated",
               "closed",
-              "exception"
+              "exception",
+              "passed"
             ],
             "title": "Status",
             "type": "string"
           },
           "title": {
             "title": "Title",
+            "type": "string"
+          },
+          "type": {
+            "default": "dependency",
+            "enum": [
+              "dependency",
+              "code",
+              "secret",
+              "posture"
+            ],
+            "title": "Type",
             "type": "string"
           },
           "why_this_matters": {
@@ -1435,6 +1543,17 @@
       },
       "FindingUpdate": {
         "properties": {
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id"
+          },
           "asset_id": {
             "anyOf": [
               {
@@ -1457,6 +1576,17 @@
             ],
             "title": "Asset Label"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
           "description": {
             "anyOf": [
               {
@@ -1467,6 +1597,21 @@
               }
             ],
             "title": "Description"
+          },
+          "grade_impact": {
+            "anyOf": [
+              {
+                "enum": [
+                  "counts",
+                  "advisory"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade Impact"
           },
           "likely_owner": {
             "anyOf": [
@@ -1500,6 +1645,17 @@
               }
             ],
             "title": "Plain Description"
+          },
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
           },
           "raw_payload": {
             "anyOf": [
@@ -1534,7 +1690,8 @@
                   "remediated",
                   "validated",
                   "closed",
-                  "exception"
+                  "exception",
+                  "passed"
                 ],
                 "type": "string"
               },
@@ -1554,6 +1711,23 @@
               }
             ],
             "title": "Title"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "enum": [
+                  "dependency",
+                  "code",
+                  "secret",
+                  "posture"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
           },
           "why_this_matters": {
             "anyOf": [
@@ -2267,103 +2441,6 @@
           "checks"
         ],
         "title": "PostureCategoryWire",
-        "type": "object"
-      },
-      "PostureCheck": {
-        "properties": {
-          "assessment_id": {
-            "title": "Assessment Id",
-            "type": "string"
-          },
-          "category": {
-            "anyOf": [
-              {
-                "enum": [
-                  "repo_configuration",
-                  "code_integrity",
-                  "ci_supply_chain",
-                  "collaborator_hygiene"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category"
-          },
-          "check_name": {
-            "enum": [
-              "branch_protection",
-              "no_force_pushes",
-              "no_secrets_in_code",
-              "security_md",
-              "lockfile_present",
-              "dependabot_config",
-              "signed_commits",
-              "code_owners_exists",
-              "secret_scanning_enabled",
-              "actions_pinned_to_sha",
-              "trusted_action_sources",
-              "workflow_trigger_scope",
-              "stale_collaborators",
-              "broad_team_permissions",
-              "default_branch_permissions"
-            ],
-            "title": "Check Name",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "detail": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detail"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "pr_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pr Url"
-          },
-          "status": {
-            "enum": [
-              "pass",
-              "fail",
-              "advisory",
-              "unknown"
-            ],
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "assessment_id",
-          "check_name",
-          "status",
-          "created_at"
-        ],
-        "title": "PostureCheck",
         "type": "object"
       },
       "PostureCheckWire": {
@@ -4240,7 +4317,7 @@
     },
     "/api/findings": {
       "get": {
-        "description": "List findings.\n\nWhen ``scope=current`` the list is scoped to the latest assessment's\nwindow (``source_type='opensec-assessment'`` + ``created_at`` at or after\nthe latest assessment's ``started_at``) so the Findings page matches the\ndashboard's Vulnerabilities tile.",
+        "description": "List findings.\n\nWhen ``scope=current`` the list is scoped to the latest assessment via\n``assessment_id`` and limited to vulnerability types (``dependency``,\n``code``, ``secret``) so the Findings page matches the dashboard's\nVulnerabilities tile. Posture rows (``type='posture'``) live on the\ndashboard's posture card and are excluded here.",
         "operationId": "list_findings_endpoint_api_findings_get",
         "parameters": [
           {

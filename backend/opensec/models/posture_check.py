@@ -1,24 +1,22 @@
-"""PostureCheck domain model (IMPL-0002 Milestone A + B5).
+"""Posture-check literal types (PRD-0003 v0.2).
 
-A PostureCheck is the outcome of one of the seven repo-level checks that the
-assessment engine runs. `unknown` means the check couldn't run (e.g. PAT lacks
-admin scope), which is distinct from `fail`.
+PR-B (IMPL-0003-p2 Phase 2) collapses posture into the unified ``finding``
+table per ADR-0027. The Pydantic ``PostureCheck`` / ``PostureCheckCreate``
+classes are gone — posture results flow through ``FindingCreate`` like every
+other producer. What remains in this module is the literal-type vocabulary
+(``PostureCheckName``, ``PostureCheckCategory``, ``PostureCheckStatus``) used
+by the orchestrator, dashboard, and tests.
 """
 
 from __future__ import annotations
 
-from datetime import datetime  # noqa: TCH003 — Pydantic needs this at runtime
-from typing import Any, Literal
-
-from pydantic import BaseModel
+from typing import Literal
 
 PostureCheckStatus = Literal["pass", "fail", "advisory", "unknown"]
 
 # 15 checks total — the 7 frozen by IMPL-0002 plus 8 added in PRD-0003 v0.2.
-# Every check belongs to exactly one PostureCheckCategory; the API layer
-# (Epic 4) groups them into four sections on the report card.
 PostureCheckName = Literal[
-    # Repo configuration (carried from PRD-0002)
+    # Repo configuration
     "branch_protection",
     "no_force_pushes",
     "no_secrets_in_code",
@@ -45,26 +43,3 @@ PostureCheckCategory = Literal[
     "ci_supply_chain",
     "collaborator_hygiene",
 ]
-
-
-class PostureCheckCreate(BaseModel):
-    assessment_id: str
-    check_name: PostureCheckName
-    status: PostureCheckStatus
-    detail: dict[str, Any] | None = None
-    category: PostureCheckCategory | None = None
-    pr_url: str | None = None
-
-
-class PostureCheck(BaseModel):
-    id: str
-    assessment_id: str
-    check_name: PostureCheckName
-    status: PostureCheckStatus
-    detail: dict[str, Any] | None = None
-    created_at: datetime
-    # Migration 010 adds these columns. They're optional so older rows still
-    # rehydrate cleanly, and the API layer falls back to the CHECK_CATEGORY
-    # map when ``category`` is None.
-    category: PostureCheckCategory | None = None
-    pr_url: str | None = None

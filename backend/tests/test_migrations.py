@@ -69,17 +69,18 @@ async def test_008_schema_matches_expected(db: aiosqlite.Connection) -> None:
     ):
         assert col in assessment_cols, f"assessment.{col} missing"
 
-    # posture_check
-    posture_cols = await _columns(db, "posture_check")
+    # posture_check is dropped by migration 011 (ADR-0033). Posture rows now
+    # live in the unified ``finding`` table per ADR-0027 — verify the v0.2
+    # columns landed correctly there.
+    finding_cols_v2 = await _columns(db, "finding")
     for col in (
-        "id",
+        "type",
+        "grade_impact",
+        "category",
         "assessment_id",
-        "check_name",
-        "status",
-        "detail",
-        "created_at",
+        "pr_url",
     ):
-        assert col in posture_cols, f"posture_check.{col} missing"
+        assert col in finding_cols_v2, f"finding.{col} missing post-011"
 
     # completion — includes share_actions_used (JSON text per SQLite)
     completion_cols = await _columns(db, "completion")

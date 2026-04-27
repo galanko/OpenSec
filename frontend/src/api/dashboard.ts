@@ -12,31 +12,37 @@ import type { components } from './types'
 
 // Names match backend/opensec/models/posture_check.py :: PostureCheckName.
 // Frontend-owned so we don't wait on an OpenAPI regen every time we add
-// state to the PostureCard.
+// state to the PostureCard. PR-B (PRD-0003 v0.2) extended the set from 7
+// to 15 — keep both halves below in lockstep with the backend.
 export type PostureCheckName =
+  // Repo configuration (PRD-0002)
   | 'branch_protection'
   | 'no_force_pushes'
   | 'no_secrets_in_code'
   | 'security_md'
   | 'lockfile_present'
+  // Code integrity
   | 'dependabot_config'
   | 'signed_commits'
+  | 'code_owners_exists'
+  | 'secret_scanning_enabled'
+  // CI supply chain
+  | 'actions_pinned_to_sha'
+  | 'trusted_action_sources'
+  | 'workflow_trigger_scope'
+  // Collaborator hygiene
+  | 'stale_collaborators'
+  | 'broad_team_permissions'
+  | 'default_branch_permissions'
 
 export type PostureCheckStatus = 'pass' | 'fail' | 'advisory' | 'unknown'
 
-export interface PostureCheckResult {
-  id: string
-  assessment_id: string
-  check_name: PostureCheckName
-  status: PostureCheckStatus
-  detail?: Record<string, unknown> | null
-  created_at: string
-}
-
-// The codegen snapshot doesn't know about `posture_checks` yet. Extend the
-// generated shape with the field we ship from the backend now.
+// PR-B (PRD-0003 v0.2): posture rows ride through the unified ``finding``
+// table per ADR-0027. The dashboard ships them as ``Finding[]``; the
+// PostureCard projects to its row-render view inline.
+export type Finding = components['schemas']['Finding']
 export type DashboardPayload = components['schemas']['DashboardPayload'] & {
-  posture_checks?: PostureCheckResult[]
+  posture_checks?: Finding[]
 }
 export type AssessmentStatusResponse =
   components['schemas']['AssessmentStatusResponse']
@@ -78,6 +84,11 @@ export interface RunAssessmentResponse {
   status: string
 }
 
+export interface MarkSummarySeenResponse {
+  assessment_id: string
+  summary_seen_at: string
+}
+
 export const dashboardApi = {
   getDashboard: () => request<DashboardPayload>('/api/dashboard'),
   getAssessmentLatest: () =>
@@ -90,6 +101,11 @@ export const dashboardApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ repo_url: repoUrl }),
     }),
+  markSummarySeen: (assessmentId: string) =>
+    request<MarkSummarySeenResponse>(
+      `/api/assessment/${assessmentId}/mark-summary-seen`,
+      { method: 'POST' },
+    ),
   fixPostureCheck: (
     checkName: PostureFixableCheck,
     params?: PostureFixParams,
@@ -197,5 +213,20 @@ export function usePostureFixStatus(
       }
       return pollInterval
     },
+  })
+}
+
+/**
+ * Mark the assessment-complete interstitial as dismissed.
+ *
+ * Idempotent on the server side (ADR-0032 §4): the first call sets
+ * ``summary_seen_at`` to ``now()``; subsequent calls return the same
+ * timestamp without overwriting. The dashboard query is invalidated so
+ * the next render falls through from the interstitial to the report card.
+ */
+export function useMarkSummarySeen() {
+  return useMutation({
+    mutationFn: (assessmentId: string) =>
+      dashboardApi.markSummarySeen(assessmentId),
   })
 }

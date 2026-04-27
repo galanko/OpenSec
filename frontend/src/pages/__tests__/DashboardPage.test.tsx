@@ -43,11 +43,12 @@ describe('<DashboardPage />', () => {
     ).not.toBeInTheDocument()
     expect(screen.getByText('Vulnerabilities')).toBeInTheDocument()
     expect(screen.getByText('Repo posture')).toBeInTheDocument()
-    // Fixture is shaped to tell the "3 of 5 criteria met" story (UX Story 2).
+    // PR-B (PRD-0003 v0.2): the grade now uses 10 criteria, not 5. The
+    // grade-C fixture meets 3 criteria → 7 remaining out of 10.
     expect(
-      screen.getByText(/3 criteria met · 2 remaining/i),
+      screen.getByText(/3 criteria met · 7 remaining/i),
     ).toBeInTheDocument()
-    expect(screen.getByText(/3 of 5/i)).toBeInTheDocument()
+    expect(screen.getByText(/3 of 10/i)).toBeInTheDocument()
   })
 
   it('renders grade A hero when grade-A-completion-holding fixture is active', async () => {

@@ -14,21 +14,24 @@ import { useNavigate } from 'react-router'
 import {
   useDashboard,
   useFixPostureCheck,
+  useMarkSummarySeen,
   usePostureFixStatus,
   useRunAssessment,
 } from '@/api/dashboard'
 import type {
   DashboardPayload,
+  Finding,
   PostureCheckName,
-  PostureCheckResult,
   PostureCheckStatus,
   PostureFixableCheck,
   PostureFixParams,
 } from '@/api/dashboard'
 import { onboardingApi } from '@/api/onboarding'
-import AssessmentProgressList from '@/components/dashboard/AssessmentProgressList'
+import AssessmentInProgressView from '@/components/dashboard/AssessmentInProgressView'
+import AssessmentSummary from '@/components/dashboard/AssessmentSummary'
 import CompletionProgressCard from '@/components/dashboard/CompletionProgressCard'
 import GradeRing from '@/components/dashboard/GradeRing'
+import ScannedByLine from '@/components/dashboard/ScannedByLine'
 import ScorecardInfoLine from '@/components/dashboard/ScorecardInfoLine'
 import CompletionCelebration from '@/components/completion/CompletionCelebration'
 import CompletionStatusCard from '@/components/completion/CompletionStatusCard'
@@ -39,7 +42,10 @@ import ErrorState from '@/components/ErrorState'
 import PageShell from '@/components/PageShell'
 import PageSpinner from '@/components/PageSpinner'
 
-const CRITERIA_TOTAL = 5
+// PRD-0003 v0.2 expands the grade from 5 to 10 criteria. The labeled list
+// comes from /api/dashboard.criteria; this constant is the gate for the
+// "all met" celebration check.
+const CRITERIA_TOTAL = 10
 
 const SEVERITY_ORDER: Array<{
   key: 'critical' | 'high' | 'medium' | 'low'
@@ -98,7 +104,56 @@ function DashboardContent() {
     return <EmptyDashboard />
   }
 
+  // Assessment-complete interstitial (PRD-0003 v0.2 Surface 3 / ADR-0032 §4):
+  // show once after the first completed assessment, gated server-side via
+  // ``summary_seen_at``. Clicking the CTA fires ``markSummarySeen`` and
+  // invalidates the dashboard query so the next render falls through to
+  // the report card.
+  if (
+    data.assessment.status === 'complete'
+    && data.assessment.summary_seen_at == null
+  ) {
+    return <AssessmentSummaryGate data={data} />
+  }
+
   return <ReportCard data={data} />
+}
+
+function AssessmentSummaryGate({ data }: { data: DashboardPayload }) {
+  const queryClient = useQueryClient()
+  const mutation = useMarkSummarySeen()
+  const a = data.assessment!
+  const grade = data.grade ?? 'F'
+  // The labeled ``criteria`` list is the v0.2 source of truth for "met"
+  // — count the entries flagged as met.
+  const criteriaMet =
+    (data.criteria ?? []).filter((c) => c.met).length
+  const vulnsTotal = data.vulnerabilities?.total ?? 0
+  const postureFailing = (data.posture_total_count ?? 0) - (data.posture_pass_count ?? 0)
+  return (
+    <PageShell title="Overview">
+      <AssessmentSummary
+        grade={grade}
+        criteriaMet={criteriaMet}
+        criteriaTotal={CRITERIA_TOTAL}
+        stats={{
+          vulnerabilitiesTotal: vulnsTotal,
+          postureFailing: Math.max(postureFailing, 0),
+          posturePassing: data.posture_pass_count ?? 0,
+          postureTotal: data.posture_total_count ?? 0,
+          quickWins: 0,
+        }}
+        onViewReportCard={() =>
+          mutation.mutate(a.id, {
+            onSuccess: () => {
+              queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+            },
+          })
+        }
+        pending={mutation.isPending}
+      />
+    </PageShell>
+  )
 }
 
 /**
@@ -172,6 +227,9 @@ function RunAssessmentButton({
 
 function RunningDashboard({ data }: { data: DashboardPayload }) {
   const repoName = repoNameFromUrl(data.assessment?.repo_url)
+  const headline = data.assessment?.completed_at
+    ? 'Re-assessing your repository'
+    : 'Assessment in progress'
   return (
     <PageShell
       title="Overview"
@@ -185,7 +243,11 @@ function RunningDashboard({ data }: { data: DashboardPayload }) {
       }
     >
       {data.assessment && (
-        <AssessmentProgressList assessmentId={data.assessment.id} />
+        <AssessmentInProgressView
+          assessmentId={data.assessment.id}
+          headline={headline}
+          startedAt={data.assessment.started_at ?? null}
+        />
       )}
     </PageShell>
   )
@@ -379,6 +441,13 @@ function ReportCard({ data }: { data: DashboardPayload }) {
             </div>
           )}
         </section>
+
+        {/* PR-B: Scanned-by row sits directly under the hero so the brand
+            trust signal (Trivy 0.52 · 7 findings · ...) lands every time
+            the report card renders. */}
+        {data.tools && data.tools.length > 0 && (
+          <ScannedByLine tools={data.tools} />
+        )}
 
         <CompletionProgressCard
           criteriaMet={criteriaMet}
@@ -583,6 +652,119 @@ const POSTURE_META: Record<
       'Re-assess once the lockfile is on main.',
     ],
   },
+  code_owners_exists: {
+    label: 'CODEOWNERS file is committed',
+    failLabel: 'CODEOWNERS file is missing',
+    description:
+      'CODEOWNERS auto-requests review from the right owners and is a prereq for owner-required branch protection.',
+    steps: [
+      'Create .github/CODEOWNERS at the repo root.',
+      'Map paths to teams or individuals: e.g. "* @your-org/maintainers".',
+      'Commit and push — GitHub auto-requests reviews on the next PR.',
+    ],
+    docHref:
+      'https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners',
+    docLabel: 'GitHub: about code owners',
+  },
+  secret_scanning_enabled: {
+    label: 'Secret scanning is enabled',
+    failLabel: 'Secret scanning is disabled',
+    description:
+      'GitHub-side secret scanning catches credentials in pushed commits before they hit a public mirror.',
+    steps: [
+      'Open Settings → Code security and analysis.',
+      'Enable "Secret scanning" (and "Push protection" if available on your plan).',
+      'Re-assess once the toggle is on.',
+    ],
+    docHref:
+      'https://docs.github.com/en/code-security/secret-scanning/enabling-secret-scanning-features/enabling-secret-scanning-for-your-repository',
+    docLabel: 'GitHub: enabling secret scanning',
+  },
+  actions_pinned_to_sha: {
+    label: 'CI actions are pinned to commit SHAs',
+    failLabel: 'CI actions are pinned to mutable refs',
+    description:
+      'Pinning third-party Actions to commit SHAs (not tags or branches) prevents a rolled tag from silently swapping in malicious code.',
+    steps: [
+      'Replace each "uses: actions/checkout@v4" in .github/workflows/*.yml with the full commit SHA.',
+      'Add a comment with the version label so renovate-style bumpers can still find it.',
+      'Repeat for every third-party action in the workflows.',
+    ],
+    docHref:
+      'https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-third-party-actions',
+    docLabel: 'GitHub: hardening third-party actions',
+  },
+  trusted_action_sources: {
+    label: 'Workflows only call trusted Action sources',
+    failLabel: 'Workflows call untrusted Action sources',
+    description:
+      'Restricting Actions to verified creators and your org reduces the supply-chain blast radius for CI.',
+    steps: [
+      'Open Settings → Actions → General → Allow specific actions.',
+      'Switch to "Allow <org>, and select non-<org> actions" with the verified-creator + reusable-workflows toggles.',
+      'Re-assess after saving.',
+    ],
+  },
+  workflow_trigger_scope: {
+    label: 'Workflow triggers are scoped (advisory)',
+    failLabel: 'Workflow trigger scope is broad (advisory)',
+    description:
+      'Workflows that combine pull_request_target with checkout of the PR head can run untrusted code with org secrets. Advisory — review every match.',
+    steps: [
+      'Open the flagged workflow files (linked in the detail).',
+      'Remove or replace pull_request_target with pull_request where possible.',
+      'If you must keep pull_request_target, never check out the PR head ref in the same job that has secrets.',
+    ],
+    docHref:
+      'https://securitylab.github.com/research/github-actions-preventing-pwn-requests/',
+    docLabel: 'Preventing pwn-requests in Actions',
+  },
+  stale_collaborators: {
+    label: 'No stale collaborators',
+    failLabel: 'Stale collaborators detected',
+    description:
+      'Outside collaborators that never touch the repo are credential sprawl — revoke access until they need it.',
+    steps: [
+      'Open Settings → Collaborators and review the inactive list.',
+      'Remove or downgrade access for collaborators who have not contributed in 6+ months.',
+      'Re-invite when needed; the audit trail beats permanent access.',
+    ],
+  },
+  broad_team_permissions: {
+    label: 'Team permissions are scoped (advisory)',
+    failLabel: 'Team permissions are too broad (advisory)',
+    description:
+      'A team with write access and 20+ members is a wide blast radius. Advisory — judge per team.',
+    steps: [
+      'Open Settings → Manage access → Team list.',
+      'Either split the team into a smaller "writers" subset or downgrade write to triage / read.',
+    ],
+  },
+  default_branch_permissions: {
+    label: 'Default branch permissions are scoped',
+    failLabel: 'Default branch is writable by too many roles',
+    description:
+      'Anyone with write access can push to an unprotected default branch — combine with branch protection above.',
+    steps: [
+      'Open Settings → Branches → Default branch rule.',
+      'Add "Restrict who can push to matching branches" and pick a small reviewer set.',
+      'Re-assess once saved.',
+    ],
+  },
+}
+
+// Defensive fallback for any check name the backend might emit that we
+// don't yet have detailed copy for — keeps the row rendering instead of
+// crashing the dashboard.
+const FALLBACK_POSTURE_META: (typeof POSTURE_META)[PostureCheckName] = {
+  label: 'Posture check',
+  failLabel: 'Posture check failed',
+  description:
+    'See the detail payload for this check’s findings. OpenSec is rolling out per-check guidance; a detailed remediation walkthrough lands in a follow-up release.',
+  steps: [
+    'Open the "detail" payload to see exactly what the scanner reported.',
+    'Re-assess after addressing the underlying configuration.',
+  ],
 }
 
 const FIXABLE_NAMES: PostureFixableCheck[] = [
@@ -599,6 +781,47 @@ const STATUS_ORDER: Record<PostureCheckStatus, number> = {
   unknown: 1,
   advisory: 2,
   pass: 3,
+}
+
+/**
+ * Row-render shape for the dashboard posture card.
+ *
+ * Derived from the unified ``finding`` table (ADR-0027) — the wire ships
+ * ``Finding`` rows with ``type='posture'``; this view collapses them onto
+ * the four-state vocabulary the card already speaks. The same shape is
+ * also synthesized from ``criteria_snapshot`` for pre-2026-04 assessments
+ * that predate posture persistence in the unified table.
+ */
+interface PostureCheckView {
+  id: string
+  check_name: PostureCheckName
+  status: PostureCheckStatus
+  detail: Record<string, unknown> | null
+}
+
+function toPostureCheckView(row: Finding): PostureCheckView {
+  const raw = (row.raw_payload ?? {}) as {
+    check_name?: string
+    scanner_status?: PostureCheckStatus
+    detail?: Record<string, unknown> | null
+  }
+  const checkName = (raw.check_name ?? row.title) as PostureCheckName
+  let status: PostureCheckStatus
+  if (raw.scanner_status) {
+    status = raw.scanner_status
+  } else if (row.grade_impact === 'advisory') {
+    status = 'advisory'
+  } else if (row.status === 'passed') {
+    status = 'pass'
+  } else {
+    status = 'fail'
+  }
+  return {
+    id: row.id,
+    check_name: checkName,
+    status,
+    detail: raw.detail ?? null,
+  }
 }
 
 function PostureCard({
@@ -624,12 +847,14 @@ function PostureCard({
     posture_checks,
   } = data
 
-  // Prefer the real per-check list. Fall back to a synthesized minimal list
-  // for pre-2026-04 assessments whose payloads don't include posture_checks.
-  const checks: PostureCheckResult[] = useMemo(() => {
-    if (posture_checks && posture_checks.length > 0) return posture_checks
-    // Synthesize a best-effort list from the criteria summary so the UI
-    // doesn't collapse to "0 of 0" on older dashboards.
+  // Project posture findings (unified ``finding`` rows per ADR-0027) into
+  // the row-render shape this card consumes. Falls back to a synthesized
+  // minimal list for pre-2026-04 assessments whose payloads don't include
+  // posture rows.
+  const checks: PostureCheckView[] = useMemo(() => {
+    if (posture_checks && posture_checks.length > 0) {
+      return posture_checks.map(toPostureCheckView)
+    }
     const names: PostureCheckName[] = [
       'security_md',
       'dependabot_config',
@@ -641,7 +866,6 @@ function PostureCard({
     ]
     return names.map((n) => ({
       id: `synth-${n}`,
-      assessment_id: 'synth',
       check_name: n,
       status:
         n === 'security_md' && criteria.security_md_present
@@ -650,8 +874,7 @@ function PostureCard({
             ? 'pass'
             : 'unknown',
       detail: null,
-      created_at: new Date().toISOString(),
-    })) as PostureCheckResult[]
+    }))
   }, [posture_checks, criteria])
 
   const sorted = useMemo(
@@ -748,12 +971,12 @@ function PostureCheckRow({
   pending,
   activeWorkspaceId,
 }: {
-  check: PostureCheckResult
+  check: PostureCheckView
   onGenerate: (name: PostureFixableCheck, params?: PostureFixParams) => void
   pending: boolean
   activeWorkspaceId?: string
 }) {
-  const meta = POSTURE_META[check.check_name]
+  const meta = POSTURE_META[check.check_name] ?? FALLBACK_POSTURE_META
   const [open, setOpen] = useState(check.status === 'fail')
   // security_md is the only auto-fix that benefits from a user-supplied
   // parameter today (the contact email on the generated SECURITY.md).

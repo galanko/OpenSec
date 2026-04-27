@@ -65,6 +65,9 @@ const completedAssessmentC: Assessment = {
   grade: 'C',
   started_at: EARLIER,
   completed_at: NOW,
+  // PR-B (PRD-0003 v0.2): pre-mark the interstitial as seen so completed
+  // fixtures fall through to the report card instead of the Surface 3 gate.
+  summary_seen_at: NOW,
   criteria_snapshot: {
     ..._legacyEmptyCriteria,
     no_critical_vulns: true,
@@ -80,6 +83,7 @@ const completedAssessmentA: Assessment = {
   grade: 'A',
   started_at: EARLIER,
   completed_at: NOW,
+  summary_seen_at: NOW,
   criteria_snapshot: {
     ..._legacyEmptyCriteria,
     security_md_present: true,
@@ -246,6 +250,8 @@ export const sampleFindings: Finding[] = [
     status: 'new',
     likely_owner: null,
     why_this_matters: null,
+    type: 'dependency',
+    grade_impact: 'counts',
     raw_payload: {
       cve: 'CVE-2024-4067',
       cvss_score: 7.5,
@@ -270,6 +276,8 @@ export const sampleFindings: Finding[] = [
     status: 'new',
     likely_owner: null,
     why_this_matters: null,
+    type: 'dependency',
+    grade_impact: 'counts',
     raw_payload: {
       cve: 'CVE-2023-45857',
       cvss_score: 6.5,
@@ -284,48 +292,94 @@ export const sampleFindings: Finding[] = [
 // Assessment status progression (for poll/SSE — Session B upgrades to SSE later)
 // ---------------------------------------------------------------------------
 
-const _emptySteps: AssessmentStatusResponse['steps'] = []
 const _emptyTools: AssessmentStatusResponse['tools'] = []
+
+// Step taxonomy mirrors backend/opensec/api/routes/assessment.py::_V2_STEPS_ORDER.
+// Keep these in lockstep with the backend; the route is the source of truth
+// for the live UI but the MSW fixture has to ship the same shape.
+const V2_STEPS: Array<{ key: string; label: string; hint: string | null }> = [
+  { key: 'detect', label: 'Detecting project type', hint: null },
+  { key: 'trivy_vuln', label: 'Scanning dependencies with Trivy', hint: null },
+  { key: 'trivy_secret', label: 'Scanning for secrets with Trivy', hint: null },
+  { key: 'semgrep', label: 'Scanning code with Semgrep', hint: null },
+  { key: 'posture', label: 'Checking repo posture', hint: '15 checks' },
+  {
+    key: 'descriptions',
+    label: 'Generating plain-language descriptions',
+    hint: null,
+  },
+]
+
+function buildSteps(
+  liveStep: string | null,
+  status: AssessmentStatusResponse['status'],
+): AssessmentStatusResponse['steps'] {
+  const cursor = liveStep
+  let seenRunning = false
+  return V2_STEPS.map(({ key, label, hint }) => {
+    let state: 'pending' | 'running' | 'done' | 'skipped'
+    if (status === 'complete') {
+      state = 'done'
+    } else if (status === 'pending') {
+      state = 'pending'
+    } else if (status === 'failed') {
+      state = 'skipped'
+    } else if (key === cursor) {
+      state = 'running'
+      seenRunning = true
+    } else if (!seenRunning) {
+      state = 'done'
+    } else {
+      state = 'pending'
+    }
+    return {
+      key,
+      label,
+      state,
+      hint: state === 'pending' ? hint : null,
+    } as AssessmentStatusResponse['steps'][number]
+  })
+}
 
 export const assessmentStatusSteps: AssessmentStatusResponse[] = [
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 10,
-    step: 'cloning',
-    steps: _emptySteps,
+    step: 'detect',
+    steps: buildSteps('detect', 'running'),
     tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
     progress_pct: 25,
-    step: 'parsing_lockfiles',
-    steps: _emptySteps,
+    step: 'trivy_vuln',
+    steps: buildSteps('trivy_vuln', 'running'),
     tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
-    progress_pct: 50,
-    step: 'looking_up_cves',
-    steps: _emptySteps,
+    progress_pct: 60,
+    step: 'semgrep',
+    steps: buildSteps('semgrep', 'running'),
     tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
-    progress_pct: 75,
-    step: 'checking_posture',
-    steps: _emptySteps,
+    progress_pct: 80,
+    step: 'posture',
+    steps: buildSteps('posture', 'running'),
     tools: _emptyTools,
   },
   {
     assessment_id: runningAssessment.id,
     status: 'running',
-    progress_pct: 90,
-    step: 'grading',
-    steps: _emptySteps,
+    progress_pct: 95,
+    step: 'descriptions',
+    steps: buildSteps('descriptions', 'running'),
     tools: _emptyTools,
   },
   {
@@ -333,7 +387,7 @@ export const assessmentStatusSteps: AssessmentStatusResponse[] = [
     status: 'complete',
     progress_pct: 100,
     step: null,
-    steps: _emptySteps,
+    steps: buildSteps(null, 'complete'),
     tools: _emptyTools,
   },
 ]

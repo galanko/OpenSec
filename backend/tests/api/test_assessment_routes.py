@@ -85,15 +85,16 @@ async def test_run_assessment_persists_result_and_posture(db_client, fake_engine
     from opensec.db.connection import _db
     from opensec.db.dao.assessment import get_assessment
     from opensec.db.dao.completion import get_completion_for_assessment
-    from opensec.db.dao.posture_check import list_posture_checks_for_assessment
+    from opensec.db.repo_finding import list_posture_findings
 
     a = await get_assessment(_db, aid)
     assert a.status == "complete"
     assert a.grade == "A"
     assert a.criteria_snapshot.posture_checks_passing == 15
 
-    checks = await list_posture_checks_for_assessment(_db, aid)
-    assert {c.check_name for c in checks} == {"branch_protection", "security_md"}
+    posture_rows = await list_posture_findings(_db, aid)
+    names = {(r.raw_payload or {}).get("check_name") for r in posture_rows}
+    assert names == {"branch_protection", "security_md"}
 
     # All criteria met → completion row created.
     completion = await get_completion_for_assessment(_db, aid)
@@ -146,9 +147,7 @@ async def test_run_assessment_persists_findings_emitted_by_engine(db_client):
         from opensec.db.repo_finding import list_findings
 
         persisted = await list_findings(_db)
-        engine_persisted = [
-            f for f in persisted if f.source_type == "opensec-assessment"
-        ]
+        engine_persisted = [f for f in persisted if f.source_type == "osv"]
         assert len(engine_persisted) == 2
         source_ids = {f.source_id for f in engine_persisted}
         assert source_ids == {"GHSA-grv7-fg5c-xmjg", "GHSA-example-2"}
