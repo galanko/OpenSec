@@ -57,6 +57,27 @@ COPY scripts/install-opencode.sh ./scripts/
 ENV OPENSEC_BIN_DIR=/app/bin
 RUN bash scripts/install-opencode.sh || echo "WARNING: OpenCode download failed — engine will be unavailable"
 
+# PRD-0003 v0.2 — Trivy + Semgrep binaries for the assessment engine
+# (ADR-0028 subprocess-only execution). Both land in /app/bin alongside
+# OpenCode; OPENSEC_SCANNER_BIN_DIR points the runner at this directory.
+ARG TRIVY_VERSION=0.70.0
+RUN ARCH="$(dpkg --print-architecture)" \
+    && case "$ARCH" in \
+        amd64) TRIVY_ARCH="64bit" ;; \
+        arm64) TRIVY_ARCH="ARM64" ;; \
+        *) echo "unsupported arch: $ARCH" && exit 1 ;; \
+       esac \
+    && curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz" \
+         -o /tmp/trivy.tar.gz \
+    && mkdir -p /app/bin \
+    && tar -xzf /tmp/trivy.tar.gz -C /app/bin trivy \
+    && rm /tmp/trivy.tar.gz \
+    && chmod +x /app/bin/trivy \
+    && /app/bin/trivy --version
+RUN pip install --no-cache-dir semgrep==1.70.0 \
+    && ln -sf "$(which semgrep)" /app/bin/semgrep \
+    && /app/bin/semgrep --version
+
 # Install Python dependencies (cache layer)
 COPY backend/pyproject.toml backend/uv.lock* ./backend/
 RUN cd backend && uv sync --frozen --no-dev --no-install-project
@@ -84,6 +105,7 @@ ENV OPENSEC_APP_HOST=0.0.0.0 \
     OPENSEC_OPENCODE_HOST=127.0.0.1 \
     OPENSEC_OPENCODE_PORT=4096 \
     OPENSEC_OPENCODE_BIN=/app/bin/opencode \
+    OPENSEC_SCANNER_BIN_DIR=/app/bin \
     OPENSEC_DATA_DIR=/data
 
 # Persistent data volume

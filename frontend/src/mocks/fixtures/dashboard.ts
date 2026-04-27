@@ -250,6 +250,8 @@ export const sampleFindings: Finding[] = [
     status: 'new',
     likely_owner: null,
     why_this_matters: null,
+    type: 'dependency',
+    grade_impact: 'counts',
     raw_payload: {
       cve: 'CVE-2024-4067',
       cvss_score: 7.5,
@@ -274,6 +276,8 @@ export const sampleFindings: Finding[] = [
     status: 'new',
     likely_owner: null,
     why_this_matters: null,
+    type: 'dependency',
+    grade_impact: 'counts',
     raw_payload: {
       cve: 'CVE-2023-45857',
       cvss_score: 6.5,

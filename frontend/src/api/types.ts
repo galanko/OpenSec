@@ -1674,7 +1674,7 @@ export interface components {
              * Posture Checks
              * @default []
              */
-            posture_checks: components["schemas"]["PostureCheck"][];
+            posture_checks: components["schemas"]["Finding"][];
             /** Posture Pass Count */
             posture_pass_count: number;
             /** Posture Total Count */
@@ -1694,10 +1694,14 @@ export interface components {
         };
         /** Finding */
         Finding: {
+            /** Assessment Id */
+            assessment_id?: string | null;
             /** Asset Id */
             asset_id?: string | null;
             /** Asset Label */
             asset_label?: string | null;
+            /** Category */
+            category?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1705,6 +1709,12 @@ export interface components {
             created_at: string;
             /** Description */
             description?: string | null;
+            /**
+             * Grade Impact
+             * @default counts
+             * @enum {string}
+             */
+            grade_impact: "counts" | "advisory";
             /** Id */
             id: string;
             /** Likely Owner */
@@ -1713,6 +1723,8 @@ export interface components {
             normalized_priority?: string | null;
             /** Plain Description */
             plain_description?: string | null;
+            /** Pr Url */
+            pr_url?: string | null;
             /** Raw Payload */
             raw_payload?: {
                 [key: string]: unknown;
@@ -1728,9 +1740,15 @@ export interface components {
              * @default new
              * @enum {string}
              */
-            status: "new" | "triaged" | "in_progress" | "remediated" | "validated" | "closed" | "exception";
+            status: "new" | "triaged" | "in_progress" | "remediated" | "validated" | "closed" | "exception" | "passed";
             /** Title */
             title: string;
+            /**
+             * Type
+             * @default dependency
+             * @enum {string}
+             */
+            type: "dependency" | "code" | "secret" | "posture";
             /**
              * Updated At
              * Format: date-time
@@ -1741,18 +1759,30 @@ export interface components {
         };
         /** FindingCreate */
         FindingCreate: {
+            /** Assessment Id */
+            assessment_id?: string | null;
             /** Asset Id */
             asset_id?: string | null;
             /** Asset Label */
             asset_label?: string | null;
+            /** Category */
+            category?: string | null;
             /** Description */
             description?: string | null;
+            /**
+             * Grade Impact
+             * @default counts
+             * @enum {string}
+             */
+            grade_impact: "counts" | "advisory";
             /** Likely Owner */
             likely_owner?: string | null;
             /** Normalized Priority */
             normalized_priority?: string | null;
             /** Plain Description */
             plain_description?: string | null;
+            /** Pr Url */
+            pr_url?: string | null;
             /** Raw Payload */
             raw_payload?: {
                 [key: string]: unknown;
@@ -1768,26 +1798,40 @@ export interface components {
              * @default new
              * @enum {string}
              */
-            status: "new" | "triaged" | "in_progress" | "remediated" | "validated" | "closed" | "exception";
+            status: "new" | "triaged" | "in_progress" | "remediated" | "validated" | "closed" | "exception" | "passed";
             /** Title */
             title: string;
+            /**
+             * Type
+             * @default dependency
+             * @enum {string}
+             */
+            type: "dependency" | "code" | "secret" | "posture";
             /** Why This Matters */
             why_this_matters?: string | null;
         };
         /** FindingUpdate */
         FindingUpdate: {
+            /** Assessment Id */
+            assessment_id?: string | null;
             /** Asset Id */
             asset_id?: string | null;
             /** Asset Label */
             asset_label?: string | null;
+            /** Category */
+            category?: string | null;
             /** Description */
             description?: string | null;
+            /** Grade Impact */
+            grade_impact?: ("counts" | "advisory") | null;
             /** Likely Owner */
             likely_owner?: string | null;
             /** Normalized Priority */
             normalized_priority?: string | null;
             /** Plain Description */
             plain_description?: string | null;
+            /** Pr Url */
+            pr_url?: string | null;
             /** Raw Payload */
             raw_payload?: {
                 [key: string]: unknown;
@@ -1795,9 +1839,11 @@ export interface components {
             /** Raw Severity */
             raw_severity?: string | null;
             /** Status */
-            status?: ("new" | "triaged" | "in_progress" | "remediated" | "validated" | "closed" | "exception") | null;
+            status?: ("new" | "triaged" | "in_progress" | "remediated" | "validated" | "closed" | "exception" | "passed") | null;
             /** Title */
             title?: string | null;
+            /** Type */
+            type?: ("dependency" | "code" | "secret" | "posture") | null;
             /** Why This Matters */
             why_this_matters?: string | null;
         };
@@ -2096,36 +2142,6 @@ export interface components {
              */
             name: "repo_configuration" | "code_integrity" | "ci_supply_chain" | "collaborator_hygiene";
             progress: components["schemas"]["CategoryProgress"];
-        };
-        /** PostureCheck */
-        PostureCheck: {
-            /** Assessment Id */
-            assessment_id: string;
-            /** Category */
-            category?: ("repo_configuration" | "code_integrity" | "ci_supply_chain" | "collaborator_hygiene") | null;
-            /**
-             * Check Name
-             * @enum {string}
-             */
-            check_name: "branch_protection" | "no_force_pushes" | "no_secrets_in_code" | "security_md" | "lockfile_present" | "dependabot_config" | "signed_commits" | "code_owners_exists" | "secret_scanning_enabled" | "actions_pinned_to_sha" | "trusted_action_sources" | "workflow_trigger_scope" | "stale_collaborators" | "broad_team_permissions" | "default_branch_permissions";
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Detail */
-            detail?: {
-                [key: string]: unknown;
-            } | null;
-            /** Id */
-            id: string;
-            /** Pr Url */
-            pr_url?: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "pass" | "fail" | "advisory" | "unknown";
         };
         /** PostureCheckWire */
         PostureCheckWire: {

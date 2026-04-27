@@ -20,8 +20,8 @@ import {
 } from '@/api/dashboard'
 import type {
   DashboardPayload,
+  Finding,
   PostureCheckName,
-  PostureCheckResult,
   PostureCheckStatus,
   PostureFixableCheck,
   PostureFixParams,
@@ -663,6 +663,47 @@ const STATUS_ORDER: Record<PostureCheckStatus, number> = {
   pass: 3,
 }
 
+/**
+ * Row-render shape for the dashboard posture card.
+ *
+ * Derived from the unified ``finding`` table (ADR-0027) — the wire ships
+ * ``Finding`` rows with ``type='posture'``; this view collapses them onto
+ * the four-state vocabulary the card already speaks. The same shape is
+ * also synthesized from ``criteria_snapshot`` for pre-2026-04 assessments
+ * that predate posture persistence in the unified table.
+ */
+interface PostureCheckView {
+  id: string
+  check_name: PostureCheckName
+  status: PostureCheckStatus
+  detail: Record<string, unknown> | null
+}
+
+function toPostureCheckView(row: Finding): PostureCheckView {
+  const raw = (row.raw_payload ?? {}) as {
+    check_name?: string
+    scanner_status?: PostureCheckStatus
+    detail?: Record<string, unknown> | null
+  }
+  const checkName = (raw.check_name ?? row.title) as PostureCheckName
+  let status: PostureCheckStatus
+  if (raw.scanner_status) {
+    status = raw.scanner_status
+  } else if (row.grade_impact === 'advisory') {
+    status = 'advisory'
+  } else if (row.status === 'passed') {
+    status = 'pass'
+  } else {
+    status = 'fail'
+  }
+  return {
+    id: row.id,
+    check_name: checkName,
+    status,
+    detail: raw.detail ?? null,
+  }
+}
+
 function PostureCard({
   data,
   onGenerate,
@@ -686,12 +727,14 @@ function PostureCard({
     posture_checks,
   } = data
 
-  // Prefer the real per-check list. Fall back to a synthesized minimal list
-  // for pre-2026-04 assessments whose payloads don't include posture_checks.
-  const checks: PostureCheckResult[] = useMemo(() => {
-    if (posture_checks && posture_checks.length > 0) return posture_checks
-    // Synthesize a best-effort list from the criteria summary so the UI
-    // doesn't collapse to "0 of 0" on older dashboards.
+  // Project posture findings (unified ``finding`` rows per ADR-0027) into
+  // the row-render shape this card consumes. Falls back to a synthesized
+  // minimal list for pre-2026-04 assessments whose payloads don't include
+  // posture rows.
+  const checks: PostureCheckView[] = useMemo(() => {
+    if (posture_checks && posture_checks.length > 0) {
+      return posture_checks.map(toPostureCheckView)
+    }
     const names: PostureCheckName[] = [
       'security_md',
       'dependabot_config',
@@ -703,7 +746,6 @@ function PostureCard({
     ]
     return names.map((n) => ({
       id: `synth-${n}`,
-      assessment_id: 'synth',
       check_name: n,
       status:
         n === 'security_md' && criteria.security_md_present
@@ -712,8 +754,7 @@ function PostureCard({
             ? 'pass'
             : 'unknown',
       detail: null,
-      created_at: new Date().toISOString(),
-    })) as PostureCheckResult[]
+    }))
   }, [posture_checks, criteria])
 
   const sorted = useMemo(
@@ -810,7 +851,7 @@ function PostureCheckRow({
   pending,
   activeWorkspaceId,
 }: {
-  check: PostureCheckResult
+  check: PostureCheckView
   onGenerate: (name: PostureFixableCheck, params?: PostureFixParams) => void
   pending: boolean
   activeWorkspaceId?: string

@@ -24,19 +24,12 @@ export type PostureCheckName =
 
 export type PostureCheckStatus = 'pass' | 'fail' | 'advisory' | 'unknown'
 
-export interface PostureCheckResult {
-  id: string
-  assessment_id: string
-  check_name: PostureCheckName
-  status: PostureCheckStatus
-  detail?: Record<string, unknown> | null
-  created_at: string
-}
-
-// The codegen snapshot doesn't know about `posture_checks` yet. Extend the
-// generated shape with the field we ship from the backend now.
+// PR-B (PRD-0003 v0.2): posture rows ride through the unified ``finding``
+// table per ADR-0027. The dashboard ships them as ``Finding[]``; the
+// PostureCard projects to its row-render view inline.
+export type Finding = components['schemas']['Finding']
 export type DashboardPayload = components['schemas']['DashboardPayload'] & {
-  posture_checks?: PostureCheckResult[]
+  posture_checks?: Finding[]
 }
 export type AssessmentStatusResponse =
   components['schemas']['AssessmentStatusResponse']
