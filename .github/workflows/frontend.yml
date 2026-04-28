@@ -6,7 +6,6 @@ on:
     paths: [frontend/**]
   pull_request:
     branches: [main]
-    paths: [frontend/**]
   workflow_dispatch:
 
 concurrency:
