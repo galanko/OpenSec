@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.1-test] - 2026-04-28
+
+End-to-end smoke test of the release pipeline introduced in
+[PR #96](https://github.com/galanko/OpenSec/pull/96). This release is
+**not** a real version of OpenSec — it exists only to verify that the
+`release.yml` workflow, the `release` GitHub Environment gate, the
+keyless cosign signing, the SLSA build-provenance attestation, and the
+CycloneDX SBOM attestation all behave as designed before we cut
+`v0.1.0-alpha`. The image and tag are removed after verification.
+
 ## [0.1.0-alpha] - 2026-04-28
 
 First public alpha release of OpenSec — a self-hosted, single-container,
