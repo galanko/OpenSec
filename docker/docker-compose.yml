@@ -1,8 +1,17 @@
 services:
   opensec:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    # Production: pull the signed, multi-arch image from GHCR.
+    # Verify the digest before deploying — see docs/verify-release.md.
+    image: ghcr.io/galanko/opensec:0.1.0-alpha
+    # Local dev: comment out `image:` above and uncomment this block to
+    # build from source.
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
+    #   args:
+    #     OPENSEC_VERSION: dev
+    #     OPENSEC_REVISION: dev
+    #     OPENSEC_CREATED: "1970-01-01T00:00:00Z"
     ports:
       - "${OPENSEC_APP_PORT:-8000}:8000"
     volumes:

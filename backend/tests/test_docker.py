@@ -160,3 +160,86 @@ class TestDockerfileStructure:
         assert "node_modules" in content
         assert "__pycache__" in content
         assert ".git" in content
+
+
+class TestReleaseHardening:
+    """Assertions covering the v0.1.0-alpha release hardening (non-root,
+    OCI labels, VERSION baked into the image)."""
+
+    def _repo_root(self) -> Path:
+        current = Path(__file__).resolve().parent
+        for _ in range(10):
+            if (current / ".opencode-version").exists():
+                return current
+            current = current.parent
+        return current
+
+    def test_version_file_exists_and_is_pep440_alpha(self):
+        version = (self._repo_root() / "VERSION").read_text().strip()
+        # `0.1.0-alpha`, `0.1.0`, `0.1.0a0`, etc. — non-empty single line
+        assert version, "VERSION must not be empty"
+        assert "\n" not in version, "VERSION must be a single line"
+
+    def test_changelog_has_section_for_version(self):
+        root = self._repo_root()
+        version = (root / "VERSION").read_text().strip()
+        changelog = (root / "CHANGELOG.md").read_text()
+        assert f"[{version}]" in changelog, (
+            f"CHANGELOG.md must contain a section for version {version}"
+        )
+
+    def test_dockerfile_creates_non_root_user(self):
+        content = (self._repo_root() / "docker" / "Dockerfile").read_text()
+        # User+group with fixed UID/GID 10001 so bind-mount ownership is predictable.
+        assert "groupadd" in content and "10001 opensec" in content, (
+            "Dockerfile must create the opensec group at GID 10001"
+        )
+        assert "useradd" in content and "10001" in content and "opensec" in content, (
+            "Dockerfile must create the opensec user at UID 10001"
+        )
+
+    def test_dockerfile_has_user_directive(self):
+        content = (self._repo_root() / "docker" / "Dockerfile").read_text()
+        assert "USER opensec" in content, (
+            "Dockerfile must drop privileges via 'USER opensec' before ENTRYPOINT"
+        )
+
+    def test_dockerfile_copies_version_file(self):
+        content = (self._repo_root() / "docker" / "Dockerfile").read_text()
+        assert "COPY VERSION" in content, "Dockerfile must copy the VERSION file"
+
+    def test_dockerfile_has_oci_labels(self):
+        content = (self._repo_root() / "docker" / "Dockerfile").read_text()
+        for label in (
+            "org.opencontainers.image.title",
+            "org.opencontainers.image.description",
+            "org.opencontainers.image.source",
+            "org.opencontainers.image.url",
+            "org.opencontainers.image.documentation",
+            "org.opencontainers.image.licenses",
+            "org.opencontainers.image.version",
+            "org.opencontainers.image.revision",
+            "org.opencontainers.image.created",
+        ):
+            assert label in content, f"Dockerfile must declare OCI label {label}"
+
+    def test_dockerfile_accepts_version_build_args(self):
+        content = (self._repo_root() / "docker" / "Dockerfile").read_text()
+        for arg in ("OPENSEC_VERSION", "OPENSEC_REVISION", "OPENSEC_CREATED"):
+            assert f"ARG {arg}" in content, f"Dockerfile must accept build arg {arg}"
+
+    def test_supervisord_runs_as_opensec_user(self):
+        content = (self._repo_root() / "docker" / "supervisord.conf").read_text()
+        assert "user=opensec" in content, "supervisord must run as the opensec user"
+        assert "/var/run/" not in content, (
+            "supervisord must not write to /var/run/ (not writable by non-root)"
+        )
+        assert "/tmp/supervisor" in content, (
+            "supervisord pid/sock files must live under /tmp/supervisor"
+        )
+
+    def test_entrypoint_refuses_to_run_as_root(self):
+        content = (self._repo_root() / "docker" / "entrypoint.sh").read_text()
+        assert 'id -u' in content and 'refusing to run as root' in content, (
+            "entrypoint.sh must refuse to run as root"
+        )
