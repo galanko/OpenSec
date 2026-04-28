@@ -94,29 +94,43 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ## Quick start
 
-The fastest way to try OpenSec is Docker Compose.
+The fastest way to try OpenSec is the published, signed image.
 
 ### Prerequisites
 
-- Docker and Docker Compose
+- Docker 24+
 - An LLM API key — `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`
 
 ### Run it
 
 ```bash
-git clone https://github.com/galanko/OpenSec.git
-cd OpenSec
-
-# Set your LLM API key
-export ANTHROPIC_API_KEY=sk-ant-...
-
-# Start the full stack
-docker compose -f docker/docker-compose.yml up
+docker run --rm -p 8000:8000 \
+  -e ANTHROPIC_API_KEY=sk-ant-... \
+  -v opensec-data:/data \
+  ghcr.io/galanko/opensec:0.1.0-alpha
 ```
 
 Open [http://localhost:8000](http://localhost:8000) and OpenSec is ready.
 
-> A published image on GHCR (`ghcr.io/galanko/opensec`) and a one-line install will land with the **v0.1.0-alpha** tag — see [Stage 4](ROADMAP.md#stage-4-polish--ship).
+For full options (Docker Compose, digest pinning, host-bind volumes, upgrade
+notes), see [docs/install.md](docs/install.md).
+
+### Verifying the image
+
+The image is signed via Sigstore keyless OIDC and ships with SLSA build
+provenance and a CycloneDX SBOM. Verify before you run in production:
+
+```bash
+DIGEST=sha256:...   # from the release page
+
+cosign verify ghcr.io/galanko/opensec@${DIGEST} \
+  --certificate-identity-regexp 'https://github\.com/galanko/OpenSec/\.github/workflows/release\.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+gh attestation verify oci://ghcr.io/galanko/opensec@${DIGEST} --owner galanko
+```
+
+Full instructions: [docs/verify-release.md](docs/verify-release.md).
 
 <details>
 <summary><strong>Run from source (for development)</strong></summary>
@@ -205,7 +219,7 @@ See [`docs/architecture/overview.md`](docs/architecture/overview.md) and [`docs/
 
 - [ ] Real ticket creation — Jira, GitHub Issues (Phase 7)
 - [ ] Permission-approval UX for agent tool use (Phase 6b)
-- [ ] `v0.1.0-alpha` tag + published GHCR image (Phase 9b)
+- [x] `v0.1.0-alpha` tag + signed GHCR image (Phase 9b)
 
 ### Post-MVP
 

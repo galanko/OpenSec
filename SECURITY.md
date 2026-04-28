@@ -45,6 +45,18 @@ We prefer coordinated disclosure. Once a fix is available we publish a
 GitHub Security Advisory and release notes describing the impact and the
 upgrade path. Reporters are credited unless they request otherwise.
 
+## Supply chain
+
+Every published image at `ghcr.io/galanko/opensec` is signed with
+Sigstore keyless OIDC and carries SLSA v1 build provenance plus a
+CycloneDX SBOM, all attached as transparency-log-backed attestations.
+The image runs as a non-root user (UID 10001). Releases are gated by a
+required-reviewer GitHub Environment, and every third-party GitHub
+Action used in `release.yml` is pinned to a commit SHA.
+
+See [docs/verify-release.md](docs/verify-release.md) for verification
+commands.
+
 ## Safe harbour
 
 We will not pursue legal action against good-faith researchers who:

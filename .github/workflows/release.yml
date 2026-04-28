@@ -1,0 +1,422 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing annotated tag to release (e.g. v0.1.0-alpha). Must already be pushed.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE: ghcr.io/galanko/opensec
+
+jobs:
+  # ------------------------------------------------------------------
+  # 1. Validate — cheap checks first. Never touches credentials or
+  #    pushes anything; safe to run before the environment gate.
+  # ------------------------------------------------------------------
+  validate:
+    if: github.repository == 'galanko/OpenSec'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      is_prerelease: ${{ steps.resolve.outputs.is_prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Fetch main branch
+        run: git fetch --no-tags origin main:refs/remotes/origin/main
+
+      - name: Resolve tag and version
+        id: resolve
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "ERROR: tag '$TAG' is not a SemVer release tag (vX.Y.Z[-prerelease])." >&2
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          if [[ "$VERSION" == *-* ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+          echo "tag=$TAG"             >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"     >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "Resolved: tag=$TAG version=$VERSION prerelease=$IS_PRERELEASE"
+
+      - name: Assert tag is annotated
+        run: |
+          set -euo pipefail
+          OBJECT_TYPE=$(git for-each-ref --format='%(objecttype)' "refs/tags/${{ steps.resolve.outputs.tag }}")
+          if [ "$OBJECT_TYPE" != "tag" ]; then
+            echo "ERROR: tag must be annotated (created with 'git tag -a'), got object type '$OBJECT_TYPE'." >&2
+            exit 1
+          fi
+
+      - name: Assert tag is reachable from main
+        run: |
+          set -euo pipefail
+          TAG_COMMIT=$(git rev-list -n 1 "${{ steps.resolve.outputs.tag }}")
+          if ! git merge-base --is-ancestor "$TAG_COMMIT" origin/main; then
+            echo "ERROR: tag commit $TAG_COMMIT is not reachable from origin/main." >&2
+            echo "       Releases must be cut from main." >&2
+            exit 1
+          fi
+
+      - name: Assert VERSION matches tag
+        run: |
+          set -euo pipefail
+          VERSION_FILE="$(cat VERSION | tr -d '[:space:]')"
+          EXPECTED="${{ steps.resolve.outputs.version }}"
+          if [ "$VERSION_FILE" != "$EXPECTED" ]; then
+            echo "ERROR: VERSION file '$VERSION_FILE' != tag version '$EXPECTED'." >&2
+            exit 1
+          fi
+
+      - name: Assert CHANGELOG has a section for this version
+        run: |
+          set -euo pipefail
+          if ! grep -qE "^## \[${{ steps.resolve.outputs.version }}\]" CHANGELOG.md; then
+            echo "ERROR: CHANGELOG.md has no '## [${{ steps.resolve.outputs.version }}]' section." >&2
+            exit 1
+          fi
+
+  # ------------------------------------------------------------------
+  # 2. Smoke tests — re-run the main-branch CI checks against the tag
+  #    commit to catch any drift between merge and tag.
+  # ------------------------------------------------------------------
+  smoke-tests:
+    needs: validate
+    if: github.repository == 'galanko/OpenSec'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+
+      - name: Backend — sync deps
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: Backend — ruff lint
+        working-directory: backend
+        run: uv run ruff check opensec/ tests/
+
+      - name: Backend — pytest (unit)
+        working-directory: backend
+        run: uv run pytest -m 'not e2e' -x
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend — install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend — lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend — build
+        working-directory: frontend
+        run: npm run build
+
+  # ------------------------------------------------------------------
+  # 3. Build, sign, attest, publish.
+  #    Pauses on the `release` GitHub Environment for human approval
+  #    BEFORE any push to ghcr.io happens.
+  # ------------------------------------------------------------------
+  build-and-publish:
+    needs: [validate, smoke-tests]
+    if: github.repository == 'galanko/OpenSec'
+    runs-on: ubuntu-latest
+    environment:
+      name: release
+      url: https://github.com/galanko/OpenSec/pkgs/container/opensec
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      security-events: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      sbom_path: ${{ steps.sbom.outputs.output-file }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Set up QEMU (arm64 emulation)
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          flavor: |
+            latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ needs.validate.outputs.is_prerelease == 'false' }}
+            type=semver,pattern={{major}},enable=${{ needs.validate.outputs.is_prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ needs.validate.outputs.is_prerelease == 'false' }}
+            type=raw,value=alpha,enable=${{ contains(needs.validate.outputs.version, '-alpha') }}
+            type=raw,value=beta,enable=${{ contains(needs.validate.outputs.version, '-beta') }}
+            type=raw,value=rc,enable=${{ contains(needs.validate.outputs.version, '-rc') }}
+            type=sha,prefix=sha-,format=short
+          labels: |
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created={{date 'YYYY-MM-DDTHH:mm:ssZ'}}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OPENSEC_VERSION=${{ needs.validate.outputs.version }}
+            OPENSEC_REVISION=${{ github.sha }}
+            OPENSEC_CREATED=${{ github.event.repository.updated_at }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy — block on CRITICAL CVEs
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+        with:
+          image-ref: ${{ env.REGISTRY_IMAGE }}@${{ steps.build.outputs.digest }}
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+
+      - name: Trivy — SARIF for Security tab (HIGH+CRITICAL, non-blocking)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db:2
+        with:
+          image-ref: ${{ env.REGISTRY_IMAGE }}@${{ steps.build.outputs.digest }}
+          severity: HIGH,CRITICAL
+          exit-code: '0'
+          ignore-unfixed: true
+          format: sarif
+          output: trivy.sarif
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-image-${{ needs.validate.outputs.version }}
+
+      - name: Generate CycloneDX SBOM
+        id: sbom
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ${{ env.REGISTRY_IMAGE }}@${{ steps.build.outputs.digest }}
+          format: cyclonedx-json
+          output-file: opensec-${{ needs.validate.outputs.version }}.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Attest SLSA build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ${{ env.REGISTRY_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@bd218ad0dbcb3e146bd073d1d9c6d78e08aa8a0b # v2
+        with:
+          subject-name: ${{ env.REGISTRY_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          sbom-path: opensec-${{ needs.validate.outputs.version }}.cdx.json
+          push-to-registry: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      - name: Cosign — keyless sign image
+        run: |
+          cosign sign --yes \
+            "${REGISTRY_IMAGE}@${DIGEST}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Cosign — attach CycloneDX SBOM as cosign attestation
+        run: |
+          cosign attest --yes \
+            --predicate "opensec-${VERSION}.cdx.json" \
+            --type cyclonedx \
+            "${REGISTRY_IMAGE}@${DIGEST}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Smoke — pull-by-digest and check binaries
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY_IMAGE}@${DIGEST}"
+          docker pull "$IMG"
+          docker run --rm "$IMG" id -un | grep -qx opensec
+          docker run --rm "$IMG" cat /app/VERSION | grep -qx "$VERSION"
+          docker run --rm "$IMG" /app/bin/trivy --version
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ needs.validate.outputs.version }}
+          REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Upload SBOM as workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: opensec-${{ needs.validate.outputs.version }}.cdx.json
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------
+  # 4. Create the GitHub Release with CHANGELOG body, SBOM, and a
+  #    verification.txt the user can copy-paste against the digest.
+  # ------------------------------------------------------------------
+  github-release:
+    needs: [validate, build-and-publish]
+    if: github.repository == 'galanko/OpenSec'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Download SBOM
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: sbom
+
+      - name: Extract CHANGELOG section for this version
+        id: changelog
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.validate.outputs.version }}"
+          # Extract from "## [VERSION]" to the next "## " heading (exclusive).
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "ERROR: empty CHANGELOG section for $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Write verification instructions
+        run: |
+          DIGEST="${{ needs.build-and-publish.outputs.digest }}"
+          VERSION="${{ needs.validate.outputs.version }}"
+          cat > verification.txt <<EOF
+          OpenSec ${VERSION} — release verification
+          ==========================================
+
+          Image:  ghcr.io/galanko/opensec:${VERSION}
+          Digest: ${DIGEST}
+
+          1. Verify Sigstore keyless signature:
+
+             cosign verify ghcr.io/galanko/opensec@${DIGEST} \\
+               --certificate-identity-regexp 'https://github\\.com/galanko/OpenSec/\\.github/workflows/release\\.yml@.*' \\
+               --certificate-oidc-issuer https://token.actions.githubusercontent.com
+
+          2. Verify SLSA build provenance (requires GitHub CLI):
+
+             gh attestation verify oci://ghcr.io/galanko/opensec@${DIGEST} \\
+               --owner galanko
+
+          3. Inspect the published manifest list (amd64 + arm64):
+
+             docker buildx imagetools inspect ghcr.io/galanko/opensec:${VERSION}
+
+          4. The CycloneDX SBOM is attached to this release. Verify it's
+             the same one Sigstore signed:
+
+             cosign verify-attestation --type cyclonedx \\
+               --certificate-identity-regexp 'https://github\\.com/galanko/OpenSec/\\.github/workflows/release\\.yml@.*' \\
+               --certificate-oidc-issuer https://token.actions.githubusercontent.com \\
+               ghcr.io/galanko/opensec@${DIGEST}
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          name: ${{ needs.validate.outputs.tag }}
+          body_path: release-notes.md
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          files: |
+            opensec-${{ needs.validate.outputs.version }}.cdx.json
+            verification.txt
+          fail_on_unmatched_files: true
