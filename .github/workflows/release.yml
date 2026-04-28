@@ -322,9 +322,12 @@ jobs:
           set -euo pipefail
           IMG="${REGISTRY_IMAGE}@${DIGEST}"
           docker pull "$IMG"
-          docker run --rm "$IMG" id -un | grep -qx opensec
-          docker run --rm "$IMG" cat /app/VERSION | grep -qx "$VERSION"
-          docker run --rm "$IMG" /app/bin/trivy --version
+          # The image's ENTRYPOINT exec's supervisord (which runs uvicorn).
+          # Override with --entrypoint to actually run a one-shot probe;
+          # otherwise the container would hang on supervisord and never exit.
+          docker run --rm --entrypoint id "$IMG" -un | grep -qx opensec
+          docker run --rm --entrypoint cat "$IMG" /app/VERSION | grep -qx "$VERSION"
+          docker run --rm --entrypoint /app/bin/trivy "$IMG" --version
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           VERSION: ${{ needs.validate.outputs.version }}
