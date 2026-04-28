@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **One-line installer** (`scripts/install.sh`) — `curl -fsSL ...install.sh | sh`
+  bootstraps `~/opensec/`, generates `OPENSEC_CREDENTIAL_KEY`, prompts
+  for an LLM API key, and runs `docker compose up -d` against the
+  release image. Re-run any time to upgrade.
+- **Docker boot smoke test** (`backend/tests/docker/test_docker_install.py`)
+  using testcontainers — pulls the just-built image, boots it with stub
+  credentials, and asserts `/health` reaches 200 within 90s. Wired into
+  the release pipeline so a "builds-but-doesn't-start" regression
+  blocks publish.
+- **Platform-specific install notes** in [docs/install.md](docs/install.md)
+  for Linux (SELinux, rootless), macOS Docker Desktop, and Windows WSL2.
+- README troubleshooting table covering port conflicts, image pull
+  failures, restart loops, and host bind-mount permissions.
+
+### Changed
+
+- `docker/docker-compose.yml` now resolves the image tag via
+  `${OPENSEC_VERSION:-latest}` instead of hardcoding `0.1.0-alpha`.
+  Existing users: set `OPENSEC_VERSION=0.1.0-alpha` in `.env` to pin.
+- `docs/guides/docker-build.md` rewritten — was a "Phase 9 placeholder"
+  stub, now documents the local-build path for contributors and points
+  end users at [docs/install.md](docs/install.md).
+- The release pipeline now uploads `install.sh`, `docker-compose.yml`,
+  and `.env.example` as release assets, so
+  `/releases/latest/download/install.sh` resolves the curl one-liner.
+
 ## [0.1.0-alpha] - 2026-04-28
 
 First public alpha release of OpenSec — a self-hosted, single-container,

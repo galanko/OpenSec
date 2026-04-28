@@ -94,26 +94,46 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ## Quick start
 
-The fastest way to try OpenSec is the published, signed image.
+> **Prerequisites: Docker 24+ and an LLM API key** (Anthropic or OpenAI).
+> Tested on Linux (Ubuntu 24.04) and macOS Docker Desktop. Windows users:
+> run from inside WSL2.
 
-### Prerequisites
+### One-line install
 
-- Docker 24+
-- An LLM API key — `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`
+```bash
+curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.sh | sh
+```
 
-### Run it
+The installer drops a `docker-compose.yml` and `.env` in `~/opensec`,
+generates a credential vault key, prompts for your API key, and waits
+for `/health` to come up. Re-run any time to upgrade.
+
+When the installer prints the URL, open
+[http://localhost:8000](http://localhost:8000) and OpenSec is ready.
+
+### Manual install
+
+If you'd rather not pipe a script:
 
 ```bash
 docker run --rm -p 8000:8000 \
   -e ANTHROPIC_API_KEY=sk-ant-... \
   -v opensec-data:/data \
-  ghcr.io/galanko/opensec:0.1.0-alpha
+  ghcr.io/galanko/opensec:latest
 ```
 
-Open [http://localhost:8000](http://localhost:8000) and OpenSec is ready.
+For Compose, digest pinning, host bind-mounts, platform-specific notes,
+and upgrade paths, see [docs/install.md](docs/install.md).
 
-For full options (Docker Compose, digest pinning, host-bind volumes, upgrade
-notes), see [docs/install.md](docs/install.md).
+### Supported LLM providers
+
+| Provider  | Env var              | Example value         |
+|-----------|----------------------|-----------------------|
+| Anthropic | `ANTHROPIC_API_KEY`  | `sk-ant-...`          |
+| OpenAI    | `OPENAI_API_KEY`     | `sk-...`              |
+
+Set exactly one. Both can be set at the same time, but only one will be
+used per workspace based on the model selected in Settings.
 
 ### Verifying the image
 
@@ -131,6 +151,19 @@ gh attestation verify oci://ghcr.io/galanko/opensec@${DIGEST} --owner galanko
 ```
 
 Full instructions: [docs/verify-release.md](docs/verify-release.md).
+
+### Troubleshooting
+
+| Symptom | Likely cause / fix |
+|---|---|
+| `bind: address already in use` on port 8000 | Another service has the port. Set `OPENSEC_APP_PORT=8001` in `.env` (or pass `-p 8001:8000` to `docker run`). |
+| `pull access denied` on `ghcr.io/galanko/opensec` | The image is public; this usually means a stale Docker login. Try `docker logout ghcr.io` and re-pull. |
+| Container restart loop | `docker compose logs` will show why. Most common: missing API key, or `OPENSEC_CREDENTIAL_KEY` is not a valid base64-encoded 32-byte value. Regenerate with `openssl rand -base64 32`. |
+| `permission denied` on `/data` (host bind-mount) | The image runs as UID 10001. `sudo chown -R 10001:10001 /path/on/host` before mounting. Named volumes (the default) avoid this entirely. |
+| `/health` never returns 200 | First boot can take 10–15s. After that, check `docker compose logs` for an OpenCode startup error. |
+
+More platform-specific guidance (SELinux, Docker Desktop file-sharing,
+WSL2) lives in [docs/install.md](docs/install.md#platform-notes).
 
 <details>
 <summary><strong>Run from source (for development)</strong></summary>
