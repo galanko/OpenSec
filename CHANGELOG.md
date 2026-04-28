@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1-alpha] - 2026-04-29
+
+Polishes the install path before handing the alpha to external testers.
+No app behavior or API changes.
+
 ### Added
 
 - **One-line installer** (`scripts/install.sh`) — `curl -fsSL ...install.sh | sh`
@@ -96,5 +101,6 @@ SLSA build provenance and a CycloneDX SBOM attestation.
   One-line migration:
   `docker run --rm --user 0 -v opensec_data:/data alpine chown -R 10001:10001 /data`.
 
-[Unreleased]: https://github.com/galanko/OpenSec/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/galanko/OpenSec/compare/v0.1.1-alpha...HEAD
+[0.1.1-alpha]: https://github.com/galanko/OpenSec/releases/tag/v0.1.1-alpha
 [0.1.0-alpha]: https://github.com/galanko/OpenSec/releases/tag/v0.1.0-alpha
