@@ -2,7 +2,8 @@ services:
   opensec:
     # Production: pull the signed, multi-arch image from GHCR.
     # Verify the digest before deploying — see docs/verify-release.md.
-    image: ghcr.io/galanko/opensec:0.1.0-alpha
+    # Override the tag via OPENSEC_VERSION (e.g. OPENSEC_VERSION=0.1.0-alpha).
+    image: ghcr.io/galanko/opensec:${OPENSEC_VERSION:-latest}
     # Local dev: comment out `image:` above and uncomment this block to
     # build from source.
     # build:

@@ -328,10 +328,30 @@ jobs:
           docker run --rm --entrypoint id "$IMG" -un | grep -qx opensec
           docker run --rm --entrypoint cat "$IMG" /app/VERSION | grep -qx "$VERSION"
           docker run --rm --entrypoint /app/bin/trivy "$IMG" --version
+          # Tag the digest-pinned image with a local alias so the
+          # testcontainers smoke step (next) can find it without re-pulling.
+          docker tag "$IMG" opensec:smoke
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
           VERSION: ${{ needs.validate.outputs.version }}
           REGISTRY_IMAGE: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Setup Python (boot smoke)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup uv (boot smoke)
+        uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
+
+      - name: Smoke — boot image and probe /health
+        working-directory: backend
+        env:
+          OPENSEC_TEST_IMAGE: opensec:smoke
+        run: |
+          set -euo pipefail
+          uv sync --extra dev
+          uv run pytest -m docker tests/docker/ -v
 
       - name: Upload SBOM as workflow artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -412,6 +432,17 @@ jobs:
                ghcr.io/galanko/opensec@${DIGEST}
           EOF
 
+      - name: Stage install assets for release
+        run: |
+          set -euo pipefail
+          # Stage the install.sh + docker-compose.yml that match this tag, so
+          # the curl one-liner (`/releases/latest/download/install.sh`) and
+          # the manual compose recipe both resolve to the right artifacts.
+          cp scripts/install.sh           install.sh
+          cp docker/docker-compose.yml    docker-compose.yml
+          cp docker/.env.example          .env.example
+          chmod +x install.sh
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
@@ -422,4 +453,7 @@ jobs:
           files: |
             opensec-${{ needs.validate.outputs.version }}.cdx.json
             verification.txt
+            install.sh
+            docker-compose.yml
+            .env.example
           fail_on_unmatched_files: true
