@@ -67,6 +67,72 @@ async def test_create_workspace_finding_not_found(db_client):
     assert resp.status_code == 404
 
 
+async def test_resolve_workspace_flips_finding_to_validated(db_client, finding_id):
+    """PRD-0006 Story 5 — clicking Resolve on the workspace flips the linked
+    finding to validated so it visibly moves into the Done section.
+
+    Phase-1 stand-in for the validator until webhook-driven auto-validation
+    lands.
+    """
+    ws = (
+        await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    ).json()
+    # Sanity: finding is in_progress after workspace creation (prior fix).
+    pre = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert pre["status"] == "in_progress"
+
+    resp = await db_client.patch(
+        f"/api/workspaces/{ws['id']}", json={"state": "closed"}
+    )
+    assert resp.status_code == 200
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "validated"
+    assert post["derived"]["section"] == "done"
+    assert post["derived"]["stage"] == "fixed"
+
+
+async def test_resolve_workspace_does_not_flip_for_non_terminal_state(
+    db_client, finding_id
+):
+    """Updating workspace state to e.g. ``waiting`` must NOT mark the finding
+    as resolved — only ``state='closed'`` triggers the flip."""
+    ws = (
+        await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    ).json()
+
+    resp = await db_client.patch(
+        f"/api/workspaces/{ws['id']}", json={"state": "waiting"}
+    )
+    assert resp.status_code == 200
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "in_progress"  # unchanged from the create-flip
+    assert post["derived"]["section"] != "done"
+
+
+async def test_resolve_workspace_idempotent_on_already_done_finding(
+    db_client, finding_id
+):
+    """Re-resolving a workspace whose finding is already in a terminal state
+    must not silently re-categorise it (e.g. an exception/false_positive
+    decision must survive)."""
+    ws = (
+        await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    ).json()
+    # Mark the finding as a false-positive exception via the existing route.
+    await db_client.patch(
+        f"/api/findings/{finding_id}",
+        json={"status": "exception", "raw_payload": {"exception_reason": "false_positive"}},
+    )
+
+    await db_client.patch(f"/api/workspaces/{ws['id']}", json={"state": "closed"})
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "exception"  # NOT overwritten
+    assert post["derived"]["stage"] == "false_positive"
+
+
 async def test_create_workspace_flips_finding_to_in_progress(db_client, finding_id):
     """PRD-0006 Story 2 / IMPL-0006 root-cause fix.
 

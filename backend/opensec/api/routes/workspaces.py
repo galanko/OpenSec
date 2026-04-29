@@ -13,7 +13,10 @@ from sse_starlette.sse import EventSourceResponse
 
 from opensec.api.tasks import fire_and_forget_send
 from opensec.db.connection import get_db
-from opensec.db.repo_finding import get_finding
+from opensec.db.repo_finding import (
+    get_finding,
+    mark_resolved_on_workspace_close,
+)
 from opensec.db.repo_integration import list_integrations
 from opensec.db.repo_workspace import (
     get_workspace,
@@ -138,6 +141,18 @@ async def update_workspace_endpoint(
     workspace = await update_workspace(db, workspace_id, body)
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
+
+    # PRD-0006 Story 5 — when the user resolves a finding-remediation
+    # workspace, flip the linked Finding.status so the Issues page row
+    # moves into Done. Idempotent; skips posture-fix workspaces (no
+    # finding_id) and never overwrites an existing terminal status.
+    if (
+        body.state == "closed"
+        and workspace.kind == "finding_remediation"
+        and workspace.finding_id is not None
+    ):
+        await mark_resolved_on_workspace_close(db, workspace.finding_id)
+
     return workspace
 
 

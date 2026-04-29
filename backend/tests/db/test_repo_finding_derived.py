@@ -19,6 +19,7 @@ from opensec.db.repo_finding import (
     create_finding,
     get_finding,
     list_findings,
+    mark_resolved_on_workspace_close,
     mark_started_on_workspace_create,
     update_finding,
 )
@@ -211,6 +212,79 @@ async def test_mark_started_leaves_other_statuses_alone(db) -> None:
             ),
         )
         flipped = await mark_started_on_workspace_create(db, f.id)
+        assert flipped is False, f"{status} should be left alone"
+        refreshed = await get_finding(db, f.id)
+        assert refreshed is not None
+        assert refreshed.status == status
+
+
+# ----------------------------------------------------------------------------
+# mark_resolved_on_workspace_close
+# ----------------------------------------------------------------------------
+
+
+async def test_mark_resolved_flips_in_progress_to_validated(db) -> None:
+    f = await create_finding(
+        db,
+        FindingCreate(
+            source_type="trivy", source_id="a", title="a", status="in_progress"
+        ),
+    )
+    flipped = await mark_resolved_on_workspace_close(db, f.id)
+    assert flipped is True
+    refreshed = await get_finding(db, f.id)
+    assert refreshed is not None
+    assert refreshed.status == "validated"
+
+
+async def test_mark_resolved_flips_remediated_to_validated(db) -> None:
+    """Most common path — agent opened a PR, user merged it, validator hadn't
+    run yet; user clicks Resolve in the workspace."""
+    f = await create_finding(
+        db,
+        FindingCreate(
+            source_type="trivy", source_id="a", title="a", status="remediated"
+        ),
+    )
+    assert await mark_resolved_on_workspace_close(db, f.id) is True
+    refreshed = await get_finding(db, f.id)
+    assert refreshed is not None
+    assert refreshed.status == "validated"
+
+
+async def test_mark_resolved_flips_new_and_triaged_too(db) -> None:
+    """Defensive — user explicitly chose Resolve, even on a workspace that
+    never started agents. Honour the click."""
+    for status in ("new", "triaged"):
+        f = await create_finding(
+            db,
+            FindingCreate(
+                source_type="trivy",
+                source_id=f"item-{status}",
+                title=status,
+                status=status,
+            ),
+        )
+        assert await mark_resolved_on_workspace_close(db, f.id) is True
+        refreshed = await get_finding(db, f.id)
+        assert refreshed is not None
+        assert refreshed.status == "validated"
+
+
+async def test_mark_resolved_leaves_terminal_statuses_alone(db) -> None:
+    """Already-Done findings (validated / closed / exception / passed) must
+    not be silently re-categorised."""
+    for status in ("validated", "closed", "exception", "passed"):
+        f = await create_finding(
+            db,
+            FindingCreate(
+                source_type="trivy",
+                source_id=f"item-{status}",
+                title=status,
+                status=status,
+            ),
+        )
+        flipped = await mark_resolved_on_workspace_close(db, f.id)
         assert flipped is False, f"{status} should be left alone"
         refreshed = await get_finding(db, f.id)
         assert refreshed is not None
