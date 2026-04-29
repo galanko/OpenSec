@@ -92,6 +92,29 @@ async def get_sidebar(db: aiosqlite.Connection, workspace_id: str) -> SidebarSta
     return _row_to_sidebar(row) if row else None
 
 
+async def mark_plan_approved(
+    db: aiosqlite.Connection, workspace_id: str
+) -> SidebarState | None:
+    """Set ``sidebar.plan.approved = true`` for the given workspace.
+
+    Atomic read-modify-write — preserves every other field in the sidebar
+    row (a partial PUT on the existing endpoint would null them out).
+    Returns the updated SidebarState, or ``None`` if no sidebar row
+    exists yet (i.e. the planner hasn't reported back).
+    """
+    sidebar = await get_sidebar(db, workspace_id)
+    if sidebar is None or not sidebar.plan:
+        return sidebar
+    new_plan = {**sidebar.plan, "approved": True}
+    await db.execute(
+        "UPDATE sidebar_state SET plan = ?, updated_at = ?"
+        " WHERE workspace_id = ?",
+        (json.dumps(new_plan), datetime.now(UTC).isoformat(), workspace_id),
+    )
+    await db.commit()
+    return await get_sidebar(db, workspace_id)
+
+
 async def list_sidebars_by_workspace_ids(
     db: aiosqlite.Connection, workspace_ids: list[str]
 ) -> dict[str, SidebarState]:

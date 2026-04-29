@@ -81,3 +81,52 @@ async def test_sidebar_all_fields(db_client, workspace_id):
     data = resp.json()
     for key, value in payload.items():
         assert data[key] == value
+
+
+# ---------------------------------------------------------------------------
+# Plan approval (PRD-0006 Story 3 — Phase 1 stop-on-plan gate)
+# ---------------------------------------------------------------------------
+
+
+async def test_approve_plan_sets_approved_flag(db_client, workspace_id):
+    """POST /workspaces/:id/plan/approve flips sidebar.plan.approved=True
+    without overwriting other sidebar fields."""
+    await db_client.put(
+        f"/api/workspaces/{workspace_id}/sidebar",
+        json={
+            "summary": {"text": "Critical bug"},
+            "plan": {"plan_steps": ["Step 1"], "estimated_effort": "2h"},
+        },
+    )
+    resp = await db_client.post(f"/api/workspaces/{workspace_id}/plan/approve")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["plan"]["approved"] is True
+    # Non-plan fields preserved.
+    assert data["summary"] == {"text": "Critical bug"}
+    # Plan internals preserved.
+    assert data["plan"]["plan_steps"] == ["Step 1"]
+    assert data["plan"]["estimated_effort"] == "2h"
+
+
+async def test_approve_plan_404_when_no_plan(db_client, workspace_id):
+    """Approving before the planner runs returns 404 (no plan to approve)."""
+    resp = await db_client.post(f"/api/workspaces/{workspace_id}/plan/approve")
+    assert resp.status_code == 404
+
+
+async def test_approve_plan_404_when_workspace_missing(db_client):
+    resp = await db_client.post("/api/workspaces/does-not-exist/plan/approve")
+    assert resp.status_code == 404
+
+
+async def test_approve_plan_idempotent(db_client, workspace_id):
+    """Re-approving an already-approved plan is a no-op (still 200)."""
+    await db_client.put(
+        f"/api/workspaces/{workspace_id}/sidebar",
+        json={"plan": {"plan_steps": ["x"]}},
+    )
+    await db_client.post(f"/api/workspaces/{workspace_id}/plan/approve")
+    resp = await db_client.post(f"/api/workspaces/{workspace_id}/plan/approve")
+    assert resp.status_code == 200
+    assert resp.json()["plan"]["approved"] is True

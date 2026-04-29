@@ -646,6 +646,14 @@ export const api = {
       { method: 'POST' },
     ),
 
+  // Approve the planner's output and release the run-all loop's gate
+  // so the executor can run (PRD-0006 Story 3).
+  approvePlan: (workspaceId: string) =>
+    request<SidebarState>(
+      `/api/workspaces/${workspaceId}/plan/approve`,
+      { method: 'POST' },
+    ),
+
   // Agent execution SSE stream (connect when agent starts, disconnect on completion)
   streamAgentExecution: (workspaceId: string): EventSource =>
     new EventSource(`/api/workspaces/${workspaceId}/agent-execution/stream`),

@@ -88,7 +88,10 @@ class TestSuggestNext:
         assert result is not None
         assert result.agent_type == "remediation_planner"
 
-    def test_plan_done_suggests_executor(self):
+    def test_plan_done_pauses_for_user_approval(self):
+        """PRD-0006 Story 3 — after the planner runs, the pipeline pauses
+        until the user explicitly approves. The run-all loop terminates on
+        ``action_type='await_approval'``."""
         snapshot = _base_snapshot(
             enrichment={"normalized_title": "Test"},
             exposure={"recommended_urgency": "high"},
@@ -97,8 +100,33 @@ class TestSuggestNext:
         )
         result = suggest_next(snapshot)
         assert result is not None
+        assert result.action_type == "await_approval"
+        assert result.agent_type is None
+
+    def test_plan_approved_resumes_to_executor(self):
+        """When the user approves (sidebar.plan.approved=True), the gate
+        releases and the executor is suggested as normal."""
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
+            plan={"plan_steps": ["Step 1"], "approved": True},
+        )
+        result = suggest_next(snapshot)
+        assert result is not None
         assert result.agent_type == "remediation_executor"
         assert result.action_type == "run_agent"
+
+    def test_plan_with_explicit_false_approval_still_pauses(self):
+        snapshot = _base_snapshot(
+            enrichment={"normalized_title": "Test"},
+            exposure={"recommended_urgency": "high"},
+            evidence={"affected_files": [], "fix_safety": "safe_bump"},
+            plan={"plan_steps": ["Step 1"], "approved": False},
+        )
+        result = suggest_next(snapshot)
+        assert result is not None
+        assert result.action_type == "await_approval"
 
     def test_executor_pr_created_suggests_review_pr(self):
         """After executor creates PR, suggest review (not another agent)."""

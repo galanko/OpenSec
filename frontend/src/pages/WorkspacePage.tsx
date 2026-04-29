@@ -13,6 +13,7 @@ import ListCard from '@/components/ListCard'
 import Markdown from '@/components/Markdown'
 import PageShell from '@/components/PageShell'
 import PermissionApprovalCard from '@/components/PermissionApprovalCard'
+import PlanApprovalCard from '@/components/PlanApprovalCard'
 import PlannerResultCard from '@/components/PlannerResultCard'
 import RemediationResultCard from '@/components/RemediationResultCard'
 import SeverityBadge from '@/components/SeverityBadge'
@@ -169,6 +170,39 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
   const [permissionLoading, setPermissionLoading] = useState(false)
   const [permissionError, setPermissionError] = useState<string | null>(null)
 
+  // Plan-approval gate (PRD-0006 Story 3). The pipeline pauses after the
+  // planner finishes; we render PlanApprovalCard until the user clicks
+  // approve, then resume the run-all loop.
+  const [approvingPlan, setApprovingPlan] = useState(false)
+  const planFromSidebar = sidebar?.plan as
+    | { plan_steps?: string[]; definition_of_done?: string[]; approved?: boolean; branch_name?: string }
+    | undefined
+  const executorCompleted = (agentRuns ?? []).some(
+    r => r.agent_type === 'remediation_executor' && r.status === 'completed',
+  )
+  const planAwaitingApproval = !!(
+    planFromSidebar?.plan_steps?.length &&
+    !planFromSidebar.approved &&
+    !executorCompleted &&
+    !activeRun
+  )
+
+  const handleApprovePlan = useCallback(async () => {
+    if (approvingPlan) return
+    setApprovingPlan(true)
+    try {
+      await api.approvePlan(workspaceId)
+      // Re-fetch sidebar so the gate flips locally even before the next poll.
+      await queryClient.invalidateQueries({ queryKey: ['sidebar', workspaceId] })
+      await api.runAllPipeline(workspaceId)
+      queryClient.invalidateQueries({ queryKey: ['agent-runs', workspaceId] })
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'error', content: `Failed to approve plan: ${err}` }])
+    } finally {
+      setApprovingPlan(false)
+    }
+  }, [approvingPlan, workspaceId, queryClient])
+
   // Auto-scroll (includes pendingPermission to scroll to approval card)
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -241,8 +275,13 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
           }
         }
 
-        // Restore completed agent runs as structured cards in the timeline
-        const completedRuns: ChatMessage[] = runs
+        // Restore completed agent runs as structured cards in the timeline.
+        // ``api.listAgentRuns`` returns rows ``ORDER BY started_at DESC``
+        // (newest-first); we want oldest-first so the cards land in chrono
+        // order at the bottom of the chat — newest at the bottom, matching
+        // every other chat UI on the planet.
+        const completedRuns: ChatMessage[] = [...runs]
+          .reverse()
           .filter((r) => r.status === 'completed' && r.structured_output)
           .map((r) => ({
             role: 'assistant' as const,
@@ -568,6 +607,38 @@ function ActiveWorkspace({ workspaceId }: { workspaceId: string }) {
               })()}
             </div>
           ))}
+
+          {/* Plan-approval gate (PRD-0006 Story 3) — render the existing
+              PlanApprovalCard inline once the planner has written a plan but
+              the user hasn't approved it. The pipeline run-all loop is
+              already paused server-side at this point; clicking Approve
+              flips ``sidebar.plan.approved`` and resumes the loop. */}
+          {planAwaitingApproval && !isResolved && (
+            <div className="max-w-3xl self-start w-full">
+              <PlanApprovalCard
+                plan={{
+                  plan_steps: planFromSidebar?.plan_steps ?? [],
+                  definition_of_done:
+                    (sidebar?.definition_of_done as { items?: string[] } | undefined)?.items
+                    ?? planFromSidebar?.definition_of_done
+                    ?? [],
+                  interim_mitigation: null,
+                  dependencies: [],
+                  estimated_effort: null,
+                  suggested_due_date: null,
+                  validation_method: null,
+                }}
+                branchName={planFromSidebar?.branch_name}
+                onApprove={() => { void handleApprovePlan() }}
+                onModify={() => {
+                  setMessages(prev => [...prev, {
+                    role: 'assistant',
+                    content: 'Modifying the plan inline is coming in a future release. For now, send refinements via chat.',
+                  }])
+                }}
+              />
+            </div>
+          )}
 
           {/* Streaming indicator */}
           {streaming && (

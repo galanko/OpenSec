@@ -15,8 +15,9 @@ from opensec.agents.pipeline import VALID_AGENT_TYPES, suggest_next
 from opensec.api.routes.workspaces import _resolve_repo_env_vars
 from opensec.db.connection import get_db
 from opensec.db.repo_agent_run import get_agent_run, update_agent_run
+from opensec.db.repo_sidebar import mark_plan_approved
 from opensec.db.repo_workspace import get_workspace
-from opensec.models import AgentRunUpdate
+from opensec.models import AgentRunUpdate, SidebarState
 
 logger = logging.getLogger(__name__)
 
@@ -304,6 +305,38 @@ async def run_all_pipeline(
         status="running",
         message="Pipeline started — agents will run sequentially",
     )
+
+
+# ---------------------------------------------------------------------------
+# Approve plan — release the run-all gate before remediation_executor runs
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/workspaces/{workspace_id}/plan/approve",
+    response_model=SidebarState,
+)
+async def approve_plan(workspace_id: str, db=Depends(get_db)):
+    """Mark the workspace's remediation plan as approved.
+
+    PRD-0006 Story 3 — the planner pauses the run-all loop until the user
+    explicitly approves. This endpoint flips ``sidebar.plan.approved=true``;
+    a subsequent ``POST /pipeline/run-all`` will then suggest the executor.
+
+    Returns 404 if the workspace doesn't exist or the planner hasn't yet
+    written a plan to the sidebar.
+    """
+    workspace = await get_workspace(db, workspace_id)
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    sidebar = await mark_plan_approved(db, workspace_id)
+    if sidebar is None or not sidebar.plan:
+        raise HTTPException(
+            status_code=404,
+            detail="No plan to approve — has the planner finished?",
+        )
+    return sidebar
 
 
 # ---------------------------------------------------------------------------

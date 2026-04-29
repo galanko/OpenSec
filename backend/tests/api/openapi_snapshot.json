@@ -7024,6 +7024,49 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/plan/approve": {
+      "post": {
+        "description": "Mark the workspace's remediation plan as approved.\n\nPRD-0006 Story 3 \u2014 the planner pauses the run-all loop until the user\nexplicitly approves. This endpoint flips ``sidebar.plan.approved=true``;\na subsequent ``POST /pipeline/run-all`` will then suggest the executor.\n\nReturns 404 if the workspace doesn't exist or the planner hasn't yet\nwritten a plan to the sidebar.",
+        "operationId": "approve_plan_api_workspaces__workspace_id__plan_approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SidebarState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Plan",
+        "tags": [
+          "agent-execution"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/pool-status": {
       "get": {
         "description": "Debug endpoint: show process pool status for this workspace.",
