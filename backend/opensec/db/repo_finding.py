@@ -282,6 +282,29 @@ async def list_posture_findings(
     return [_row_to_finding(row) for row in await cursor.fetchall()]
 
 
+async def mark_started_on_workspace_create(
+    db: aiosqlite.Connection, finding_id: str
+) -> bool:
+    """Flip ``Finding.status`` from ``new`` / ``triaged`` → ``in_progress``.
+
+    Called by ``context_builder.create_workspace`` so the user's click on
+    "Start" immediately moves the row out of Todo (PRD-0006 Story 2). Other
+    statuses (``in_progress`` / ``remediated`` / ``validated`` / ``closed`` /
+    ``exception`` / ``passed``) are left untouched — re-creating a workspace
+    on a closed finding must not silently re-open it.
+
+    Returns ``True`` if a row was updated, ``False`` otherwise.
+    """
+    now_iso = datetime.now(UTC).isoformat()
+    cursor = await db.execute(
+        "UPDATE finding SET status = 'in_progress', updated_at = ?"
+        " WHERE id = ? AND status IN ('new', 'triaged')",
+        (now_iso, finding_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
 async def update_finding(
     db: aiosqlite.Connection, finding_id: str, data: FindingUpdate
 ) -> Finding | None:

@@ -6,6 +6,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from opensec.db.repo_finding import mark_started_on_workspace_create
 from opensec.db.repo_workspace import (
     create_workspace,
     delete_workspace,
@@ -83,6 +84,12 @@ class WorkspaceContextBuilder:
             current_focus=initial_focus,
         )
         workspace = await create_workspace(db, ws_data)
+
+        # 1b. Flip Finding.status new/triaged → in_progress so the Issues
+        # page (PRD-0006) moves the row out of Todo on the user's click,
+        # rather than waiting for the first agent run to update it.
+        # Idempotent — other statuses are left alone.
+        await mark_started_on_workspace_create(db, finding.id)
 
         # 2. Resolve MCP configs (if vault is configured)
         mcp_servers = None

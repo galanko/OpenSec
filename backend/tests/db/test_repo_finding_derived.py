@@ -19,6 +19,7 @@ from opensec.db.repo_finding import (
     create_finding,
     get_finding,
     list_findings,
+    mark_started_on_workspace_create,
     update_finding,
 )
 from opensec.db.repo_sidebar import (
@@ -165,6 +166,55 @@ async def test_get_finding_populates_derived(db) -> None:
     assert found.derived.section == "review"
     assert found.derived.stage == "pr_ready"
     assert found.derived.pr_url == "https://x/y/pull/1"
+
+
+# ----------------------------------------------------------------------------
+# mark_started_on_workspace_create
+# ----------------------------------------------------------------------------
+
+
+async def test_mark_started_flips_new_to_in_progress(db) -> None:
+    f = await create_finding(
+        db, FindingCreate(source_type="trivy", source_id="a", title="a", status="new")
+    )
+    flipped = await mark_started_on_workspace_create(db, f.id)
+    assert flipped is True
+    refreshed = await get_finding(db, f.id)
+    assert refreshed is not None
+    assert refreshed.status == "in_progress"
+
+
+async def test_mark_started_flips_triaged_to_in_progress(db) -> None:
+    f = await create_finding(
+        db,
+        FindingCreate(
+            source_type="trivy", source_id="a", title="a", status="triaged"
+        ),
+    )
+    assert await mark_started_on_workspace_create(db, f.id) is True
+    refreshed = await get_finding(db, f.id)
+    assert refreshed is not None
+    assert refreshed.status == "in_progress"
+
+
+async def test_mark_started_leaves_other_statuses_alone(db) -> None:
+    """Closed / remediated / validated / exception rows must NOT be silently
+    re-opened by a workspace re-creation."""
+    for status in ("in_progress", "remediated", "validated", "closed", "exception"):
+        f = await create_finding(
+            db,
+            FindingCreate(
+                source_type="trivy",
+                source_id=f"item-{status}",
+                title=status,
+                status=status,
+            ),
+        )
+        flipped = await mark_started_on_workspace_create(db, f.id)
+        assert flipped is False, f"{status} should be left alone"
+        refreshed = await get_finding(db, f.id)
+        assert refreshed is not None
+        assert refreshed.status == status
 
 
 # ----------------------------------------------------------------------------

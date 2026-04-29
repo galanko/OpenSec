@@ -117,6 +117,7 @@ async def db_client():
     # Mock app.state objects for workspace routes (Layer 3+4).
     # The mocks must produce real Workspace objects so FastAPI response
     # validation passes. We delegate to raw DB functions.
+    from opensec.db.repo_finding import mark_started_on_workspace_create
     from opensec.db.repo_workspace import (
         create_workspace as raw_create,
     )
@@ -131,7 +132,10 @@ async def db_client():
 
     async def _mock_create_workspace(db, finding, **_kwargs):
         data = WorkspaceCreate(finding_id=finding.id)
-        return await raw_create(db, data)
+        ws = await raw_create(db, data)
+        # Mirror real context_builder: PRD-0006 / IMPL-0006 root-cause fix.
+        await mark_started_on_workspace_create(db, finding.id)
+        return ws
 
     async def _mock_delete_workspace(db, workspace_id):
         return await raw_delete(db, workspace_id)

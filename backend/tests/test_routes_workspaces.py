@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from opensec.db.repo_finding import mark_started_on_workspace_create
 from opensec.db.repo_workspace import create_workspace as raw_create_workspace
 from opensec.db.repo_workspace import delete_workspace as raw_delete_workspace
 from opensec.models import WorkspaceCreate
@@ -33,7 +34,11 @@ async def _configure_mock_builder(db_client):
 
     async def _mock_create(db, finding, **_kwargs):
         data = WorkspaceCreate(finding_id=finding.id)
-        return await raw_create_workspace(db, data)
+        ws = await raw_create_workspace(db, data)
+        # Mirror the real context_builder behaviour (PRD-0006 / IMPL-0006):
+        # creating a workspace flips Finding.status new/triaged → in_progress.
+        await mark_started_on_workspace_create(db, finding.id)
+        return ws
 
     async def _mock_delete(db, workspace_id):
         return await raw_delete_workspace(db, workspace_id)
@@ -60,6 +65,26 @@ async def test_create_workspace(db_client, finding_id):
 async def test_create_workspace_finding_not_found(db_client):
     resp = await db_client.post("/api/workspaces", json={"finding_id": "nonexistent"})
     assert resp.status_code == 404
+
+
+async def test_create_workspace_flips_finding_to_in_progress(db_client, finding_id):
+    """PRD-0006 Story 2 / IMPL-0006 root-cause fix.
+
+    Clicking Start on a Todo row creates a workspace AND flips the finding's
+    status so the row visibly leaves Todo immediately, instead of waiting
+    for the first agent run to update Finding.status.
+    """
+    # Sanity check the seed status.
+    pre = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert pre["status"] == "new"
+
+    resp = await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    assert resp.status_code == 201
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "in_progress"
+    # Derived projection should also flip out of Todo.
+    assert post["derived"]["section"] != "todo"
 
 
 async def test_list_workspaces(db_client, finding_id):

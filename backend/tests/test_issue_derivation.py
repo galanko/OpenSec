@@ -323,18 +323,34 @@ def test_case_15_executor_running_beats_plan_ready() -> None:
     assert result.stage == "generating"
 
 
-def test_case_16_missing_sidebar_is_todo_regardless_of_status() -> None:
-    """Even if Finding.status is ``in_progress``, missing sidebar means we
-    have no signal — return todo so the user can re-trigger."""
-    for status in ("new", "triaged", "in_progress", "remediated"):
+def test_case_16_missing_sidebar_dispatches_on_finding_status() -> None:
+    """When sidebar is None we dispatch on Finding.status:
+
+    - ``new`` / ``triaged`` → todo (the user hasn't started yet)
+    - ``in_progress`` → in_progress / planning (the user clicked Start; the
+      planner just hasn't reported back yet — the row must visibly leave
+      Todo so the click feels responsive, per PRD-0006 Story 2)
+    - ``remediated`` → todo (defensive — without a sidebar there's no PR to
+      review and no validator state to surface)
+    """
+    for status in ("new", "triaged"):
         result = derive(
             make_finding(status=status),
             workspace=make_workspace(),
             sidebar=None,
             latest_runs_by_type={},
         )
-        assert result.section == "todo", f"status={status} should fall back to todo"
+        assert result.section == "todo", f"status={status} should be todo"
         assert result.stage == "todo"
+
+    in_progress = derive(
+        make_finding(status="in_progress"),
+        workspace=make_workspace(),
+        sidebar=None,
+        latest_runs_by_type={},
+    )
+    assert in_progress.section == "in_progress"
+    assert in_progress.stage == "planning"
 
 
 def test_case_17_failed_run_falls_through_to_plan_ready() -> None:

@@ -66,11 +66,6 @@ def derive(
     if finding.status in ("validated", "closed"):
         return out("done", "fixed")
 
-    # Missing SidebarState means we have no signal (IMPL-0006 edge case 16) —
-    # fall back to todo regardless of Finding.status.
-    if sidebar is None:
-        return out("todo", "todo")
-
     planner_run = latest_runs_by_type.get("remediation_planner")
     executor_run = latest_runs_by_type.get("remediation_executor")
     validator_run = latest_runs_by_type.get("validation_checker")
@@ -95,5 +90,10 @@ def derive(
             return out("review", "plan_ready")
         if _is_running(planner_run):
             return out("in_progress", "planning")
+        # Status=in_progress with no agent activity yet (e.g. the user just
+        # clicked Start and the planner hasn't reported back). Show as
+        # in_progress / planning rather than falling back to todo so the
+        # row visibly leaves the Todo section on click.
+        return out("in_progress", "planning")
 
     return out("todo", "todo")
