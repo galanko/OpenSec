@@ -1193,6 +1193,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "derived": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueDerived"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description": {
             "anyOf": [
               {
@@ -2132,6 +2142,68 @@
           "provider_name"
         ],
         "title": "IntegrationHealthStatus",
+        "type": "object"
+      },
+      "IssueDerived": {
+        "properties": {
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
+          "section": {
+            "enum": [
+              "review",
+              "in_progress",
+              "todo",
+              "done"
+            ],
+            "title": "Section",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "todo",
+              "planning",
+              "generating",
+              "pushing",
+              "opening_pr",
+              "validating",
+              "plan_ready",
+              "pr_ready",
+              "pr_awaiting_val",
+              "fixed",
+              "false_positive",
+              "wont_fix",
+              "accepted",
+              "deferred"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "section",
+          "stage"
+        ],
+        "title": "IssueDerived",
         "type": "object"
       },
       "MarkSummarySeenResponse": {
