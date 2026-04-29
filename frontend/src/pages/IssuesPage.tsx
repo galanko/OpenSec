@@ -70,6 +70,10 @@ function IssuesPageContent() {
   const { data: dashboard } = useDashboard()
   const grade = dashboard?.grade ?? null
 
+  // ``has_workspace: false`` is intentionally NOT passed (unlike the legacy
+  // FindingsPage). Issues page needs findings WITH workspaces too — they're
+  // what populate Review, In progress, and Done. ``scope: 'current'`` keeps
+  // posture rows out of the response (Phase 1 is vulnerability-only).
   const {
     data: findings,
     isLoading,
@@ -266,6 +270,10 @@ function IssuesPageContent() {
           )}
 
           {/* ── IN PROGRESS ─────────────────────────────────────────── */}
+          {/* Render the In progress section unless we're already showing the
+              "Review is clear" empty card AND there's nothing in progress to
+              report — keeps the page from displaying two consecutive
+              empty-state messages. */}
           {(sections.inProgress.length > 0 || !showEmptyReviewCard) && (
             <section aria-label="In progress section" className="mb-8">
               <button

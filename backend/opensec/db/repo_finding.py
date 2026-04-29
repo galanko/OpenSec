@@ -163,8 +163,6 @@ async def _populate_derived(
     if not findings:
         return findings
 
-    # Imported lazily so test seams (which patch repo_workspace etc.) work
-    # and to avoid circular-import risk at module load.
     from opensec.db.repo_agent_run import list_latest_runs_by_workspace_ids
     from opensec.db.repo_sidebar import list_sidebars_by_workspace_ids
     from opensec.db.repo_workspace import list_workspaces_by_finding_ids

@@ -58,9 +58,8 @@ async def test_list_workspaces_by_finding_ids_returns_one_per_finding(db) -> Non
     assert by_finding[f2.id].id == w2.id
 
 
-async def test_list_workspaces_by_finding_ids_empty_input_returns_empty() -> None:
-    # No fixture needed for the empty-list short-circuit.
-    pass
+async def test_list_workspaces_by_finding_ids_empty_input_returns_empty(db) -> None:
+    assert await list_workspaces_by_finding_ids(db, []) == {}
 
 
 async def test_list_workspaces_by_finding_ids_picks_most_recent_when_dup(db) -> None:
