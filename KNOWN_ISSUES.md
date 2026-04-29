@@ -4,6 +4,46 @@ Tracked problems to fix in focused sessions. Remove items once resolved.
 
 ---
 
+### Manual smoke — Solve flow after PRD-0006 Phase 1 ships
+
+**Status:** Open — to be re-verified after the alpha cut lands.
+
+**Why this is here:** PRD-0006 Phase 1 renames Findings → Issues on the
+frontend (route + nav) and adds a pinned Review section with stage-aware
+row actions. The IMPL plan (`docs/architecture/plans/IMPL-0006-issues-page-phase-1.md`)
+explicitly preserves the existing `Solve` flow: clicking a Todo row should
+still create a workspace and navigate to `/workspace/:id` — same
+behaviour as today, just a different entry point.
+
+**How to smoke this:**
+
+1. `scripts/dev.sh`, open the app at http://localhost:5173.
+2. Confirm the SideNav shows only **Dashboard** and **Issues** (Settings
+   anchored bottom). No Findings, Workspace, or History entries.
+3. Confirm `/findings` redirects to `/issues` (browser address bar).
+4. Confirm `/findings/:id` redirects to `/issues/:id` for any existing
+   finding ID.
+5. Confirm `/workspace/:id` still resolves and renders the existing
+   WorkspacePage when navigated to directly.
+6. On the Issues page, click an existing **Todo** row → expect: workspace
+   is created, browser navigates to `/workspace/<new-id>`, the existing
+   workspace UI renders unchanged.
+7. Pick an issue that already has a workspace and a plan (Review section,
+   "Plan ready") → click the **Review plan** button → expect: navigate
+   directly to `/workspace/<existing-id>`, no new workspace created.
+8. Open and close the **In progress** section header → expect: collapse
+   state persists on remount within the same browser session and the
+   stage-breakdown caption reads `{n} planning · {n} generating ·
+   {n} opening PR · {n} validating`.
+9. Dismiss the migration banner → expect: hidden until a new tab is
+   opened.
+
+**If any step fails:** stop, capture the network log + DOM snapshot, and
+re-open the IMPL-0006 plan before patching. Do not silently mutate
+backend behaviour.
+
+---
+
 ### SSE stream uses global event bus — no per-session filtering at source
 
 **Impact:** The OpenCode `/event` endpoint is a global stream. Our backend filters by `sessionID`, but still receives all events for all sessions. With many concurrent sessions this could become a bottleneck.
