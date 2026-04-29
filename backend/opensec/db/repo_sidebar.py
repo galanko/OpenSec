@@ -90,3 +90,24 @@ async def get_sidebar(db: aiosqlite.Connection, workspace_id: str) -> SidebarSta
     )
     row = await cursor.fetchone()
     return _row_to_sidebar(row) if row else None
+
+
+async def list_sidebars_by_workspace_ids(
+    db: aiosqlite.Connection, workspace_ids: list[str]
+) -> dict[str, SidebarState]:
+    """Return ``{workspace_id: SidebarState}`` for the given workspaces.
+
+    IMPL-0006 batch helper. Workspaces with no sidebar row are absent from
+    the returned mapping.
+    """
+    if not workspace_ids:
+        return {}
+    placeholders = ",".join("?" for _ in workspace_ids)
+    cursor = await db.execute(
+        f"SELECT * FROM sidebar_state WHERE workspace_id IN ({placeholders})",  # noqa: S608
+        workspace_ids,
+    )
+    return {
+        sb.workspace_id: sb
+        for sb in (_row_to_sidebar(row) for row in await cursor.fetchall())
+    }
