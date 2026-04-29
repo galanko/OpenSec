@@ -4,8 +4,9 @@ import { http, HttpResponse } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
 import IssuesPage from '../IssuesPage'
-import type { Finding, IssueStage } from '../../api/client'
+import type { Finding } from '../../api/client'
 import { server } from '../../mocks/server'
+import { makeFinding } from '../../test/fixtures/finding'
 
 const navigateMock = vi.fn()
 vi.mock('react-router', async (orig) => {
@@ -15,56 +16,6 @@ vi.mock('react-router', async (orig) => {
     useNavigate: () => navigateMock,
   }
 })
-
-function makeFinding(opts: {
-  id: string
-  stage: IssueStage
-  severity?: 'critical' | 'high' | 'medium' | 'low'
-  workspaceId?: string | null
-  updated_at?: string
-}): Finding {
-  const stage = opts.stage
-  const section: Finding['derived'] extends infer D
-    ? D extends { section: infer S }
-      ? S
-      : never
-    : never =
-    stage === 'plan_ready' || stage === 'pr_ready' || stage === 'pr_awaiting_val'
-      ? 'review'
-      : stage === 'todo'
-        ? 'todo'
-        : stage === 'fixed' ||
-            stage === 'wont_fix' ||
-            stage === 'accepted' ||
-            stage === 'false_positive' ||
-            stage === 'deferred'
-          ? 'done'
-          : 'in_progress'
-  return {
-    id: opts.id,
-    source_type: 'trivy',
-    source_id: opts.id,
-    title: `Issue ${opts.id}`,
-    description: null,
-    raw_severity: opts.severity ?? 'high',
-    normalized_priority: 'P2',
-    asset_id: null,
-    asset_label: null,
-    status: 'new',
-    likely_owner: null,
-    why_this_matters: null,
-    raw_payload: null,
-    created_at: '2026-04-29T00:00:00Z',
-    updated_at: opts.updated_at ?? '2026-04-29T00:00:00Z',
-    type: 'dependency',
-    derived: {
-      section,
-      stage,
-      workspace_id: opts.workspaceId ?? null,
-      pr_url: null,
-    },
-  }
-}
 
 function renderPage(findings: Finding[]) {
   server.use(

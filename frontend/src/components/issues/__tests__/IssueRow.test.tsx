@@ -1,47 +1,24 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Finding, IssueStage } from '../../../api/client'
+import type { IssueStage } from '../../../api/client'
+import { makeFinding as baseMakeFinding } from '../../../test/fixtures/finding'
 import { IssueRow } from '../IssueRow'
 
-function makeFinding(overrides: Partial<Finding> & { stage: IssueStage }): Finding {
+function makeFinding(opts: { stage: IssueStage }) {
+  // IssueRow tests render a CVE-flavoured finding so the metadata row
+  // assertions have something to look for.
   return {
-    id: 'f-1',
-    source_type: 'trivy',
-    source_id: 'CVE-2024-1234',
+    ...baseMakeFinding({
+      id: 'CVE-2024-1234',
+      stage: opts.stage,
+      severity: 'critical',
+      workspaceId: 'w-1',
+    }),
     title: 'CVE-2024-1234 in libfoo',
     description: 'Remote code execution',
-    raw_severity: 'critical',
-    normalized_priority: 'P1',
     asset_id: 'srv-web-01',
     asset_label: 'Web Server 01',
-    status: 'new',
-    likely_owner: null,
-    why_this_matters: null,
-    raw_payload: null,
-    plain_description: null,
-    created_at: '2026-04-29T12:00:00Z',
-    updated_at: '2026-04-29T12:00:00Z',
-    type: 'dependency',
-    derived: {
-      section:
-        overrides.stage === 'plan_ready' ||
-        overrides.stage === 'pr_ready' ||
-        overrides.stage === 'pr_awaiting_val'
-          ? 'review'
-          : overrides.stage === 'todo'
-            ? 'todo'
-            : overrides.stage === 'fixed' ||
-                overrides.stage === 'wont_fix' ||
-                overrides.stage === 'accepted' ||
-                overrides.stage === 'false_positive' ||
-                overrides.stage === 'deferred'
-              ? 'done'
-              : 'in_progress',
-      stage: overrides.stage,
-      workspace_id: 'w-1',
-      pr_url: null,
-    },
-    ...overrides,
+    normalized_priority: 'P1',
   }
 }
 

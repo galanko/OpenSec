@@ -50,99 +50,50 @@ def derive(
     pr_block = _pull_request(sidebar)
     pr_url = pr_block.get("pr_url") or None
 
+    def out(section: str, stage: str) -> IssueDerived:
+        return IssueDerived(
+            section=section,  # type: ignore[arg-type]
+            stage=stage,  # type: ignore[arg-type]
+            workspace_id=workspace_id,
+            pr_url=pr_url,
+        )
+
     # ---------- Done verdicts (terminal) ------------------------------------
     if finding.status == "exception":
         reason = (finding.raw_payload or {}).get("exception_reason")
-        stage = "false_positive" if reason == "false_positive" else "accepted"
-        return IssueDerived(section="done", stage=stage, workspace_id=workspace_id, pr_url=pr_url)
+        return out("done", "false_positive" if reason == "false_positive" else "accepted")
 
     if finding.status in ("validated", "closed"):
-        return IssueDerived(section="done", stage="fixed", workspace_id=workspace_id, pr_url=pr_url)
+        return out("done", "fixed")
 
-    # ---------- No sidebar means we have no signal — fall back to todo ------
-    # (IMPL-0006 edge case 16: missing SidebarState → todo regardless of status)
+    # Missing SidebarState means we have no signal (IMPL-0006 edge case 16) —
+    # fall back to todo regardless of Finding.status.
     if sidebar is None:
-        return IssueDerived(
-            section="todo", stage="todo", workspace_id=workspace_id, pr_url=pr_url
-        )
+        return out("todo", "todo")
 
     planner_run = latest_runs_by_type.get("remediation_planner")
     executor_run = latest_runs_by_type.get("remediation_executor")
     validator_run = latest_runs_by_type.get("validation_checker")
 
-    # ---------- Validating (remediated + validator running) -----------------
     if finding.status == "remediated" and _is_running(validator_run):
-        return IssueDerived(
-            section="in_progress", stage="validating", workspace_id=workspace_id, pr_url=pr_url
-        )
+        return out("in_progress", "validating")
 
-    # ---------- PR awaiting validation (remediated, validator not run) ------
     if finding.status == "remediated" and validator_run is None and pr_url:
-        return IssueDerived(
-            section="review",
-            stage="pr_awaiting_val",
-            workspace_id=workspace_id,
-            pr_url=pr_url,
-        )
+        return out("review", "pr_awaiting_val")
 
-    # ---------- In-progress branch ------------------------------------------
     if finding.status == "in_progress":
         # PR existence dominates planner re-runs (edge case 18 in IMPL plan).
         if pr_url:
-            return IssueDerived(
-                section="review",
-                stage="pr_ready",
-                workspace_id=workspace_id,
-                pr_url=pr_url,
-            )
-
-        # Executor running — generating the fix (overrides plan_ready).
+            return out("review", "pr_ready")
         if _is_running(executor_run):
-            return IssueDerived(
-                section="in_progress",
-                stage="generating",
-                workspace_id=workspace_id,
-                pr_url=pr_url,
-            )
-
-        # Executor finished (or never ran) and the executor reported
-        # ``changes_made`` — PR creation is in flight.
+            return out("in_progress", "generating")
         if pr_block.get("status") == "changes_made":
-            return IssueDerived(
-                section="in_progress",
-                stage="opening_pr",
-                workspace_id=workspace_id,
-                pr_url=pr_url,
-            )
-
-        # Branch pushed, no PR yet — pre-PR transient.
-        if pr_block.get("branch_name") and not pr_url:
-            return IssueDerived(
-                section="in_progress",
-                stage="pushing",
-                workspace_id=workspace_id,
-                pr_url=pr_url,
-            )
-
-        # Plan exists, executor hasn't started — Review · plan_ready.
+            return out("in_progress", "opening_pr")
+        if pr_block.get("branch_name"):
+            return out("in_progress", "pushing")
         if _has_plan(sidebar):
-            return IssueDerived(
-                section="review",
-                stage="plan_ready",
-                workspace_id=workspace_id,
-                pr_url=pr_url,
-            )
-
-        # Planner running and no plan yet — In progress · planning.
+            return out("review", "plan_ready")
         if _is_running(planner_run):
-            return IssueDerived(
-                section="in_progress",
-                stage="planning",
-                workspace_id=workspace_id,
-                pr_url=pr_url,
-            )
+            return out("in_progress", "planning")
 
-    # ---------- Default — todo ----------------------------------------------
-    return IssueDerived(
-        section="todo", stage="todo", workspace_id=workspace_id, pr_url=pr_url
-    )
+    return out("todo", "todo")

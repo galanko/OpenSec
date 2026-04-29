@@ -81,39 +81,38 @@ function IssuesPageContent() {
     refetch,
   } = useFindings({ scope: 'current' })
 
-  const filtered = useMemo(() => {
-    const all = findings ?? []
-    if (severityFilter === 'all') return all
-    return all.filter(
-      (f) => (f.raw_severity ?? '').toLowerCase() === severityFilter,
-    )
-  }, [findings, severityFilter])
-
-  const sections = useMemo(() => {
+  const { sections, inProgressBreakdown, totalIssues } = useMemo(() => {
     const review: Finding[] = []
     const inProgress: Finding[] = []
     const todo: Finding[] = []
     const done: Finding[] = []
-    for (const f of filtered) {
+    const breakdown = { planning: 0, generating: 0, opening_pr: 0, validating: 0 }
+    let total = 0
+    for (const f of findings ?? []) {
+      if (
+        severityFilter !== 'all' &&
+        (f.raw_severity ?? '').toLowerCase() !== severityFilter
+      ) {
+        continue
+      }
+      total += 1
       const section = f.derived?.section ?? 'todo'
       if (section === 'review') review.push(f)
-      else if (section === 'in_progress') inProgress.push(f)
-      else if (section === 'done') done.push(f)
+      else if (section === 'in_progress') {
+        inProgress.push(f)
+        const stage = f.derived?.stage
+        if (stage && stage in breakdown) {
+          breakdown[stage as keyof typeof breakdown] += 1
+        }
+      } else if (section === 'done') done.push(f)
       else todo.push(f)
     }
-    return { review, inProgress, todo, done }
-  }, [filtered])
-
-  const inProgressBreakdown = useMemo(() => {
-    const acc = { planning: 0, generating: 0, opening_pr: 0, validating: 0 }
-    for (const f of sections.inProgress) {
-      const stage = f.derived?.stage
-      if (stage && stage in acc) {
-        acc[stage as keyof typeof acc] += 1
-      }
+    return {
+      sections: { review, inProgress, todo, done },
+      inProgressBreakdown: breakdown,
+      totalIssues: total,
     }
-    return acc
-  }, [sections.inProgress])
+  }, [findings, severityFilter])
 
   const startWorkspace = useCallback(
     async (finding: Finding) => {
@@ -174,7 +173,6 @@ function IssuesPageContent() {
   }
 
   const allFindings = findings ?? []
-  const totalIssues = filtered.length
   const showEmptyReviewCard =
     sections.review.length === 0 &&
     sections.inProgress.length + sections.todo.length + sections.done.length > 0

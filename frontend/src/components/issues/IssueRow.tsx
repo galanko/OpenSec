@@ -18,7 +18,7 @@
  * `createWorkspace(finding) → navigate(/workspace/:id)`. Phase 2 swaps in the
  * side-panel.
  */
-import { useState, type KeyboardEvent, type ReactElement } from 'react'
+import { memo, useState, type KeyboardEvent, type ReactElement } from 'react'
 import type { Finding, IssueStage } from '../../api/client'
 import { IssueSeverityBadge, type IssueSeverityKind } from './IssueSeverityBadge'
 import { IssueStageChip } from './IssueStageChip'
@@ -37,19 +37,12 @@ const TYPE_ICON: Record<string, string> = {
   posture: 'verified_user',
 }
 
-const REVIEW_PLAN_STAGES: ReadonlySet<IssueStage> = new Set(['plan_ready'])
-const REVIEW_PR_STAGES: ReadonlySet<IssueStage> = new Set([
-  'pr_ready',
-  'pr_awaiting_val',
-])
-const TODO_STAGES: ReadonlySet<IssueStage> = new Set(['todo'])
-
 type ActionKind = 'review_plan' | 'review_pr' | 'start' | 'view'
 
 function actionForStage(stage: IssueStage): ActionKind {
-  if (REVIEW_PLAN_STAGES.has(stage)) return 'review_plan'
-  if (REVIEW_PR_STAGES.has(stage)) return 'review_pr'
-  if (TODO_STAGES.has(stage)) return 'start'
+  if (stage === 'plan_ready') return 'review_plan'
+  if (stage === 'pr_ready' || stage === 'pr_awaiting_val') return 'review_pr'
+  if (stage === 'todo') return 'start'
   return 'view'
 }
 
@@ -69,7 +62,7 @@ interface IssueRowProps {
   onActivate?: (finding: Finding) => void
 }
 
-export function IssueRow({
+function IssueRowImpl({
   finding,
   dim = false,
   focused = false,
@@ -228,6 +221,11 @@ export function IssueRow({
     </div>
   )
 }
+
+// Memoize so unchanged rows don't re-render when sibling state flips (hover
+// on another row, severity-filter change, doneExpanded toggle, etc.). The
+// finding object is stable per query result so reference-equality is enough.
+export const IssueRow = memo(IssueRowImpl)
 
 interface ActionButtonProps {
   label: string

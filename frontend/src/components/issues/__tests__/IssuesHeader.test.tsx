@@ -1,46 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { Finding, IssueStage } from '../../../api/client'
+import { makeFinding } from '../../../test/fixtures/finding'
 import { IssuesHeader, type SeverityFilter } from '../IssuesHeader'
-
-function makeFinding(overrides: {
-  id: string
-  stage: IssueStage
-  severity: 'critical' | 'high' | 'medium' | 'low'
-  updated_at?: string
-}): Finding {
-  return {
-    id: overrides.id,
-    source_type: 'trivy',
-    source_id: overrides.id,
-    title: `Issue ${overrides.id}`,
-    description: null,
-    raw_severity: overrides.severity,
-    normalized_priority: 'P2',
-    asset_id: null,
-    asset_label: null,
-    status: 'new',
-    likely_owner: null,
-    why_this_matters: null,
-    raw_payload: null,
-    created_at: '2026-04-29T00:00:00Z',
-    updated_at: overrides.updated_at ?? '2026-04-29T00:00:00Z',
-    type: 'dependency',
-    derived: {
-      section:
-        overrides.stage === 'plan_ready' || overrides.stage === 'pr_ready'
-          ? 'review'
-          : overrides.stage === 'todo'
-            ? 'todo'
-            : overrides.stage === 'fixed'
-              ? 'done'
-              : 'in_progress',
-      stage: overrides.stage,
-      workspace_id: null,
-      pr_url: null,
-    },
-  }
-}
 
 describe('IssuesHeader', () => {
   it('renders the page title "Issues"', () => {
