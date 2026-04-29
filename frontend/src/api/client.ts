@@ -36,7 +36,27 @@ export interface HealthStatus {
 
 export type FindingStatus =
   | 'new' | 'triaged' | 'in_progress' | 'remediated'
-  | 'validated' | 'closed' | 'exception';
+  | 'validated' | 'closed' | 'exception' | 'passed';
+
+export type FindingType = 'dependency' | 'code' | 'secret' | 'posture';
+export type FindingGradeImpact = 'counts' | 'advisory';
+
+// PRD-0006 / IMPL-0006 — server-derived UI section + stage. Computed in
+// repo_finding from workspace + sidebar + agent-run state. Never persisted.
+export type IssueSection = 'review' | 'in_progress' | 'todo' | 'done';
+
+export type IssueStage =
+  | 'todo'
+  | 'planning' | 'generating' | 'pushing' | 'opening_pr' | 'validating'
+  | 'plan_ready' | 'pr_ready' | 'pr_awaiting_val'
+  | 'fixed' | 'false_positive' | 'wont_fix' | 'accepted' | 'deferred';
+
+export interface IssueDerived {
+  section: IssueSection;
+  stage: IssueStage;
+  workspace_id: string | null;
+  pr_url: string | null;
+}
 
 export interface Finding {
   id: string;
@@ -54,8 +74,17 @@ export interface Finding {
   likely_owner: string | null;
   why_this_matters: string | null;
   raw_payload: Record<string, unknown> | null;
+  // ADR-0027 v0.2 columns. Optional in the TS contract because older fixtures
+  // and seed payloads in tests may omit them; backend always returns them.
+  type?: FindingType;
+  grade_impact?: FindingGradeImpact;
+  category?: string | null;
+  assessment_id?: string | null;
+  pr_url?: string | null;
   created_at: string;
   updated_at: string;
+  // PRD-0006 / IMPL-0006 — populated on list/get responses.
+  derived?: IssueDerived | null;
 }
 
 export type WorkspaceState =
