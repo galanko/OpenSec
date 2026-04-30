@@ -76,10 +76,8 @@ export function IssuePostureBadge({
   category,
   size = 'md',
 }: IssuePostureBadgeProps): ReactElement {
-  const v = (category && POSTURE_VISUALS[category]) ?? {
-    label: 'Posture',
-    icon: 'verified_user',
-  }
+  const visual = category != null ? POSTURE_VISUALS[category] : undefined
+  const v = visual ?? { label: 'Posture', icon: 'verified_user' }
   const padY = size === 'sm' ? 2 : 3
   const padX = size === 'sm' ? 7 : 9
   const fontSize = size === 'sm' ? '10.5px' : '11px'
