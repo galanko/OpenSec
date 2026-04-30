@@ -15,7 +15,7 @@ from opensec.agents.pipeline import VALID_AGENT_TYPES, suggest_next
 from opensec.api.routes.workspaces import _resolve_repo_env_vars
 from opensec.db.connection import get_db
 from opensec.db.repo_agent_run import get_agent_run, update_agent_run
-from opensec.db.repo_sidebar import mark_plan_approved
+from opensec.db.repo_sidebar import get_sidebar
 from opensec.db.repo_workspace import get_workspace
 from opensec.models import AgentRunUpdate, SidebarState
 
@@ -316,12 +316,15 @@ async def run_all_pipeline(
     "/workspaces/{workspace_id}/plan/approve",
     response_model=SidebarState,
 )
-async def approve_plan(workspace_id: str, db=Depends(get_db)):
+async def approve_plan(workspace_id: str, request: Request, db=Depends(get_db)):
     """Mark the workspace's remediation plan as approved.
 
     PRD-0006 Story 3 — the planner pauses the run-all loop until the user
-    explicitly approves. This endpoint flips ``sidebar.plan.approved=true``;
-    a subsequent ``POST /pipeline/run-all`` will then suggest the executor.
+    explicitly approves. This endpoint flips ``plan.approved=true`` in BOTH
+    stores: the SQLite sidebar (read by the Issues-page derivation) AND
+    the filesystem ``context/plan.json`` (read by ``suggest_next`` to
+    decide whether the executor may run). A subsequent
+    ``POST /pipeline/run-all`` will then suggest the executor.
 
     Returns 404 if the workspace doesn't exist or the planner hasn't yet
     written a plan to the sidebar.
@@ -330,12 +333,14 @@ async def approve_plan(workspace_id: str, db=Depends(get_db)):
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-    sidebar = await mark_plan_approved(db, workspace_id)
-    if sidebar is None or not sidebar.plan:
+    context_builder = request.app.state.context_builder
+    plan = await context_builder.mark_plan_approved(db, workspace_id)
+    if plan is None:
         raise HTTPException(
             status_code=404,
             detail="No plan to approve — has the planner finished?",
         )
+    sidebar = await get_sidebar(db, workspace_id)
     return sidebar
 
 

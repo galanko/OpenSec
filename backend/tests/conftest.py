@@ -118,6 +118,7 @@ async def db_client():
     # The mocks must produce real Workspace objects so FastAPI response
     # validation passes. We delegate to raw DB functions.
     from opensec.db.repo_finding import mark_started_on_workspace_create
+    from opensec.db.repo_sidebar import mark_plan_approved as _raw_mark_approved
     from opensec.db.repo_workspace import (
         create_workspace as raw_create,
     )
@@ -140,9 +141,17 @@ async def db_client():
     async def _mock_delete_workspace(db, workspace_id):
         return await raw_delete(db, workspace_id)
 
+    async def _mock_mark_plan_approved(db, workspace_id):
+        # Tests don't have a real workspace directory, so we only flip
+        # the SQLite store (the filesystem mirror exercised by real
+        # context_builder is covered by integration tests).
+        sidebar = await _raw_mark_approved(db, workspace_id)
+        return sidebar.plan if sidebar and sidebar.plan else None
+
     mock_builder = AsyncMock()
     mock_builder.create_workspace = AsyncMock(side_effect=_mock_create_workspace)
     mock_builder.delete_workspace = AsyncMock(side_effect=_mock_delete_workspace)
+    mock_builder.mark_plan_approved = AsyncMock(side_effect=_mock_mark_plan_approved)
     app.state.context_builder = mock_builder
 
     # Reset integration layer state (may be stale from other tests).

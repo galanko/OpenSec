@@ -7026,7 +7026,7 @@
     },
     "/api/workspaces/{workspace_id}/plan/approve": {
       "post": {
-        "description": "Mark the workspace's remediation plan as approved.\n\nPRD-0006 Story 3 \u2014 the planner pauses the run-all loop until the user\nexplicitly approves. This endpoint flips ``sidebar.plan.approved=true``;\na subsequent ``POST /pipeline/run-all`` will then suggest the executor.\n\nReturns 404 if the workspace doesn't exist or the planner hasn't yet\nwritten a plan to the sidebar.",
+        "description": "Mark the workspace's remediation plan as approved.\n\nPRD-0006 Story 3 \u2014 the planner pauses the run-all loop until the user\nexplicitly approves. This endpoint flips ``plan.approved=true`` in BOTH\nstores: the SQLite sidebar (read by the Issues-page derivation) AND\nthe filesystem ``context/plan.json`` (read by ``suggest_next`` to\ndecide whether the executor may run). A subsequent\n``POST /pipeline/run-all`` will then suggest the executor.\n\nReturns 404 if the workspace doesn't exist or the planner hasn't yet\nwritten a plan to the sidebar.",
         "operationId": "approve_plan_api_workspaces__workspace_id__plan_approve_post",
         "parameters": [
           {

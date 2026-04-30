@@ -74,12 +74,14 @@ function IssuesPageContent() {
   // FindingsPage). Issues page needs findings WITH workspaces too — they're
   // what populate Review, In progress, and Done. ``scope: 'current'`` keeps
   // posture rows out of the response (Phase 1 is vulnerability-only).
+  // ``refetchIntervalMs: 5000`` polls every 5s so rows visibly transition
+  // between sections as agents progress — no manual refresh needed.
   const {
     data: findings,
     isLoading,
     isError,
     refetch,
-  } = useFindings({ scope: 'current' })
+  } = useFindings({ scope: 'current', refetchIntervalMs: 5000 })
 
   const { sections, inProgressBreakdown, totalIssues } = useMemo(() => {
     const review: Finding[] = []
