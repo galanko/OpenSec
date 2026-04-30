@@ -116,6 +116,23 @@ Each entry:
 - **What:** The skill walked scan → fix → approve → merge → close, then stopped. There was no step to re-run `opensec scan` and report the new grade, so users had no signal that a fix actually moved the needle.
 - **Status:** fixed in `fix/secure-repo-cli-bugs` — added a "Re-assess" step (step 8) that runs `opensec scan` after the fix loop and reads `/api/assessment/latest` to report the new grade plus any still-failing criteria. Skill version bumped to 0.1.1.
 
+### 12. `unknown` posture state collapsed to `false` — looks like a real failure
+- **Severity:** **bug** — affects every assessment until a GitHub PAT is wired in.
+- **Where:** `backend/opensec/assessment/engine.py` `_build_snapshot` (`status == "pass"` shorthand) + `backend/opensec/models/assessment.py` `CriteriaSnapshot` (bool fields).
+- **What:** Posture checks have four states: `pass`, `fail`, `advisory`, `unknown` (the last when the daemon can't verify, e.g. no `GITHUB_TOKEN` for `branch_protection_enabled`). `_build_snapshot` collapsed every non-`pass` value to `False` via `posture_statuses.get(name) == "pass"`. Result: a check that returned `unknown` (we couldn't even ask GitHub) was indistinguishable in the UI from a real verified failure. Users with branch protection actually enabled saw a red X — and the skill would tell them to "enable branch protection" they had already enabled.
+- **Why it matters:** the user explicitly called this out: "this is a bug where is unknown but shown as false, lets make it show unknown like a question mark instead". The collapse hides the real action item (provision a GitHub PAT for the daemon) behind a phantom failure.
+- **Status:** fixed in `fix/secure-repo-cli-bugs`. `CriteriaSnapshot` fields are now `bool | None` — `True`=verified pass, `False`=verified fail, `None`=unknown. `_build_snapshot` writes `None` when the posture status is `unknown` or the check is missing. `met_count` only counts `is True`, so grading stays conservative (unknown ≠ free pass). New regression test `test_criteria_unknown_is_distinct_from_fail`. OpenAPI snapshot refreshed for the relaxed nullable fields.
+
+### 13. Posture findings rendered with vulnerability chrome on the Issues page
+- **Severity:** **bug** / UX
+- **Where:** `frontend/src/components/issues/{IssueRow,IssueSeverityBadge,IssuesHeader}.tsx`
+- **What:** After bug #9's fix surfaced posture findings on the Issues page, the renderer treated them as vulnerabilities — defaulting them to a `medium` severity badge, showing CVSS / file:line / CWE metadata that doesn't apply, and the type-filter chip group only offered `[All vulnerabilities, Vulnerability]`. The user reported: "why now it showed in the Issues page as vulnerability and not as Posture or CI, the correct type".
+- **Why it matters:** users couldn't tell at a glance whether a row was "fix this CVE in a dep" or "enable branch protection". Worse, posture findings always claimed `Medium` severity — purely a default, not a real classification.
+- **Status:** fixed in `fix/secure-repo-cli-bugs`.
+  - New `IssuePostureBadge` component renders a category-aware pill: `Repo config`, `Code integrity`, `CI/CD`, `Access` (via `finding.category`).
+  - `IssueRow` swaps the severity badge for the posture badge when `finding.type === 'posture'`, hides CVSS/file/CWE metadata that doesn't apply, and uses a neutral hairline color so posture rows don't read as red-severity bugs.
+  - `IssuesHeader` chip group becomes `[All issues, Vulnerability, Posture]`. Existing test updated.
+
 ### 7. `/api/settings/providers` returns ~3 MB of JSON
 - **Severity:** improvement
 - **Where:** `GET /api/settings/providers`
