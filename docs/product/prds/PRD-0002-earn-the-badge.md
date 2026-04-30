@@ -1,6 +1,6 @@
 # PRD-0002: From zero to secure — OSS security assessment and remediation
 
-**Status:** Revised 2026-04-15 — In Review
+**Status:** Approved 2026-04-16 — CEO approved
 **Author:** Product team
 **Date:** 2026-04-12 (original) / 2026-04-15 (revision)
 **Approver:** @galanko (CEO)

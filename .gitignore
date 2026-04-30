@@ -1,6 +1,9 @@
 # Claude Code local state
 .claude/
 
+# Local secrets (never commit)
+scripts/.h1auth
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -250,3 +253,8 @@ data/
 
 # Runtime workspace directories
 backend/workspaces/
+
+# Vulnerability research workspace — NEVER commit
+# Contains pre-disclosure findings, PoCs, cloned target repos, and
+# target-specific exploitation notes. Must stay local-only.
+research/

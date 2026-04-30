@@ -33,11 +33,14 @@ ADRs document significant architectural decisions made during the project. Once 
 | [0023](0023-async-chunked-finding-ingestion.md) | Async chunked finding ingestion with cost controls | Proposed |
 | [0024](0024-repo-cloning-and-agentic-remediation.md) | Repository cloning and agentic remediation | Proposed |
 | [0025](0025-assessment-engine-and-badge-lifecycle.md) | Assessment engine and badge lifecycle | Proposed |
-| [0027](0027-unified-findings-model.md) | Unified findings model | Proposed |
+| [0026](0026-tiered-scanner-execution.md) | Tiered scanner execution model — Docker default + subprocess fallback | Superseded by [0028](0028-subprocess-only-scanner-execution.md) |
+| [0027](0027-unified-findings-model.md) | Unified findings model — one table, four types (dependency/code/secret/posture) | Proposed |
 | [0028](0028-subprocess-only-scanner-execution.md) | Subprocess-only scanner execution with pinned binary checksums | Proposed |
 | [0029](0029-warning-design-token.md) | Warning design token for Serene Sentinel | Proposed |
-| [0032](0032-assessment-v2-dashboard-payload.md) | Dashboard payload shape for security assessment v2 | Proposed |
-| [0033](0033-pre-alpha-destructive-migrations.md) | Pre-alpha destructive migrations | Accepted |
+| [0030](0030-workspace-schema-unification.md) | Unified workspace schema with active-per-check unique index | Proposed |
+| [0031](0031-provider-probe-endpoint.md) | Provider probe endpoint (`POST /api/settings/providers/test`) | Proposed |
+| [0032](0032-assessment-v2-dashboard-payload.md) | Dashboard payload shape for security assessment v2 (`tools[]`, four-state posture, labeled criteria, `summary_seen_at`) | Proposed |
+| [0033](0033-pre-alpha-destructive-migrations.md) | Pre-alpha destructive migrations — license that expires at v0.1 alpha tag | Accepted |
 | [0034](0034-agent-cli-and-skill.md) | Agent CLI (`opensec`) and Claude Code skill (`/secure-repo`) | Proposed |
 
 ## Template

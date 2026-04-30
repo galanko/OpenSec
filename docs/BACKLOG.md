@@ -42,6 +42,24 @@ Phase 7 — Ticket workflow (depends on Phase 6b, deferred to post-MVP):
 
 ## App Builder (Vertical 2)
 
+### Issues page Phase 1 (PRD-0006, IMPL-0006-issues-page-phase-1) — alpha-shippable
+
+Single branch / single PR: `feat/prd-0006-phase-1-issues-page`. Auto-executable via the handoff prompt in IMPL-0006. Phase 2 (side panel, Workspace removal, posture unification, Dashboard refresh) is a separate plan written after alpha feedback.
+
+- [ ] **T1**: `issue_derivation.py` pure function + `IssueSection` / `IssueStage` / `IssueDerived` models. TDD: ≥ 18 cases in `tests/test_issue_derivation.py`. V1 consult on rule-table accuracy.
+- [ ] **T2**: Wire derivation into `repo_finding.list_findings` + `get_finding`. Batch-load workspaces / agent_runs / sidebar. N+1 guard test asserts ≤ 4 SQL queries for 100 findings.
+- [ ] **T3**: `IssueSeverityBadge` atom (4 kinds × 2 sizes; matches `IPSeverity` from design handoff)
+- [ ] **T4**: `IssueStageChip` atom (13 stages × 5 tones; pulse-dot keyframe with reduced-motion fallback; `aria-live="polite"` on parent)
+- [ ] **T5**: `IssueCountBadge` atom (3 tones; JetBrains Mono)
+- [ ] **T6**: `IssueFilterChip` atom (active/inactive states; keyboard-reachable group nav)
+- [ ] **T7**: `IssueRow` component — six-slot grid; stage-aware action variant (`Review plan` / `Review PR` / `Start` / chevron); click → `/workspace/:id` (Phase 1 keeps existing flow)
+- [ ] **T8**: `IssuesPage` — pinned Review, In progress collapsed by default with stage breakdown, Todo flat, Done flat-dim. Replaces `FindingsPage.tsx`. Empty Review state per design.
+- [ ] **T9**: `MigrationBanner` — sessionStorage-dismissed; copy locked per design
+- [ ] **T10**: `IssuesHeader` — title + caption (open count · closed-last-7d · grade) + Type/Severity filter chips
+- [ ] **T11**: Route rename `/findings` → `/issues` (with `<Navigate replace>` redirect; `/workspace/:id` untouched)
+- [ ] **T12**: `SideNav` trim — Dashboard + Issues primary; Settings bottom-anchored. Both `/workspace` and `/history` routes stay reachable, just removed from nav.
+- [ ] **T13**: Migration banner roadmap link → GitHub PRD URL (no static-file route added in Phase 1)
+
 ### v0.1 alpha blockers (PRD-0004, UX-0004, IMPL-0004, ADRs 0029–0031)
 
 Closed by feat/prd-0004-alpha-blockers (one branch / four commits / one PR).
