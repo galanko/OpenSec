@@ -104,11 +104,11 @@ Each entry:
   - `secret_scanning_enabled` — needs Settings → Code security → Secret scanning enabled
   - `no_stale_collaborators` — needs collaborator audit (Settings → Collaborators)
   - `actions_pinned_to_sha` — workflow file edits (the only one we can drive from a PR)
-- Some of these checks return `unknown` without a GitHub PAT configured for the daemon (`GITHUB_TOKEN` env). When `unknown`, the criterion is considered unmet, so even a properly-configured repo grades C until the PAT is wired in.
+- Some of these checks return `unknown` until a GitHub PAT is configured **as an Integration** (Settings → Integrations → GitHub in the UI). The daemon resolves the token from the encrypted vault via `_github_token_from_integration` (`backend/opensec/api/_engine_dep.py:61`) — there is **no** `GITHUB_TOKEN` env-var fallback, so setting that env var alone does nothing. When the integration is missing or disabled, every GitHub-API posture check comes back `unknown`, and after bug #12's tri-state fix that surfaces as `null` (not `false`) — which is honest but still keeps the criterion unmet for grading.
 - **Why it matters:** users running `/secure-repo` will hit a grade ceiling that the skill can't break through. The skill should call this out so they don't think it's broken.
 - **Status:** fixed in `fix/secure-repo-cli-bugs` partially:
   1. **`actions_pinned_to_sha`**: pinned every `uses:` in `.github/workflows/{backend,cli,frontend}.yml` to a 40-char SHA with the version comment; release.yml was already pinned. Once the user re-scans this branch, that criterion flips to pass.
-  2. **`secret_scanning_enabled`, `branch_protection_enabled`, `no_stale_collaborators`**: skill now lists these explicitly in step 8 (re-assess) with the GitHub-side action each one needs. Skill also tells users to wire `GITHUB_TOKEN` into the daemon env so the checks stop returning `unknown`.
+  2. **`secret_scanning_enabled`, `branch_protection_enabled`, `no_stale_collaborators`**: skill now lists these explicitly in step 8 (re-assess) with the GitHub-side action each one needs. Skill points users at **Settings → Integrations → GitHub** (not env) for the PAT, since that's the only path the daemon actually reads (`_github_token_from_integration`).
 
 ### 11. Skill didn't re-run the assessment after fixes — grade never updated
 - **Severity:** posture / skill UX

@@ -154,7 +154,7 @@ Posture criteria that need GitHub repo settings (not code) — call these out ex
 | `no_stale_collaborators` | Audit Settings → Collaborators; remove dormant accounts |
 | `actions_pinned_to_sha` | Pin every `uses:` to a 40-char SHA in `.github/workflows/*` |
 
-Some of those checks return `unknown` without a GitHub PAT configured for the daemon; if the criterion stays false despite the user fixing the setting, tell them to add a `GITHUB_TOKEN` to the daemon env.
+Some of those checks return `unknown` (rendered as `null` in the criteria, not `false`) until a GitHub PAT is configured **as an Integration** — the daemon resolves the token from the encrypted vault via the `github` integration row, not from a `GITHUB_TOKEN` environment variable. If a criterion stays `null` despite the user fixing the GitHub setting, tell them to open the Integrations page in the OpenSec UI and connect GitHub with a PAT (scopes: `repo`, `read:org` is enough for the posture probes).
 
 ### 9. Report
 
