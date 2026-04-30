@@ -57,7 +57,7 @@ class SuggestedAction:
     reason: str
     priority: Literal["recommended", "optional", "required"]
     prerequisites_met: bool = True
-    action_type: Literal["run_agent", "review_pr"] = "run_agent"
+    action_type: Literal["run_agent", "review_pr", "await_approval"] = "run_agent"
 
 
 def suggest_next(
@@ -94,9 +94,25 @@ def suggest_next(
                 )
             # Retry limit reached — fall through to normal flow.
 
-    # Standard pipeline order — suggest first missing section.
+    # Standard pipeline order — suggest first missing section, with one
+    # explicit gate: pause for user approval before the executor runs.
+    # PRD-0006 Story 3 — parity with the PR review gate. Once the plan is
+    # marked ``approved=true`` (POST /workspaces/:id/plan/approve), the
+    # run-all loop resumes and the executor is suggested as normal.
     for section, agent_type in _PIPELINE_CHECKS:
         if context_snapshot.get(section) is None:
+            if agent_type == "remediation_executor":
+                plan = context_snapshot.get("plan") or {}
+                if not plan.get("approved"):
+                    return SuggestedAction(
+                        agent_type=None,
+                        reason=(
+                            "Plan ready — review the steps and approve before "
+                            "the executor opens a pull request."
+                        ),
+                        priority="required",
+                        action_type="await_approval",
+                    )
             return SuggestedAction(
                 agent_type=agent_type,
                 reason=_REASONS[section],

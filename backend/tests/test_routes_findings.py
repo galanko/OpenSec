@@ -100,6 +100,37 @@ async def test_delete_finding_not_found(db_client):
     assert resp.status_code == 404
 
 
+async def test_list_findings_includes_derived(db_client, finding_payload):
+    """IMPL-0006 T2 — every finding in the list response carries a derived block.
+
+    Phase-1 scope: ``derived`` is populated for every finding (todo when no
+    workspace exists). The shape is ``{section, stage, workspace_id, pr_url}``.
+    """
+    await db_client.post("/api/findings", json=finding_payload)
+
+    resp = await db_client.get("/api/findings")
+    assert resp.status_code == 200
+    findings = resp.json()
+    assert len(findings) == 1
+    assert "derived" in findings[0]
+    derived = findings[0]["derived"]
+    assert derived["section"] == "todo"
+    assert derived["stage"] == "todo"
+    assert derived["workspace_id"] is None
+    assert derived["pr_url"] is None
+
+
+async def test_get_finding_includes_derived(db_client, finding_payload):
+    create_resp = await db_client.post("/api/findings", json=finding_payload)
+    finding_id = create_resp.json()["id"]
+
+    resp = await db_client.get(f"/api/findings/{finding_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["derived"]["section"] == "todo"
+    assert body["derived"]["stage"] == "todo"
+
+
 async def test_pagination(db_client, finding_payload):
     for i in range(5):
         await db_client.post("/api/findings", json={**finding_payload, "source_id": f"v-{i}"})

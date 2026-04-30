@@ -52,6 +52,42 @@ FindingType = Literal["dependency", "code", "secret", "posture"]
 FindingGradeImpact = Literal["counts", "advisory"]
 
 
+#: Issues page UI section (IMPL-0006). Computed from ``Finding.status`` plus
+#: workspace + sidebar state — never persisted.
+IssueSection = Literal["review", "in_progress", "todo", "done"]
+
+#: Fine-grained UI stage that drives the row's stage chip and action variant.
+#: All 13 values are part of the contract; Phase 1's derivation function only
+#: emits a subset of them given today's executor signals.
+IssueStage = Literal[
+    # Todo
+    "todo",
+    # In progress (agents working, no human gate)
+    "planning",
+    "generating",
+    "pushing",
+    "opening_pr",
+    "validating",
+    # Review (human gate)
+    "plan_ready",
+    "pr_ready",
+    "pr_awaiting_val",
+    # Done
+    "fixed",
+    "false_positive",
+    "wont_fix",
+    "accepted",
+    "deferred",
+]
+
+
+class IssueDerived(BaseModel):
+    section: IssueSection
+    stage: IssueStage
+    workspace_id: str | None = None
+    pr_url: str | None = None
+
+
 class FindingCreate(BaseModel):
     source_type: str
     source_id: str
@@ -115,3 +151,6 @@ class Finding(BaseModel):
     pr_url: str | None = None
     created_at: datetime
     updated_at: datetime
+    # IMPL-0006 — populated by ``repo_finding`` for list/get responses; not a
+    # column on ``finding`` (presentation-only join).
+    derived: IssueDerived | None = None

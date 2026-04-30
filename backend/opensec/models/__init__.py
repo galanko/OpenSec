@@ -39,6 +39,9 @@ from opensec.models.finding import (
     FindingStatus,
     FindingType,
     FindingUpdate,
+    IssueDerived,
+    IssueSection,
+    IssueStage,
 )
 from opensec.models.posture_check import (
     PostureCheckCategory,
@@ -390,6 +393,9 @@ __all__ = [
     "FindingStatus",
     "FindingType",
     "FindingUpdate",
+    "IssueDerived",
+    "IssueSection",
+    "IssueStage",
     # Assessment
     "Assessment",
     "AssessmentCreate",

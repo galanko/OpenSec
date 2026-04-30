@@ -1193,6 +1193,16 @@
             "title": "Created At",
             "type": "string"
           },
+          "derived": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueDerived"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "description": {
             "anyOf": [
               {
@@ -2132,6 +2142,68 @@
           "provider_name"
         ],
         "title": "IntegrationHealthStatus",
+        "type": "object"
+      },
+      "IssueDerived": {
+        "properties": {
+          "pr_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Url"
+          },
+          "section": {
+            "enum": [
+              "review",
+              "in_progress",
+              "todo",
+              "done"
+            ],
+            "title": "Section",
+            "type": "string"
+          },
+          "stage": {
+            "enum": [
+              "todo",
+              "planning",
+              "generating",
+              "pushing",
+              "opening_pr",
+              "validating",
+              "plan_ready",
+              "pr_ready",
+              "pr_awaiting_val",
+              "fixed",
+              "false_positive",
+              "wont_fix",
+              "accepted",
+              "deferred"
+            ],
+            "title": "Stage",
+            "type": "string"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "required": [
+          "section",
+          "stage"
+        ],
+        "title": "IssueDerived",
         "type": "object"
       },
       "MarkSummarySeenResponse": {
@@ -6947,6 +7019,49 @@
           }
         },
         "summary": "Suggest Next Endpoint",
+        "tags": [
+          "agent-execution"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/plan/approve": {
+      "post": {
+        "description": "Mark the workspace's remediation plan as approved.\n\nPRD-0006 Story 3 \u2014 the planner pauses the run-all loop until the user\nexplicitly approves. This endpoint flips ``plan.approved=true`` in BOTH\nstores: the SQLite sidebar (read by the Issues-page derivation) AND\nthe filesystem ``context/plan.json`` (read by ``suggest_next`` to\ndecide whether the executor may run). A subsequent\n``POST /pipeline/run-all`` will then suggest the executor.\n\nReturns 404 if the workspace doesn't exist or the planner hasn't yet\nwritten a plan to the sidebar.",
+        "operationId": "approve_plan_api_workspaces__workspace_id__plan_approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SidebarState"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Plan",
         "tags": [
           "agent-execution"
         ]

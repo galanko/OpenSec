@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from opensec.db.repo_finding import mark_started_on_workspace_create
 from opensec.db.repo_workspace import create_workspace as raw_create_workspace
 from opensec.db.repo_workspace import delete_workspace as raw_delete_workspace
 from opensec.models import WorkspaceCreate
@@ -33,7 +34,11 @@ async def _configure_mock_builder(db_client):
 
     async def _mock_create(db, finding, **_kwargs):
         data = WorkspaceCreate(finding_id=finding.id)
-        return await raw_create_workspace(db, data)
+        ws = await raw_create_workspace(db, data)
+        # Mirror the real context_builder behaviour (PRD-0006 / IMPL-0006):
+        # creating a workspace flips Finding.status new/triaged → in_progress.
+        await mark_started_on_workspace_create(db, finding.id)
+        return ws
 
     async def _mock_delete(db, workspace_id):
         return await raw_delete_workspace(db, workspace_id)
@@ -60,6 +65,92 @@ async def test_create_workspace(db_client, finding_id):
 async def test_create_workspace_finding_not_found(db_client):
     resp = await db_client.post("/api/workspaces", json={"finding_id": "nonexistent"})
     assert resp.status_code == 404
+
+
+async def test_resolve_workspace_flips_finding_to_validated(db_client, finding_id):
+    """PRD-0006 Story 5 — clicking Resolve on the workspace flips the linked
+    finding to validated so it visibly moves into the Done section.
+
+    Phase-1 stand-in for the validator until webhook-driven auto-validation
+    lands.
+    """
+    ws = (
+        await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    ).json()
+    # Sanity: finding is in_progress after workspace creation (prior fix).
+    pre = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert pre["status"] == "in_progress"
+
+    resp = await db_client.patch(
+        f"/api/workspaces/{ws['id']}", json={"state": "closed"}
+    )
+    assert resp.status_code == 200
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "validated"
+    assert post["derived"]["section"] == "done"
+    assert post["derived"]["stage"] == "fixed"
+
+
+async def test_resolve_workspace_does_not_flip_for_non_terminal_state(
+    db_client, finding_id
+):
+    """Updating workspace state to e.g. ``waiting`` must NOT mark the finding
+    as resolved — only ``state='closed'`` triggers the flip."""
+    ws = (
+        await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    ).json()
+
+    resp = await db_client.patch(
+        f"/api/workspaces/{ws['id']}", json={"state": "waiting"}
+    )
+    assert resp.status_code == 200
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "in_progress"  # unchanged from the create-flip
+    assert post["derived"]["section"] != "done"
+
+
+async def test_resolve_workspace_idempotent_on_already_done_finding(
+    db_client, finding_id
+):
+    """Re-resolving a workspace whose finding is already in a terminal state
+    must not silently re-categorise it (e.g. an exception/false_positive
+    decision must survive)."""
+    ws = (
+        await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    ).json()
+    # Mark the finding as a false-positive exception via the existing route.
+    await db_client.patch(
+        f"/api/findings/{finding_id}",
+        json={"status": "exception", "raw_payload": {"exception_reason": "false_positive"}},
+    )
+
+    await db_client.patch(f"/api/workspaces/{ws['id']}", json={"state": "closed"})
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "exception"  # NOT overwritten
+    assert post["derived"]["stage"] == "false_positive"
+
+
+async def test_create_workspace_flips_finding_to_in_progress(db_client, finding_id):
+    """PRD-0006 Story 2 / IMPL-0006 root-cause fix.
+
+    Clicking Start on a Todo row creates a workspace AND flips the finding's
+    status so the row visibly leaves Todo immediately, instead of waiting
+    for the first agent run to update Finding.status.
+    """
+    # Sanity check the seed status.
+    pre = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert pre["status"] == "new"
+
+    resp = await db_client.post("/api/workspaces", json={"finding_id": finding_id})
+    assert resp.status_code == 201
+
+    post = (await db_client.get(f"/api/findings/{finding_id}")).json()
+    assert post["status"] == "in_progress"
+    # Derived projection should also flip out of Todo.
+    assert post["derived"]["section"] != "todo"
 
 
 async def test_list_workspaces(db_client, finding_id):

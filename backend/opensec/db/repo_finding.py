@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from opensec.models import Finding, FindingCreate, FindingUpdate
+from opensec.models.issue_derivation import derive
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -150,10 +151,54 @@ async def create_finding(db: aiosqlite.Connection, data: FindingCreate) -> Findi
     return _row_to_finding(row)
 
 
+async def _populate_derived(
+    db: aiosqlite.Connection, findings: list[Finding]
+) -> list[Finding]:
+    """Compose ``Finding.derived`` for every row in one batched join.
+
+    Issues at most 3 extra SELECTs (workspaces, agent_runs, sidebars) regardless
+    of ``len(findings)``. The N+1 guard test in
+    ``tests/db/test_repo_finding_derived.py`` enforces this.
+    """
+    if not findings:
+        return findings
+
+    from opensec.db.repo_agent_run import list_latest_runs_by_workspace_ids
+    from opensec.db.repo_sidebar import list_sidebars_by_workspace_ids
+    from opensec.db.repo_workspace import list_workspaces_by_finding_ids
+
+    workspaces_by_finding = await list_workspaces_by_finding_ids(
+        db, [f.id for f in findings]
+    )
+    workspace_ids = [ws.id for ws in workspaces_by_finding.values()]
+    runs_by_ws = await list_latest_runs_by_workspace_ids(db, workspace_ids)
+    sidebars_by_ws = await list_sidebars_by_workspace_ids(db, workspace_ids)
+
+    enriched: list[Finding] = []
+    for f in findings:
+        ws = workspaces_by_finding.get(f.id)
+        sidebar = sidebars_by_ws.get(ws.id) if ws else None
+        runs = runs_by_ws.get(ws.id, {}) if ws else {}
+        enriched.append(
+            f.model_copy(
+                update={
+                    "derived": derive(
+                        f, workspace=ws, sidebar=sidebar, latest_runs_by_type=runs
+                    )
+                }
+            )
+        )
+    return enriched
+
+
 async def get_finding(db: aiosqlite.Connection, finding_id: str) -> Finding | None:
     cursor = await db.execute("SELECT * FROM finding WHERE id = ?", (finding_id,))
     row = await cursor.fetchone()
-    return _row_to_finding(row) if row else None
+    if row is None:
+        return None
+    finding = _row_to_finding(row)
+    enriched = await _populate_derived(db, [finding])
+    return enriched[0]
 
 
 async def list_findings(
@@ -218,7 +263,8 @@ async def list_findings(
         " ORDER BY f.updated_at DESC LIMIT ? OFFSET ?",
         params,
     )
-    return [_row_to_finding(row) for row in await cursor.fetchall()]
+    findings = [_row_to_finding(row) for row in await cursor.fetchall()]
+    return await _populate_derived(db, findings)
 
 
 async def list_posture_findings(
@@ -234,6 +280,57 @@ async def list_posture_findings(
         (assessment_id,),
     )
     return [_row_to_finding(row) for row in await cursor.fetchall()]
+
+
+async def mark_started_on_workspace_create(
+    db: aiosqlite.Connection, finding_id: str
+) -> bool:
+    """Flip ``Finding.status`` from ``new`` / ``triaged`` → ``in_progress``.
+
+    Called by ``context_builder.create_workspace`` so the user's click on
+    "Start" immediately moves the row out of Todo (PRD-0006 Story 2). Other
+    statuses (``in_progress`` / ``remediated`` / ``validated`` / ``closed`` /
+    ``exception`` / ``passed``) are left untouched — re-creating a workspace
+    on a closed finding must not silently re-open it.
+
+    Returns ``True`` if a row was updated, ``False`` otherwise.
+    """
+    now_iso = datetime.now(UTC).isoformat()
+    cursor = await db.execute(
+        "UPDATE finding SET status = 'in_progress', updated_at = ?"
+        " WHERE id = ? AND status IN ('new', 'triaged')",
+        (now_iso, finding_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def mark_resolved_on_workspace_close(
+    db: aiosqlite.Connection, finding_id: str
+) -> bool:
+    """Flip ``Finding.status`` to ``validated`` when the user resolves a workspace.
+
+    Called when a workspace transitions to ``state='closed'`` so the linked
+    finding visibly moves into the Done section of the Issues page (PRD-0006
+    Story 5; Phase 1 stand-in for the validator until webhook-driven
+    auto-validation lands).
+
+    Idempotent — only flips findings that are mid-flight
+    (``new`` / ``triaged`` / ``in_progress`` / ``remediated``). Already-
+    terminal statuses (``validated`` / ``closed`` / ``exception`` / ``passed``)
+    are left untouched, so re-resolving a workspace can't silently overwrite a
+    user's prior False-positive / Won't-fix decision.
+
+    Returns ``True`` if a row was updated, ``False`` otherwise.
+    """
+    now_iso = datetime.now(UTC).isoformat()
+    cursor = await db.execute(
+        "UPDATE finding SET status = 'validated', updated_at = ?"
+        " WHERE id = ? AND status IN ('new', 'triaged', 'in_progress', 'remediated')",
+        (now_iso, finding_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def update_finding(

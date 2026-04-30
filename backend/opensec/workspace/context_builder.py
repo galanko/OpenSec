@@ -6,6 +6,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from opensec.db.repo_finding import mark_started_on_workspace_create
+from opensec.db.repo_sidebar import mark_plan_approved as _repo_mark_plan_approved
 from opensec.db.repo_workspace import (
     create_workspace,
     delete_workspace,
@@ -83,6 +85,12 @@ class WorkspaceContextBuilder:
             current_focus=initial_focus,
         )
         workspace = await create_workspace(db, ws_data)
+
+        # 1b. Flip Finding.status new/triaged → in_progress so the Issues
+        # page (PRD-0006) moves the row out of Todo on the user's click,
+        # rather than waiting for the first agent run to update it.
+        # Idempotent — other statuses are left alone.
+        await mark_started_on_workspace_create(db, finding.id)
 
         # 2. Resolve MCP configs (if vault is configured)
         mcp_servers = None
@@ -183,6 +191,33 @@ class WorkspaceContextBuilder:
             workspace_id, agent_type, new_version,
         )
         return new_version
+
+    # ------------------------------------------------------------------
+    # Plan approval (PRD-0006 Story 3)
+    # ------------------------------------------------------------------
+
+    async def mark_plan_approved(
+        self, db: aiosqlite.Connection, workspace_id: str
+    ) -> dict[str, Any] | None:
+        """Flip ``plan.approved=True`` in BOTH stores: SQLite sidebar (read by
+        the Issues-page derivation) AND filesystem ``context/plan.json``
+        (read by the pipeline's ``suggest_next`` to decide whether the
+        executor may run).
+
+        Returns the updated plan dict, or ``None`` if no plan exists yet.
+        """
+        sidebar = await _repo_mark_plan_approved(db, workspace_id)
+        if sidebar is None or not sidebar.plan:
+            return None
+
+        # Mirror the flag into the filesystem context so suggest_next sees it.
+        existing = self._dir_manager.read_context_section(workspace_id, "plan") or {}
+        if not existing.get("approved"):
+            self._dir_manager.write_context_section(
+                workspace_id, "plan", {**existing, "approved": True}
+            )
+
+        return sidebar.plan
 
     # ------------------------------------------------------------------
     # Read context

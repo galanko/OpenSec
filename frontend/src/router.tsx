@@ -4,7 +4,8 @@ import OnboardingGate from '@/components/OnboardingGate'
 import FirstRunRedirect from '@/components/FirstRunRedirect'
 import DashboardPage from '@/pages/DashboardPage'
 import FindingDetailPage from '@/pages/FindingDetailPage'
-import FindingsPage from '@/pages/FindingsPage'
+import { FindingDetailPageRedirect } from '@/pages/FindingsRedirects'
+import IssuesPage from '@/pages/IssuesPage'
 import WorkspacePage from '@/pages/WorkspacePage'
 import HistoryPage from '@/pages/HistoryPage'
 import SettingsPage from '@/pages/SettingsPage'
@@ -34,14 +35,18 @@ export const router = createBrowserRouter([
         index: true,
         element: (
           <FirstRunRedirect>
-            <FindingsPage />
+            <IssuesPage />
           </FirstRunRedirect>
         ),
       },
       { path: 'dashboard', element: <DashboardPage /> },
-      { path: 'findings', element: <FindingsPage /> },
-      { path: 'findings/:id', element: <FindingDetailPage /> },
-      { path: 'queue', element: <Navigate to="/findings" replace /> },
+      // PRD-0006 Phase 1 — Findings page is renamed to Issues. The legacy
+      // /findings route(s) redirect so existing bookmarks keep working.
+      { path: 'issues', element: <IssuesPage /> },
+      { path: 'issues/:id', element: <FindingDetailPage /> },
+      { path: 'findings', element: <Navigate to="/issues" replace /> },
+      { path: 'findings/:id', element: <FindingDetailPageRedirect /> },
+      { path: 'queue', element: <Navigate to="/issues" replace /> },
       { path: 'workspace/:id?', element: <WorkspacePage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'integrations', element: <Navigate to="/settings" replace /> },

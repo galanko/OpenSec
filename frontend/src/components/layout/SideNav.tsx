@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router'
 
 /**
- * Primary navigation rail (PRD-0004 Story 0 + Story 2).
+ * Primary navigation rail (PRD-0004 Story 0 + Story 2; trimmed in PRD-0006
+ * Phase 1).
  *
- * Final destinations: Dashboard, Findings, History, Integrations, Settings.
- * Workspace is intentionally absent — it is reached contextually from a
- * finding ("Solve") or a posture row ("Let OpenSec open a PR"). Settings is
- * anchored to the bottom via ``mt-auto``.
+ * Phase 1 destinations: Dashboard + Issues. Settings is anchored to the
+ * bottom via ``mt-auto``. Workspace and History are reachable via direct URL
+ * (the routes still resolve) but no longer have nav entries — they're
+ * contextual surfaces in the alpha cut.
  *
  * Active indicator is tonal only (``bg-primary/12`` pill + ``text-primary``)
  * — no 1px borders, per Serene Sentinel (ADR-0011).
@@ -14,9 +15,7 @@ import { NavLink } from 'react-router'
 
 const primaryItems = [
   { to: '/dashboard', icon: 'speed', title: 'Dashboard' },
-  { to: '/findings', icon: 'assignment_late', title: 'Findings' },
-  { to: '/workspace', icon: 'terminal', title: 'Workspace' },
-  { to: '/history', icon: 'history', title: 'History' },
+  { to: '/issues', icon: 'inbox', title: 'Issues' },
 ]
 
 const activeClass =

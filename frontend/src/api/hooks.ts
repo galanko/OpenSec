@@ -49,10 +49,19 @@ export function useFindings(params?: {
   status?: string
   has_workspace?: boolean
   scope?: 'current'
+  /**
+   * Optional poll interval in milliseconds. The Issues page (PRD-0006)
+   * passes 5000 so rows visibly transition between sections (Todo → In
+   * progress → Review → Done) as the agent pipeline progresses, without
+   * the user needing to refresh. Other consumers (e.g. tests, single-row
+   * lookups) leave it unset for the default no-polling behaviour.
+   */
+  refetchIntervalMs?: number
 }) {
   return useQuery({
     queryKey: ['findings', params],
     queryFn: () => api.listFindings(params),
+    refetchInterval: params?.refetchIntervalMs ?? false,
   })
 }
 

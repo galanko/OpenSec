@@ -1,0 +1,27 @@
+/* Issues page — animations + scoped helpers (PRD-0006 Phase 1).
+ *
+ * The pulse-dot animation runs on the in-flight stage chip and the
+ * In progress section header. Reduced-motion users get a static dot.
+ */
+
+@keyframes opensec-pulse-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.6);
+    opacity: 0.55;
+  }
+}
+
+.opensec-pulse-dot {
+  animation: opensec-pulse-dot 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .opensec-pulse-dot {
+    animation: none;
+  }
+}

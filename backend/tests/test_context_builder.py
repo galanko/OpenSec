@@ -372,3 +372,64 @@ async def test_migration_adds_columns():
     assert "context_version" in columns
 
     await conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Plan approval — dual-write to SQLite + filesystem (PRD-0006 Story 3)
+# ---------------------------------------------------------------------------
+
+
+async def test_mark_plan_approved_writes_both_stores(
+    builder: WorkspaceContextBuilder,
+    db: aiosqlite.Connection,
+    sample_finding: Finding,
+    dir_manager: WorkspaceDirManager,
+):
+    """``context_builder.mark_plan_approved`` flips ``approved=True`` in BOTH
+    the SQLite sidebar (read by the IMPL-0006 derivation) AND the filesystem
+    ``context/plan.json`` (read by ``suggest_next``). A bug where only one
+    store flips would leave the run-all loop stuck in ``await_approval``
+    even though the user has approved.
+    """
+    from opensec.db.repo_sidebar import get_sidebar, upsert_sidebar
+    from opensec.models import SidebarStateUpdate
+
+    workspace = await builder.create_workspace(db, sample_finding)
+
+    # Seed both stores with a planner output so the helper has something to
+    # flip. In production these are populated by ``update_context`` after
+    # the planner agent finishes.
+    plan_payload = {"plan_steps": ["Bump dep", "Run tests"], "estimated_effort": "2h"}
+    await upsert_sidebar(db, workspace.id, SidebarStateUpdate(plan=plan_payload))
+    dir_manager.write_context_section(workspace.id, "plan", plan_payload)
+
+    result = await builder.mark_plan_approved(db, workspace.id)
+
+    assert result is not None
+    assert result["approved"] is True
+
+    # SQLite sidebar reflects approval.
+    sidebar = await get_sidebar(db, workspace.id)
+    assert sidebar is not None
+    assert sidebar.plan is not None
+    assert sidebar.plan.get("approved") is True
+
+    # Filesystem context reflects approval — this is what suggest_next reads.
+    fs_plan = dir_manager.read_context_section(workspace.id, "plan")
+    assert fs_plan is not None
+    assert fs_plan.get("approved") is True
+    # Other plan fields preserved.
+    assert fs_plan.get("plan_steps") == ["Bump dep", "Run tests"]
+    assert fs_plan.get("estimated_effort") == "2h"
+
+
+async def test_mark_plan_approved_returns_none_when_no_plan(
+    builder: WorkspaceContextBuilder,
+    db: aiosqlite.Connection,
+    sample_finding: Finding,
+):
+    """If the planner hasn't produced a plan yet, the helper returns None
+    instead of writing an empty approved-only entry."""
+    workspace = await builder.create_workspace(db, sample_finding)
+    result = await builder.mark_plan_approved(db, workspace.id)
+    assert result is None

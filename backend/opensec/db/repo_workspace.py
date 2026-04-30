@@ -88,6 +88,34 @@ async def list_workspaces(
     return [_row_to_workspace(row) for row in await cursor.fetchall()]
 
 
+async def list_workspaces_by_finding_ids(
+    db: aiosqlite.Connection, finding_ids: list[str]
+) -> dict[str, Workspace]:
+    """Return ``{finding_id: most_recent_workspace}`` for the given findings.
+
+    IMPL-0006 batch helper. ``finding_id`` is unique-per-row in practice, but
+    if duplicates exist (e.g. an old workspace was never deleted before a new
+    one was created), the most recently updated wins so the derivation reads
+    the live workspace state. Findings with no workspace are absent from the
+    returned mapping.
+    """
+    if not finding_ids:
+        return {}
+    placeholders = ",".join("?" for _ in finding_ids)
+    cursor = await db.execute(
+        f"SELECT * FROM workspace WHERE finding_id IN ({placeholders})"  # noqa: S608
+        " ORDER BY updated_at DESC",
+        finding_ids,
+    )
+    by_finding: dict[str, Workspace] = {}
+    for row in await cursor.fetchall():
+        ws = _row_to_workspace(row)
+        # First match wins (rows are ordered by updated_at DESC).
+        if ws.finding_id and ws.finding_id not in by_finding:
+            by_finding[ws.finding_id] = ws
+    return by_finding
+
+
 async def update_workspace(
     db: aiosqlite.Connection, workspace_id: str, data: WorkspaceUpdate
 ) -> Workspace | None:

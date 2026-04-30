@@ -80,6 +80,32 @@ async def list_agent_runs(
     return [_row_to_agent_run(row) for row in await cursor.fetchall()]
 
 
+async def list_latest_runs_by_workspace_ids(
+    db: aiosqlite.Connection, workspace_ids: list[str]
+) -> dict[str, dict[str, AgentRun]]:
+    """Return ``{workspace_id: {agent_type: most_recent_run}}``.
+
+    IMPL-0006 batch helper. The most recent run per (workspace, agent_type)
+    pair is what the derivation function reads. Older runs are dropped from
+    the mapping. Workspaces with no runs are absent.
+    """
+    if not workspace_ids:
+        return {}
+    placeholders = ",".join("?" for _ in workspace_ids)
+    cursor = await db.execute(
+        f"SELECT * FROM agent_run WHERE workspace_id IN ({placeholders})"  # noqa: S608
+        " ORDER BY started_at DESC NULLS LAST",
+        workspace_ids,
+    )
+    out: dict[str, dict[str, AgentRun]] = {}
+    for row in await cursor.fetchall():
+        run = _row_to_agent_run(row)
+        bucket = out.setdefault(run.workspace_id, {})
+        # First write wins (rows are sorted newest-first).
+        bucket.setdefault(run.agent_type, run)
+    return out
+
+
 async def update_agent_run(
     db: aiosqlite.Connection, run_id: str, data: AgentRunUpdate
 ) -> AgentRun | None:
