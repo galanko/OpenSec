@@ -1,4 +1,4 @@
-# ADR-0015: Agent CLI (`opensec`) and Claude Code skill (`/secure-repo`)
+# ADR-0034: Agent CLI (`opensec`) and Claude Code skill (`/secure-repo`)
 
 **Date:** 2026-04-30
 **Status:** Proposed

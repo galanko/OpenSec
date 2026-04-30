@@ -92,6 +92,26 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ---
 
+## Using Claude Code? Vibe-Security your repo.
+
+If you live in [Claude Code](https://claude.com/claude-code), you don't need the web UI. OpenSec ships an agent-shaped CLI and a `/secure-repo` skill that drives the full remediation loop — install, scan, plan, approve, PR, merge, close — from inside your terminal.
+
+**One-time install** (puts the CLI on your PATH and the skill into `~/.claude/skills/`):
+
+<!-- install:start -->
+```bash
+curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.sh | sh
+```
+<!-- install:end -->
+
+**Then, in any repo, ask Claude Code:**
+
+> *"Secure this repo with OpenSec."*
+
+Claude invokes the `/secure-repo` skill and walks the loop. You touch three buttons per finding: approve the install (once), approve the plan, approve the merge. Everything else is one CLI call. See the [Use from Claude Code](#use-from-claude-code) section below for the full step-by-step.
+
+---
+
 ## Quick start
 
 > **Prerequisites: Docker 24+ and an LLM API key** (Anthropic or OpenAI).
@@ -100,11 +120,9 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ### One-line install
 
-<!-- install:start -->
 ```bash
 curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.sh | sh
 ```
-<!-- install:end -->
 
 The installer drops a `docker-compose.yml` and `.env` in `~/opensec`,
 generates a credential vault key, prompts for your API key, and waits
@@ -179,7 +197,7 @@ Claude Code invokes the `secure-repo` skill, which walks the full loop:
 
 The CLI is JSON-by-default and uses exit codes to encode workflow state — no
 prose, no spinners, easy for any agent to drive. See
-[docs/adr/0015-agent-cli-and-skill.md](docs/adr/0015-agent-cli-and-skill.md)
+[docs/adr/0034-agent-cli-and-skill.md](docs/adr/0034-agent-cli-and-skill.md)
 for the design rationale.
 
 ### Troubleshooting
