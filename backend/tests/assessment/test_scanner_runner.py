@@ -234,13 +234,15 @@ async def test_run_trivy_passes_skip_dirs_csv(
     assert "--skip-dirs" in argv, f"trivy was invoked without --skip-dirs: {argv}"
     csv = argv[argv.index("--skip-dirs") + 1]
     passed = set(csv.split(","))
-    # Every entry in SKIP_DIRS must be passed to Trivy.
-    assert passed >= SKIP_DIRS, (
-        f"--skip-dirs missing entries: {SKIP_DIRS - passed}"
-    )
+    # Trivy uses doublestar globs against paths relative to the scan target,
+    # so matching a directory at any depth needs ``**/<name>``. A bare
+    # basename misses nested occurrences (the case that motivated this fix:
+    # OpenSec's own ``backend/tests/fixtures``).
+    expected = {f"**/{d}" for d in SKIP_DIRS}
+    assert passed >= expected, f"--skip-dirs missing globs: {expected - passed}"
     # Spot-check the two that motivated this fix.
-    assert "fixtures" in passed
-    assert "test_fixtures" in passed
+    assert "**/fixtures" in passed
+    assert "**/test_fixtures" in passed
 
 
 @pytest.mark.asyncio

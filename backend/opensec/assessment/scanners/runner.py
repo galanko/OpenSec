@@ -80,22 +80,28 @@ _SEMGREP_VERSION_RE = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)")
 
 
 def _skip_dirs_csv() -> str:
-    """Comma-separated SKIP_DIRS for ``trivy --skip-dirs``.
+    """Comma-separated SKIP_DIRS globs for ``trivy --skip-dirs``.
 
     Trivy walks the target directory itself, so the in-process
     :func:`opensec.assessment._fs.iter_repo_files` exclusion has no effect on
     it. Without this we report hundreds of false-positive CVEs from
     intentionally-vulnerable lockfiles under ``backend/tests/fixtures/`` and
     similar test-data directories — including on the OpenSec repo itself.
+
+    Trivy uses doublestar globs against paths relative to the scan target, so
+    matching a directory at any depth requires ``**/<name>``. A bare
+    basename only matches at the scan root and silently misses nested
+    occurrences (the OpenSec case).
     """
-    return ",".join(sorted(SKIP_DIRS))
+    return ",".join(f"**/{d}" for d in sorted(SKIP_DIRS))
 
 
 def _semgrep_exclude_args() -> list[str]:
     """``--exclude`` flags for Semgrep matching :data:`SKIP_DIRS`.
 
-    Semgrep takes one ``--exclude PATTERN`` per directory; ``,``-joining
-    is not supported there.
+    Semgrep takes one ``--exclude PATTERN`` per directory and applies it to
+    each path segment, so a basename like ``fixtures`` is enough — no glob
+    prefix needed.
     """
     args: list[str] = []
     for d in sorted(SKIP_DIRS):
