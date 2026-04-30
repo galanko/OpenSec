@@ -133,6 +133,26 @@ Each entry:
   - `IssueRow` swaps the severity badge for the posture badge when `finding.type === 'posture'`, hides CVSS/file/CWE metadata that doesn't apply, and uses a neutral hairline color so posture rows don't read as red-severity bugs.
   - `IssuesHeader` chip group becomes `[All issues, Vulnerability, Posture]`. Existing test updated.
 
+### 14. Advisory posture checks that *passed* are persisted with `status: "new"`
+- **Severity:** **bug** / UX
+- **Where:** `backend/opensec/assessment/to_findings.py:159-194` (`from_posture`)
+- **What:** The mapper currently uses one branch for advisory checks regardless of their scanner status:
+  ```python
+  if is_advisory:
+      grade_impact = "advisory"
+      status = "new"   # always — even when scanner_status == "pass"
+  ```
+  After today's scan, `workflow_trigger_scope` came back with `flagged_count: 0` (zero issues found) and `signed_commits` came back `signed: 20 / 20` (everything signed) — both "passing" — yet they're persisted with `status: "new"`. They show up in the Issues page as if they're action items.
+- **Why it matters:** users see a misleading "open" count: passing advisories pollute the todo column. The user noticed this immediately when the Issues page started rendering posture rows.
+- **Suggested fix:** branch on `r.status` even within advisory: `pass` → `status="passed", grade_impact="advisory"`; `fail`/`advisory` → `status="new", grade_impact="advisory"`. The grade math is unchanged either way.
+
+### 15. `_TRUSTED_PUBLISHERS` is too narrow — common security-tooling vendors trip the trusted-action check
+- **Severity:** posture (false-positive policy)
+- **Where:** `backend/opensec/assessment/posture/ci_supply_chain.py:34-44`
+- **What:** The trusted publisher list bakes in only `actions, github, docker, aws-actions, azure, google-github-actions, hashicorp`. Today's self-scan flagged 9 "untrusted" uses spanning 5 publishers — `astral-sh` (uv), `aquasecurity` (Trivy), `anchore` (SBOM), `sigstore` (Cosign / OpenSSF), `softprops` (gh-release). Every one of those is a widely-deployed industry-standard action; they're all SHA-pinned in `release.yml`, which is the stronger defense. The check's docstring explicitly notes "the broader Marketplace verified-publisher list lives behind an API call we don't make here" — so the narrow set is intentional but the trade-off bites.
+- **Why it matters:** Any project that runs Trivy, Cosign, or uv from CI fails this check. The check isn't grade-counting (it's not in `CriteriaSnapshot`), so it doesn't block Grade A — but it does generate persistent "new" findings that users can't easily fix.
+- **Suggested fix:** either (a) expand the trusted list to include verified Marketplace publishers in the security-tooling space, (b) downgrade the check to advisory-only, or (c) bypass the trust check when an action is fully SHA-pinned (since SHA-pinning is the dominant supply-chain control).
+
 ### 7. `/api/settings/providers` returns ~3 MB of JSON
 - **Severity:** improvement
 - **Where:** `GET /api/settings/providers`
