@@ -466,13 +466,27 @@ jobs:
           cp "$src" opensec-cli.tar.gz
           echo "Staged $src as opensec-cli.tar.gz"
 
+      # We deliberately do NOT set `prerelease: true` here, even for alpha
+      # tags. GitHub's `/releases/latest/download/<asset>` redirect skips
+      # prereleases, and refuses to let API callers mark a prerelease as
+      # latest ("Latest release cannot be draft or prerelease"). The
+      # README's curl one-liner and the `/secure-repo` skill both need that
+      # latest URL to resolve, so the GitHub-Release prerelease flag has
+      # to stay off while we're pre-1.0. The version string itself
+      # (`0.1.2-alpha`, `0.2.0-rc1`, ...) still conveys maturity to anyone
+      # reading the release page.
+      #
+      # Note: Docker tag gating above (the `enable: is_prerelease == 'false'`
+      # filter on the `latest`/`{major}`/`{major}.{minor}` tags) stays —
+      # alpha images should not poison the floating `latest` / `0.1` /
+      # `0` Docker tags. That's a separate concern from GitHub Releases.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ needs.validate.outputs.tag }}
           name: ${{ needs.validate.outputs.tag }}
           body_path: release-notes.md
-          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          make_latest: "true"
           files: |
             opensec-${{ needs.validate.outputs.version }}.cdx.json
             verification.txt
