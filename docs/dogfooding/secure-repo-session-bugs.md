@@ -83,7 +83,10 @@ Each entry:
 - **Symptom seen this session:** scanning `https://github.com/galanko/OpenSec` produced 47 findings (6 critical / 22 high / 19 medium). On inspection, ~all came from intentionally-broken test fixtures (`backend/tests/fixtures/osv/braces_3_0_2.json`, `backend/tests/fixtures/lockfiles/pip/{requirements.txt, Pipfile.lock, uv/uv.lock}`, etc.). The repo's actual production deps already pin safe versions (frontend `package-lock.json` has `braces 3.0.3`; backend `pyproject.toml` declares no Django and `urllib3>=2.5.0`). The braces "fix" we almost approved would have edited a test fixture and broken the parser test suite.
 - **Why it matters:** users running `/secure-repo` against any OpenSec install get a wall of fake "critical" vulnerabilities. Worse, the executor *can* open a draft PR fixing them — which would corrupt scanner test data on real repos. This is the posture issue the user explicitly asked us to find.
 - **Suggested fix:** plumb `SKIP_DIRS` through to the scanners. Trivy: `--skip-dirs <csv>`. Semgrep: one `--exclude <dir>` per entry.
-- **Status:** fixed in `fix/secure-repo-cli-bugs` — `runner.py` now passes `--skip-dirs <SKIP_DIRS csv>` to Trivy and `--exclude <dir>` per directory to Semgrep. Tests assert the flags are present. After re-scan, finding count should drop dramatically.
+- **Status:** fixed in `fix/secure-repo-cli-bugs`. Two iterations:
+  1. First pass passed bare-name patterns (`fixtures`, `testdata`, …). Re-scan still produced **47 findings** because Trivy's `--skip-dirs` matches via doublestar globs against paths relative to the scan target — a bare basename only matches at the root, not at `backend/tests/fixtures`.
+  2. Switched to `**/<name>` glob form. Re-scan produced **0 findings**, exit 5 ("clean repo"). All 47 original findings were false positives from `backend/tests/fixtures/`. Tests assert the glob form. Semgrep's `--exclude` matches by path segment, so its bare-name form stays.
+  - **Verification:** `opensec scan https://github.com/galanko/OpenSec` → `finding_count: 0`, exit `5`.
 
 ### 7. `/api/settings/providers` returns ~3 MB of JSON
 - **Severity:** improvement
