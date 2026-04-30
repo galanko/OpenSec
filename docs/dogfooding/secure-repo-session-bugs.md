@@ -76,6 +76,15 @@ Each entry:
 - **Suggested fix:** Same root cause as #5 — fix CLI field name or add a contract layer.
 - **Status:** fixed in `fix/secure-repo-cli-bugs` — `approve` now reads `pull_request.branch_name` (with a `branch` fallback for forward-compat).
 
+### 8. **CRITICAL POSTURE: Trivy / Semgrep walk test-fixture lockfiles, generating ~all findings as false positives**
+- **Severity:** **bug** / **posture** — undermines the credibility of every scan run on a repo that ships scanner test data.
+- **Where:** `backend/opensec/assessment/scanners/runner.py` (`run_trivy`, `run_semgrep`) vs `backend/opensec/assessment/_fs.py` (`SKIP_DIRS`)
+- **What:** `_fs.py` defines a `SKIP_DIRS` set (`fixtures`, `testdata`, `test-fixtures`, `test_fixtures`, plus the usual `node_modules`, `.venv`, etc.) — and the file's own docstring explains *exactly* this scenario: "Without this exclusion we report hundreds of false-positive CVEs on any repo whose parser tests ship an intentionally-vulnerable lockfile (including OpenSec itself)." But that constant is only consumed by `iter_repo_files` in `posture/secrets.py`. Trivy and Semgrep are invoked as subprocesses (`trivy fs <target>`, `semgrep <target>`) with **no `--skip-dirs` / `--exclude` flag**, so they walk the entire target tree and dutifully report CVEs from `backend/tests/fixtures/lockfiles/{npm,pip,go}/...` — exactly the case the comment warned about.
+- **Symptom seen this session:** scanning `https://github.com/galanko/OpenSec` produced 47 findings (6 critical / 22 high / 19 medium). On inspection, ~all came from intentionally-broken test fixtures (`backend/tests/fixtures/osv/braces_3_0_2.json`, `backend/tests/fixtures/lockfiles/pip/{requirements.txt, Pipfile.lock, uv/uv.lock}`, etc.). The repo's actual production deps already pin safe versions (frontend `package-lock.json` has `braces 3.0.3`; backend `pyproject.toml` declares no Django and `urllib3>=2.5.0`). The braces "fix" we almost approved would have edited a test fixture and broken the parser test suite.
+- **Why it matters:** users running `/secure-repo` against any OpenSec install get a wall of fake "critical" vulnerabilities. Worse, the executor *can* open a draft PR fixing them — which would corrupt scanner test data on real repos. This is the posture issue the user explicitly asked us to find.
+- **Suggested fix:** plumb `SKIP_DIRS` through to the scanners. Trivy: `--skip-dirs <csv>`. Semgrep: one `--exclude <dir>` per entry.
+- **Status:** fixed in `fix/secure-repo-cli-bugs` — `runner.py` now passes `--skip-dirs <SKIP_DIRS csv>` to Trivy and `--exclude <dir>` per directory to Semgrep. Tests assert the flags are present. After re-scan, finding count should drop dramatically.
+
 ### 7. `/api/settings/providers` returns ~3 MB of JSON
 - **Severity:** improvement
 - **Where:** `GET /api/settings/providers`

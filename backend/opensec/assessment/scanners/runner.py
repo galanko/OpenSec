@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+from opensec.assessment._fs import SKIP_DIRS
 from opensec.assessment.scanners.models import (
     ScannerInfo,
     ScannerStatus,
@@ -76,6 +77,30 @@ def _scanner_env() -> dict[str, str]:
 
 _TRIVY_VERSION_RE = re.compile(r"Version:\s*([0-9][0-9A-Za-z.\-+]*)")
 _SEMGREP_VERSION_RE = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)")
+
+
+def _skip_dirs_csv() -> str:
+    """Comma-separated SKIP_DIRS for ``trivy --skip-dirs``.
+
+    Trivy walks the target directory itself, so the in-process
+    :func:`opensec.assessment._fs.iter_repo_files` exclusion has no effect on
+    it. Without this we report hundreds of false-positive CVEs from
+    intentionally-vulnerable lockfiles under ``backend/tests/fixtures/`` and
+    similar test-data directories — including on the OpenSec repo itself.
+    """
+    return ",".join(sorted(SKIP_DIRS))
+
+
+def _semgrep_exclude_args() -> list[str]:
+    """``--exclude`` flags for Semgrep matching :data:`SKIP_DIRS`.
+
+    Semgrep takes one ``--exclude PATTERN`` per directory; ``,``-joining
+    is not supported there.
+    """
+    args: list[str] = []
+    for d in sorted(SKIP_DIRS):
+        args.extend(("--exclude", d))
+    return args
 
 
 class SubprocessScannerRunner:
@@ -172,6 +197,8 @@ class SubprocessScannerRunner:
                 "json",
                 "--scanners",
                 "vuln,secret,misconfig",
+                "--skip-dirs",
+                _skip_dirs_csv(),
                 str(target_dir),
             ],
             timeout=timeout,
@@ -191,6 +218,7 @@ class SubprocessScannerRunner:
                 "p/security-audit",
                 "--json",
                 "--quiet",
+                *_semgrep_exclude_args(),
                 str(target_dir),
             ],
             timeout=timeout,
