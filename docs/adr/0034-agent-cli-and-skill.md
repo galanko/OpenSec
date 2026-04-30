@@ -56,11 +56,22 @@ Errors emit the same shape on stderr with `ok: false` and an `error.code`/`error
 
 **Version handshake.** A new endpoint `GET /api/version` returns `{opensec, opencode, schema_version, min_cli}`. The CLI calls it once per command (cheap, cached briefly) and refuses to operate if its baked-in version is older than `min_cli`. `schema_version` bumps when the contract surface changes incompatibly.
 
-**Distribution.** The existing `scripts/install.sh` is extended (best-effort) to:
-- pip-install the CLI tarball (`opensec-cli.tar.gz`) into `~/.opensec/cli-venv` and symlink the entry point to `~/.local/bin/opensec`,
-- copy the skill (`secure-repo-skill.md`) into `~/.claude/skills/secure-repo/SKILL.md` if `~/.claude/` exists.
+**Distribution — two separate consent surfaces.**
 
-Both assets are published from the same release as `docker-compose.yml`, so they are version-locked to the daemon. The installer degrades gracefully when assets are missing (older releases, pre-publishing), so users keep the web-UI experience even without them.
+1. **CLI** — `scripts/install.sh` pip-installs the CLI tarball (`opensec-cli.tar.gz`) into `~/.opensec/cli-venv` and symlinks the entry point to `~/.local/bin/opensec`. This is a normal Unix binary going to a normal Unix location; the user already opted in by piping `install.sh` to `sh`, same as `rustup`, `nvm`, or `uv`.
+
+2. **Skill (Claude Code plugin)** — published via the **official Claude Code plugin marketplace** mechanism. The repo root carries `.claude-plugin/marketplace.json`, and `plugins/secure-repo/` carries the plugin manifest + skill. The user installs explicitly from inside Claude Code:
+
+   ```text
+   /plugin marketplace add galanko/OpenSec
+   /plugin install secure-repo@opensec
+   ```
+
+   `install.sh` does **not** touch `~/.claude/`. The end-of-install banner prints the two `/plugin` commands as a hint, but never executes them.
+
+**Why this split.** A reviewer flagged an earlier design that wrote `secure-repo-skill.md` straight into `~/.claude/skills/secure-repo/SKILL.md`. That was the wrong instinct: it silently mutates Claude's user-scoped config without explicit consent, and bypasses Anthropic's documented plugin/marketplace flow (see [Claude Code plugins reference](https://code.claude.com/docs/en/plugins-reference.md) and [marketplace docs](https://code.claude.com/docs/en/plugin-marketplaces.md)). Trust-from-first-second is a stated goal — every config mutation must be explicit, reversible, and originate from the user.
+
+Both the CLI and the plugin manifest are version-locked to the daemon: the CLI sdist is published as a release asset; the plugin manifest is checked into the same repo and pulled by `/plugin marketplace add` at the user's request.
 
 ### 2. The skill: `/secure-repo`
 
@@ -92,7 +103,8 @@ The skill encodes hard rules: **never auto-approve a plan, never auto-merge a PR
 - Version handshake gives us an off-ramp when the contract has to break: bump `min_cli`, old agents stop instead of silently corrupting state.
 
 **Costs**
-- Two release artifacts to keep in sync (`opensec-cli.tar.gz`, `secure-repo-skill.md`). Mitigated by publishing both from the same `release.yml` job alongside `docker-compose.yml`.
+- One release artifact (`opensec-cli.tar.gz`) plus one in-repo plugin manifest (`.claude-plugin/marketplace.json` + `plugins/secure-repo/`). The plugin manifest tracks the same git tag as the daemon, so they're version-locked at the commit level.
+- The user does two things instead of one: run the installer, and run two `/plugin` commands inside Claude Code. We accept the extra step in exchange for explicit consent.
 - The skill is Claude-Code-shaped today. Porting to other agents (Cursor, Cline) means re-authoring the skill but reusing the CLI; we accept that trade.
 - Older OpenSec releases will not advertise `min_cli`, so the CLI's 404 fallback treats them as a hard mismatch. Users on stale daemons see exit 4 and a "re-run installer" hint — annoying but correct.
 
@@ -106,4 +118,8 @@ The skill encodes hard rules: **never auto-approve a plan, never auto-merge a PR
 - ADR-0014 — Workspace runtime architecture (the substrate the CLI drives)
 - [`backend/opensec/api/routes/version.py`](../../backend/opensec/api/routes/version.py) — version handshake endpoint
 - [`cli/`](../../cli) — CLI source
-- [`.claude/skills/secure-repo/SKILL.md`](../../.claude/skills/secure-repo/SKILL.md) — skill body
+- [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json) — marketplace manifest (registered via `/plugin marketplace add`)
+- [`plugins/secure-repo/.claude-plugin/plugin.json`](../../plugins/secure-repo/.claude-plugin/plugin.json) — plugin manifest
+- [`plugins/secure-repo/skills/secure-repo/SKILL.md`](../../plugins/secure-repo/skills/secure-repo/SKILL.md) — skill body
+- Anthropic — [Claude Code plugins reference](https://code.claude.com/docs/en/plugins-reference.md)
+- Anthropic — [Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces.md)

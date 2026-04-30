@@ -90,46 +90,39 @@ download() {
   fi
 }
 
-# Install the agent-facing CLI (`opensec`) and the `/secure-repo` Claude Code
-# skill if the release ships them. Both are optional; users can still drive
-# OpenSec from the web UI when these are absent.
+# Install the agent-facing CLI (`opensec`) into ~/.local/bin if the release
+# ships it. The CLI is a normal Unix binary going to a normal Unix location,
+# so this is an extension of `curl ... | sh` consent — same as rustup, nvm,
+# uv, etc. install.
+#
+# We deliberately do NOT touch ~/.claude/. The /secure-repo skill is
+# distributed via the official Claude Code plugin marketplace mechanism and
+# requires explicit user opt-in via `/plugin marketplace add` + `/plugin
+# install`. We just print the command at the end (see end of script).
 install_agent_cli() {
   cli_archive="opensec-cli.tar.gz"
-  skill_file="secure-repo-skill.md"
   cli_url="${RELEASE_BASE}/${cli_archive}"
-  skill_url="${RELEASE_BASE}/${skill_file}"
   bin_dir="${HOME}/.local/bin"
-  skills_dir="${HOME}/.claude/skills/secure-repo"
 
-  # CLI — install into a private virtualenv under ~/.opensec/cli-venv,
-  # then symlink the entry-point onto PATH. Avoids polluting system pip.
-  if command -v python3 >/dev/null 2>&1; then
-    if download "${cli_url}" "/tmp/${cli_archive}" 2>/dev/null; then
-      venv_dir="${HOME}/.opensec/cli-venv"
-      python3 -m venv "${venv_dir}" >/dev/null 2>&1 || true
-      "${venv_dir}/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
-      if "${venv_dir}/bin/pip" install --quiet "/tmp/${cli_archive}" >/dev/null 2>&1; then
-        mkdir -p "${bin_dir}"
-        ln -sf "${venv_dir}/bin/opensec" "${bin_dir}/opensec"
-        ok "Installed opensec CLI to ${bin_dir}/opensec"
-        case ":${PATH}:" in
-          *":${bin_dir}:"*) : ;;
-          *) warn "${bin_dir} is not in your PATH — add it to use the 'opensec' command." ;;
-        esac
-      fi
-      rm -f "/tmp/${cli_archive}"
-    fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 0
   fi
-
-  # Skill — drop into ~/.claude/skills/secure-repo/SKILL.md. Only install if
-  # the user has Claude Code (the directory exists).
-  if [ -d "${HOME}/.claude" ]; then
-    if download "${skill_url}" "/tmp/${skill_file}" 2>/dev/null; then
-      mkdir -p "${skills_dir}"
-      mv "/tmp/${skill_file}" "${skills_dir}/SKILL.md"
-      ok "Installed /secure-repo skill for Claude Code"
-    fi
+  if ! download "${cli_url}" "/tmp/${cli_archive}" 2>/dev/null; then
+    return 0
   fi
+  venv_dir="${HOME}/.opensec/cli-venv"
+  python3 -m venv "${venv_dir}" >/dev/null 2>&1 || true
+  "${venv_dir}/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
+  if "${venv_dir}/bin/pip" install --quiet "/tmp/${cli_archive}" >/dev/null 2>&1; then
+    mkdir -p "${bin_dir}"
+    ln -sf "${venv_dir}/bin/opensec" "${bin_dir}/opensec"
+    ok "Installed opensec CLI to ${bin_dir}/opensec"
+    case ":${PATH}:" in
+      *":${bin_dir}:"*) : ;;
+      *) warn "${bin_dir} is not in your PATH — add it to use the 'opensec' command." ;;
+    esac
+  fi
+  rm -f "/tmp/${cli_archive}"
 }
 
 say "Downloading docker-compose.yml"
@@ -254,10 +247,13 @@ while [ "${ATTEMPT}" -lt "${MAX_ATTEMPTS}" ]; do
     echo
     printf '  %sOpen %shttp://localhost:%s%s%s in your browser.\n' \
       "${BOLD}" "${BLUE}" "${PORT}" "${RESET}" "${RESET}"
-    if command -v opensec >/dev/null 2>&1; then
-      printf '  %sFrom Claude Code:%s ask "secure this repo with OpenSec"\n' \
-        "${BOLD}" "${RESET}"
-    fi
+    echo
+    printf '  %sUsing Claude Code?%s Install the /secure-repo plugin (one-time):\n' \
+      "${BOLD}" "${RESET}"
+    printf '    %s/plugin marketplace add galanko/OpenSec%s\n' "${DIM}" "${RESET}"
+    printf '    %s/plugin install secure-repo@opensec%s\n' "${DIM}" "${RESET}"
+    printf '  Then ask Claude: %s"secure this repo with OpenSec"%s\n' "${BOLD}" "${RESET}"
+    echo
     printf '  %sLogs:%s    docker compose -f %s/docker-compose.yml logs -f\n' \
       "${DIM}" "${RESET}" "${INSTALL_DIR}"
     printf '  %sStop:%s    docker compose -f %s/docker-compose.yml down\n' \

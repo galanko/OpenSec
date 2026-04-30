@@ -443,11 +443,12 @@ jobs:
           cp docker/.env.example          .env.example
           chmod +x install.sh
 
-      # Agent surface (ADR-0034): the `opensec` CLI and the `/secure-repo`
-      # Claude Code skill ship as release assets so the installer's
-      # `install_agent_cli()` helper can drop them onto the host. Both are
-      # version-locked to the daemon image because they're built from the
-      # same checked-out tag.
+      # Agent surface (ADR-0034): the `opensec` CLI ships as a sdist release
+      # asset so `install.sh` can pip-install it onto the user's host. The
+      # `/secure-repo` Claude Code plugin lives in-tree (`.claude-plugin/`,
+      # `plugins/secure-repo/`) and is consumed via `/plugin marketplace add
+      # galanko/OpenSec` — Anthropic's documented plugin flow — so we don't
+      # publish it as a release asset.
       - name: Setup Python (CLI sdist)
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -465,14 +466,6 @@ jobs:
           cp "$src" opensec-cli.tar.gz
           echo "Staged $src as opensec-cli.tar.gz"
 
-      - name: Stage Claude Code skill
-        run: |
-          set -euo pipefail
-          # The installer drops this file into ~/.claude/skills/secure-repo/
-          # as SKILL.md. We rename on upload so it doesn't collide with the
-          # skill files of other repos in a user's downloads folder.
-          cp cli/skill/SKILL.md secure-repo-skill.md
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
@@ -487,5 +480,4 @@ jobs:
             docker-compose.yml
             .env.example
             opensec-cli.tar.gz
-            secure-repo-skill.md
           fail_on_unmatched_files: true

@@ -94,11 +94,11 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ## Using Claude Code? Vibe-Security your repo.
 
-If you live in [Claude Code](https://claude.com/claude-code), you don't need the web UI. OpenSec ships an agent-shaped CLI (`opensec`) and a `/secure-repo` skill that drives the full remediation loop — install, scan, plan, approve, PR, merge, close — from inside your terminal.
+If you live in [Claude Code](https://claude.com/claude-code), you don't need the web UI. OpenSec is published as a **Claude Code plugin marketplace** — you install the `/secure-repo` plugin explicitly, the same way you'd add any other plugin. We never write to `~/.claude/` behind your back.
 
-### Install everything at once (recommended)
+### Two steps. You're in control of both.
 
-The OpenSec one-liner installs **the daemon, the `opensec` CLI on your PATH, and the `/secure-repo` skill into `~/.claude/skills/`** in a single step:
+**Step 1 — install the daemon + CLI.** Same one-liner as everyone else; this puts `opensec` on your PATH and brings up the OpenSec daemon in Docker. It does NOT touch your Claude Code config:
 
 <!-- install:start -->
 ```bash
@@ -106,17 +106,26 @@ curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.s
 ```
 <!-- install:end -->
 
-### Just the skill (already running OpenSec)
+**Step 2 — install the `/secure-repo` plugin** from inside Claude Code, using the official plugin commands:
 
-If the daemon is already running on this machine — or running remotely and you've pointed `OPENSEC_URL` at it — drop the skill into your Claude config directly:
-
-```bash
-mkdir -p ~/.claude/skills/secure-repo
-curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/secure-repo-skill.md \
-  -o ~/.claude/skills/secure-repo/SKILL.md
+```text
+/plugin marketplace add galanko/OpenSec
+/plugin install secure-repo@opensec
 ```
 
-You'll also need the `opensec` CLI on your PATH. Either re-run the full installer (it's idempotent) or install the CLI sdist directly:
+`/plugin marketplace add` registers this repo's `.claude-plugin/marketplace.json` as a source you trust. `/plugin install` then asks Claude Code to load the `secure-repo` plugin from that marketplace. Both commands are explicit and reversible (`/plugin marketplace remove`, `/plugin uninstall`).
+
+### Try it
+
+In any git repo, ask Claude Code:
+
+> *"Secure this repo with OpenSec."*
+
+Claude invokes `/secure-repo` and walks the loop. You touch three buttons per finding: approve the plan, approve the merge, mark closed. Everything else is one CLI call. Full step-by-step in the [Use from Claude Code](#use-from-claude-code) section below.
+
+### Already have OpenSec running elsewhere?
+
+You can install just the plugin (skipping the daemon installer) — point `OPENSEC_URL` at your remote daemon, install the `opensec` CLI on your PATH, then run the same two `/plugin` commands above. CLI install:
 
 ```bash
 python3 -m venv ~/.opensec/cli-venv
@@ -124,14 +133,6 @@ python3 -m venv ~/.opensec/cli-venv
   https://github.com/galanko/OpenSec/releases/latest/download/opensec-cli.tar.gz
 ln -sf ~/.opensec/cli-venv/bin/opensec ~/.local/bin/opensec
 ```
-
-### Try it
-
-Restart Claude Code so it picks up the new skill, then in any git repo:
-
-> *"Secure this repo with OpenSec."*
-
-Claude invokes `/secure-repo` and walks the loop. You touch three buttons per finding: approve the install (only the first time), approve the plan, approve the merge. Everything else is one CLI call. Full step-by-step in the [Use from Claude Code](#use-from-claude-code) section below.
 
 ---
 
@@ -150,8 +151,10 @@ curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.s
 The installer drops a `docker-compose.yml` and `.env` in `~/opensec`,
 generates a credential vault key, prompts for your API key, and waits
 for `/health` to come up. It also installs the `opensec` agent CLI to
-`~/.local/bin` and the `/secure-repo` Claude Code skill to
-`~/.claude/skills/`. Re-run any time to upgrade.
+`~/.local/bin/opensec`. The installer never touches `~/.claude/` — the
+Claude Code plugin install is a separate, explicit step (see
+[Using Claude Code?](#using-claude-code-vibe-security-your-repo) above).
+Re-run any time to upgrade.
 
 When the installer prints the URL, open
 [http://localhost:8000](http://localhost:8000) and OpenSec is ready.
@@ -201,13 +204,14 @@ Full instructions: [docs/verify-release.md](docs/verify-release.md).
 
 ## Use from Claude Code
 
-OpenSec ships with an agent-shaped CLI (`opensec`) and a Claude Code skill
-(`/secure-repo`) so you never have to leave your terminal. After running the
-one-line installer, type this to your agent:
+OpenSec ships with an agent-shaped CLI (`opensec`) and a Claude Code plugin
+(`secure-repo`) so you never have to leave your terminal. Once the daemon is
+up and you've run the two `/plugin` commands from
+[Using Claude Code?](#using-claude-code-vibe-security-your-repo), ask Claude:
 
 > *"Secure this repo with OpenSec."*
 
-Claude Code invokes the `secure-repo` skill, which walks the full loop:
+Claude Code invokes the `secure-repo` plugin's skill, which walks the full loop:
 
 1. `opensec status` — daemon up?
 2. `opensec scan <repo_url>` — posture-assessment runs scanners and ingests findings
