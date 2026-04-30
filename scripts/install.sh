@@ -90,6 +90,48 @@ download() {
   fi
 }
 
+# Install the agent-facing CLI (`opensec`) and the `/secure-repo` Claude Code
+# skill if the release ships them. Both are optional; users can still drive
+# OpenSec from the web UI when these are absent.
+install_agent_cli() {
+  cli_archive="opensec-cli.tar.gz"
+  skill_file="secure-repo-skill.md"
+  cli_url="${RELEASE_BASE}/${cli_archive}"
+  skill_url="${RELEASE_BASE}/${skill_file}"
+  bin_dir="${HOME}/.local/bin"
+  skills_dir="${HOME}/.claude/skills/secure-repo"
+
+  # CLI — install into a private virtualenv under ~/.opensec/cli-venv,
+  # then symlink the entry-point onto PATH. Avoids polluting system pip.
+  if command -v python3 >/dev/null 2>&1; then
+    if download "${cli_url}" "/tmp/${cli_archive}" 2>/dev/null; then
+      venv_dir="${HOME}/.opensec/cli-venv"
+      python3 -m venv "${venv_dir}" >/dev/null 2>&1 || true
+      "${venv_dir}/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
+      if "${venv_dir}/bin/pip" install --quiet "/tmp/${cli_archive}" >/dev/null 2>&1; then
+        mkdir -p "${bin_dir}"
+        ln -sf "${venv_dir}/bin/opensec" "${bin_dir}/opensec"
+        ok "Installed opensec CLI to ${bin_dir}/opensec"
+        case ":${PATH}:" in
+          *":${bin_dir}:"*) : ;;
+          *) warn "${bin_dir} is not in your PATH — add it to use the 'opensec' command." ;;
+        esac
+      fi
+      rm -f "/tmp/${cli_archive}"
+    fi
+  fi
+
+  # Skill — drop into ~/.claude/skills/secure-repo/SKILL.md. Only install if
+  # the user has Claude Code (the directory exists).
+  if [ -d "${HOME}/.claude" ]; then
+    if download "${skill_url}" "/tmp/${skill_file}" 2>/dev/null; then
+      mkdir -p "${skills_dir}"
+      mv "/tmp/${skill_file}" "${skills_dir}/SKILL.md"
+      ok "Installed /secure-repo skill for Claude Code"
+    fi
+  fi
+}
+
 say "Downloading docker-compose.yml"
 download "${RELEASE_BASE}/docker-compose.yml" "docker-compose.yml" \
   || fail "Failed to download docker-compose.yml from ${RELEASE_BASE}"
@@ -203,9 +245,19 @@ while [ "${ATTEMPT}" -lt "${MAX_ATTEMPTS}" ]; do
   if curl -fsS "${URL}" >/dev/null 2>&1; then
     echo
     ok "OpenSec is healthy"
+
+    # ---- agent CLI + Claude Code skill -----------------------------------
+    # Best-effort: if the release doesn't carry these assets yet, skip
+    # quietly. The user can still drive OpenSec from the web UI.
+    install_agent_cli || true
+
     echo
     printf '  %sOpen %shttp://localhost:%s%s%s in your browser.\n' \
       "${BOLD}" "${BLUE}" "${PORT}" "${RESET}" "${RESET}"
+    if command -v opensec >/dev/null 2>&1; then
+      printf '  %sFrom Claude Code:%s ask "secure this repo with OpenSec"\n' \
+        "${BOLD}" "${RESET}"
+    fi
     printf '  %sLogs:%s    docker compose -f %s/docker-compose.yml logs -f\n' \
       "${DIM}" "${RESET}" "${INSTALL_DIR}"
     printf '  %sStop:%s    docker compose -f %s/docker-compose.yml down\n' \

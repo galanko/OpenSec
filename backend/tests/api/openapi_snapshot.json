@@ -3520,6 +3520,35 @@
         "title": "VerifiedRepo",
         "type": "object"
       },
+      "VersionInfo": {
+        "description": "Version handshake for the agent CLI (`opensec status`).\n\n`min_cli` is the lowest CLI version this server promises to speak to.\nA CLI older than this should refuse to operate and tell the user to upgrade.\n`schema_version` bumps when the CLI/server contract changes incompatibly.",
+        "properties": {
+          "min_cli": {
+            "default": "0.1.0",
+            "title": "Min Cli",
+            "type": "string"
+          },
+          "opencode": {
+            "title": "Opencode",
+            "type": "string"
+          },
+          "opensec": {
+            "title": "Opensec",
+            "type": "string"
+          },
+          "schema_version": {
+            "default": "1",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "opensec",
+          "opencode"
+        ],
+        "title": "VersionInfo",
+        "type": "object"
+      },
       "VulnerabilityCounts": {
         "properties": {
           "by_severity": {
@@ -5809,6 +5838,24 @@
         "tags": [
           "settings"
         ]
+      }
+    },
+    "/api/version": {
+      "get": {
+        "operationId": "get_version_api_version_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Version"
       }
     },
     "/api/workspaces": {

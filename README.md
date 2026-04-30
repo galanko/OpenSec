@@ -100,13 +100,17 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ### One-line install
 
+<!-- install:start -->
 ```bash
 curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.sh | sh
 ```
+<!-- install:end -->
 
 The installer drops a `docker-compose.yml` and `.env` in `~/opensec`,
 generates a credential vault key, prompts for your API key, and waits
-for `/health` to come up. Re-run any time to upgrade.
+for `/health` to come up. It also installs the `opensec` agent CLI to
+`~/.local/bin` and the `/secure-repo` Claude Code skill to
+`~/.claude/skills/`. Re-run any time to upgrade.
 
 When the installer prints the URL, open
 [http://localhost:8000](http://localhost:8000) and OpenSec is ready.
@@ -151,6 +155,32 @@ gh attestation verify oci://ghcr.io/galanko/opensec@${DIGEST} --owner galanko
 ```
 
 Full instructions: [docs/verify-release.md](docs/verify-release.md).
+
+---
+
+## Use from Claude Code
+
+OpenSec ships with an agent-shaped CLI (`opensec`) and a Claude Code skill
+(`/secure-repo`) so you never have to leave your terminal. After running the
+one-line installer, type this to your agent:
+
+> *"Secure this repo with OpenSec."*
+
+Claude Code invokes the `secure-repo` skill, which walks the full loop:
+
+1. `opensec status` — daemon up?
+2. `opensec scan <repo_url>` — posture-assessment runs scanners and ingests findings
+3. `opensec issues --severity critical,high` — prioritized list
+4. `opensec fix <id>` — opens a workspace, runs the pipeline up to the plan gate, **stops for your approval**
+5. `opensec approve <id>` — executor + validator, returns the `pr_url`
+6. `gh pr view` / `gh pr diff` — Claude reads the PR and summarizes risk to you
+7. `gh pr merge --squash` — only after you say so
+8. `opensec close <id>` — marks the workspace closed, resolves the finding
+
+The CLI is JSON-by-default and uses exit codes to encode workflow state — no
+prose, no spinners, easy for any agent to drive. See
+[docs/adr/0015-agent-cli-and-skill.md](docs/adr/0015-agent-cli-and-skill.md)
+for the design rationale.
 
 ### Troubleshooting
 
