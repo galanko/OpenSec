@@ -92,6 +92,13 @@ class Settings(BaseSettings):
         return "latest"
 
     @property
+    def opensec_version(self) -> str:
+        version_file = self.repo_root / "VERSION"
+        if version_file.exists():
+            return version_file.read_text().strip()
+        return "0.0.0"
+
+    @property
     def opencode_model(self) -> str:
         """Read the configured model from opencode.json."""
         config_file = self.repo_root / "opencode.json"

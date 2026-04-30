@@ -443,6 +443,29 @@ jobs:
           cp docker/.env.example          .env.example
           chmod +x install.sh
 
+      # Agent surface (ADR-0034): the `opensec` CLI ships as a sdist release
+      # asset so `install.sh` can pip-install it onto the user's host. The
+      # `/secure-repo` Claude Code plugin lives in-tree (`.claude-plugin/`,
+      # `plugins/secure-repo/`) and is consumed via `/plugin marketplace add
+      # galanko/OpenSec` — Anthropic's documented plugin flow — so we don't
+      # publish it as a release asset.
+      - name: Setup Python (CLI sdist)
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Build agent CLI sdist
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet build
+          python -m build --sdist --outdir cli/dist cli
+          # Normalize the filename — the installer fetches a stable name
+          # from the release URL, not whatever pip's sdist convention
+          # happened to produce.
+          src=$(ls cli/dist/*.tar.gz | head -n1)
+          cp "$src" opensec-cli.tar.gz
+          echo "Staged $src as opensec-cli.tar.gz"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
@@ -456,4 +479,5 @@ jobs:
             install.sh
             docker-compose.yml
             .env.example
+            opensec-cli.tar.gz
           fail_on_unmatched_files: true

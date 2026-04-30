@@ -1,0 +1,13 @@
+{
+  "name": "secure-repo",
+  "version": "0.1.0",
+  "description": "Run OpenSec end-to-end on the current repo from Claude Code: install if needed, scan, plan, approve, PR, merge, close. Wraps the agent-shaped `opensec` CLI.",
+  "author": {
+    "name": "galanko",
+    "email": "galank@gmail.com"
+  },
+  "homepage": "https://github.com/galanko/OpenSec",
+  "repository": "https://github.com/galanko/OpenSec",
+  "license": "AGPL-3.0",
+  "keywords": ["security", "remediation", "opensec", "vibe-security"]
+}

@@ -1,0 +1,47 @@
+name: CLI CI
+
+on:
+  push:
+    branches: [main]
+    paths: [cli/**]
+  pull_request:
+    branches: [main]
+    paths: [cli/**, .github/workflows/cli.yml]
+  workflow_dispatch:
+
+concurrency:
+  group: cli-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cli
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Lint
+        run: uv run ruff check opensec_cli/ tests/
+
+      - name: Unit tests
+        run: uv run pytest -v
+
+      - name: Build sdist
+        run: |
+          python -m pip install --quiet build
+          python -m build --sdist

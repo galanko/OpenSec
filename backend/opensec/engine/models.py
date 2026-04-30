@@ -43,6 +43,20 @@ class HealthStatus(BaseModel):
     model: str = ""
 
 
+class VersionInfo(BaseModel):
+    """Version handshake for the agent CLI (`opensec status`).
+
+    `min_cli` is the lowest CLI version this server promises to speak to.
+    A CLI older than this should refuse to operate and tell the user to upgrade.
+    `schema_version` bumps when the CLI/server contract changes incompatibly.
+    """
+
+    opensec: str
+    opencode: str
+    schema_version: str = "1"
+    min_cli: str = "0.1.0"
+
+
 class SSEEvent(BaseModel):
     event: str = "message"
     data: str = ""

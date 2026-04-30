@@ -92,6 +92,50 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ---
 
+## Using Claude Code? Vibe-Security your repo.
+
+If you live in [Claude Code](https://claude.com/claude-code), you don't need the web UI. OpenSec is published as a **Claude Code plugin marketplace** — you install the `/secure-repo` plugin explicitly, the same way you'd add any other plugin. We never write to `~/.claude/` behind your back.
+
+### Two steps. You're in control of both.
+
+**Step 1 — install the daemon + CLI.** Same one-liner as everyone else; this puts `opensec` on your PATH and brings up the OpenSec daemon in Docker. It does NOT touch your Claude Code config:
+
+<!-- install:start -->
+```bash
+curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.sh | sh
+```
+<!-- install:end -->
+
+**Step 2 — install the `/secure-repo` plugin** from inside Claude Code, using the official plugin commands:
+
+```text
+/plugin marketplace add galanko/OpenSec
+/plugin install secure-repo@opensec
+```
+
+`/plugin marketplace add` registers this repo's `.claude-plugin/marketplace.json` as a source you trust. `/plugin install` then asks Claude Code to load the `secure-repo` plugin from that marketplace. Both commands are explicit and reversible (`/plugin marketplace remove`, `/plugin uninstall`).
+
+### Try it
+
+In any git repo, ask Claude Code:
+
+> *"Secure this repo with OpenSec."*
+
+Claude invokes `/secure-repo` and walks the loop. You touch three buttons per finding: approve the plan, approve the merge, mark closed. Everything else is one CLI call. Full step-by-step in the [Use from Claude Code](#use-from-claude-code) section below.
+
+### Already have OpenSec running elsewhere?
+
+You can install just the plugin (skipping the daemon installer) — point `OPENSEC_URL` at your remote daemon, install the `opensec` CLI on your PATH, then run the same two `/plugin` commands above. CLI install:
+
+```bash
+python3 -m venv ~/.opensec/cli-venv
+~/.opensec/cli-venv/bin/pip install \
+  https://github.com/galanko/OpenSec/releases/latest/download/opensec-cli.tar.gz
+ln -sf ~/.opensec/cli-venv/bin/opensec ~/.local/bin/opensec
+```
+
+---
+
 ## Quick start
 
 > **Prerequisites: Docker 24+ and an LLM API key** (Anthropic or OpenAI).
@@ -106,7 +150,11 @@ curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.s
 
 The installer drops a `docker-compose.yml` and `.env` in `~/opensec`,
 generates a credential vault key, prompts for your API key, and waits
-for `/health` to come up. Re-run any time to upgrade.
+for `/health` to come up. It also installs the `opensec` agent CLI to
+`~/.local/bin/opensec`. The installer never touches `~/.claude/` — the
+Claude Code plugin install is a separate, explicit step (see
+[Using Claude Code?](#using-claude-code-vibe-security-your-repo) above).
+Re-run any time to upgrade.
 
 When the installer prints the URL, open
 [http://localhost:8000](http://localhost:8000) and OpenSec is ready.
@@ -151,6 +199,33 @@ gh attestation verify oci://ghcr.io/galanko/opensec@${DIGEST} --owner galanko
 ```
 
 Full instructions: [docs/verify-release.md](docs/verify-release.md).
+
+---
+
+## Use from Claude Code
+
+OpenSec ships with an agent-shaped CLI (`opensec`) and a Claude Code plugin
+(`secure-repo`) so you never have to leave your terminal. Once the daemon is
+up and you've run the two `/plugin` commands from
+[Using Claude Code?](#using-claude-code-vibe-security-your-repo), ask Claude:
+
+> *"Secure this repo with OpenSec."*
+
+Claude Code invokes the `secure-repo` plugin's skill, which walks the full loop:
+
+1. `opensec status` — daemon up?
+2. `opensec scan <repo_url>` — posture-assessment runs scanners and ingests findings
+3. `opensec issues --severity critical,high` — prioritized list
+4. `opensec fix <id>` — opens a workspace, runs the pipeline up to the plan gate, **stops for your approval**
+5. `opensec approve <id>` — executor + validator, returns the `pr_url`
+6. `gh pr view` / `gh pr diff` — Claude reads the PR and summarizes risk to you
+7. `gh pr merge --squash` — only after you say so
+8. `opensec close <id>` — marks the workspace closed, resolves the finding
+
+The CLI is JSON-by-default and uses exit codes to encode workflow state — no
+prose, no spinners, easy for any agent to drive. See
+[docs/adr/0034-agent-cli-and-skill.md](docs/adr/0034-agent-cli-and-skill.md)
+for the design rationale.
 
 ### Troubleshooting
 

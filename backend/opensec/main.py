@@ -33,6 +33,7 @@ from opensec.api.routes import (
     seed,
     sessions,
     sidebar,
+    version,
     workspaces,
 )
 from opensec.api.routes import (
@@ -200,6 +201,7 @@ app.add_middleware(
 
 # Routes
 app.include_router(health.router)
+app.include_router(version.router, prefix="/api")
 app.include_router(sessions.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(findings.router, prefix="/api")
