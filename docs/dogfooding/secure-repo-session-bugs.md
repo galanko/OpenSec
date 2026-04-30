@@ -88,6 +88,34 @@ Each entry:
   2. Switched to `**/<name>` glob form. Re-scan produced **0 findings**, exit 5 ("clean repo"). All 47 original findings were false positives from `backend/tests/fixtures/`. Tests assert the glob form. Semgrep's `--exclude` matches by path segment, so its bare-name form stays.
   - **Verification:** `opensec scan https://github.com/galanko/OpenSec` → `finding_count: 0`, exit `5`.
 
+### 9. `/api/findings?scope=current` excludes posture findings — invisible from /issues and CLI
+- **Severity:** **bug** — direct user complaint after the posture fix in #8 surfaced 5 failing checks the user couldn't see or fix.
+- **Where:** `backend/opensec/api/routes/findings.py:109-126`
+- **What:** The route's docstring states the design: "Posture rows (`type='posture'`) live on the dashboard's posture card and are excluded here." The endpoint hard-codes `type_filter = ["dependency", "code", "secret"]` whenever `scope=current`. Result: the Issues page (UI) and `opensec issues` (CLI) both silently drop every posture finding. After the test-fixture posture fix, the OpenSec repo had 5 failing posture checks (`actions_pinned_to_sha`, `secret_scanning_enabled`, `workflow_trigger_scope`, `trusted_action_sources`, `signed_commits`) — all of them invisible from anywhere a user would normally look.
+- **Why it matters:** posture findings are the *whole reason* the assessment grades the repo at C. Hiding them from the actionable surface means users can't drive them to fix. The skill that powers `/secure-repo` therefore can't help with grade A.
+- **Suggested fix:** stop filtering by type in `scope=current`. Posture rows have `type=posture` so any consumer that wants only CVE-shaped rows can filter explicitly.
+- **Status:** fixed in `fix/secure-repo-cli-bugs` — `list_findings_endpoint` no longer applies a type filter under `scope=current`. New test `test_list_findings_scope_current_includes_posture` locks in the behavior.
+
+### 10. Grade A is gated on GitHub repo settings the daemon can't change
+- **Severity:** posture / UX
+- **Where:** `backend/opensec/assessment/posture/{branch.py, ci_supply_chain.py, collaborator_hygiene.py}` checks vs `backend/opensec/assessment/engine.py` (`derive_grade`)
+- **What:** Six of the ten grade-counting criteria can be fixed with code changes; four require GitHub UI / org-level actions:
+  - `branch_protection_enabled` — needs a branch-protection rule on `main` (Settings → Branches)
+  - `secret_scanning_enabled` — needs Settings → Code security → Secret scanning enabled
+  - `no_stale_collaborators` — needs collaborator audit (Settings → Collaborators)
+  - `actions_pinned_to_sha` — workflow file edits (the only one we can drive from a PR)
+- Some of these checks return `unknown` without a GitHub PAT configured for the daemon (`GITHUB_TOKEN` env). When `unknown`, the criterion is considered unmet, so even a properly-configured repo grades C until the PAT is wired in.
+- **Why it matters:** users running `/secure-repo` will hit a grade ceiling that the skill can't break through. The skill should call this out so they don't think it's broken.
+- **Status:** fixed in `fix/secure-repo-cli-bugs` partially:
+  1. **`actions_pinned_to_sha`**: pinned every `uses:` in `.github/workflows/{backend,cli,frontend}.yml` to a 40-char SHA with the version comment; release.yml was already pinned. Once the user re-scans this branch, that criterion flips to pass.
+  2. **`secret_scanning_enabled`, `branch_protection_enabled`, `no_stale_collaborators`**: skill now lists these explicitly in step 8 (re-assess) with the GitHub-side action each one needs. Skill also tells users to wire `GITHUB_TOKEN` into the daemon env so the checks stop returning `unknown`.
+
+### 11. Skill didn't re-run the assessment after fixes — grade never updated
+- **Severity:** posture / skill UX
+- **Where:** `plugins/secure-repo/skills/secure-repo/SKILL.md`
+- **What:** The skill walked scan → fix → approve → merge → close, then stopped. There was no step to re-run `opensec scan` and report the new grade, so users had no signal that a fix actually moved the needle.
+- **Status:** fixed in `fix/secure-repo-cli-bugs` — added a "Re-assess" step (step 8) that runs `opensec scan` after the fix loop and reads `/api/assessment/latest` to report the new grade plus any still-failing criteria. Skill version bumped to 0.1.1.
+
 ### 7. `/api/settings/providers` returns ~3 MB of JSON
 - **Severity:** improvement
 - **Where:** `GET /api/settings/providers`

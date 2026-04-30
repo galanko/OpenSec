@@ -4445,7 +4445,7 @@
     },
     "/api/findings": {
       "get": {
-        "description": "List findings.\n\nWhen ``scope=current`` the list is scoped to the latest assessment via\n``assessment_id`` and limited to vulnerability types (``dependency``,\n``code``, ``secret``) so the Findings page matches the dashboard's\nVulnerabilities tile. Posture rows (``type='posture'``) live on the\ndashboard's posture card and are excluded here.",
+        "description": "List findings.\n\nWhen ``scope=current`` the list is scoped to the latest assessment via\n``assessment_id``. All finding types are included \u2014 including posture\nrows \u2014 so the Issues page surfaces every actionable item from the\nmost recent scan. The dashboard's posture card filters by\n``type=posture`` if it wants only those.",
         "operationId": "list_findings_endpoint_api_findings_get",
         "parameters": [
           {

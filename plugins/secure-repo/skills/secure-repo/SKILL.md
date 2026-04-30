@@ -2,7 +2,7 @@
 name: "Secure Repo"
 description: |
   Run OpenSec end-to-end on the user's repo from inside Claude Code — install if needed, scan, plan, approve, PR, close. Trigger when the user says "secure this repo", "vibe security", "scan with OpenSec", or asks Claude to drive a remediation flow on a local checkout. Uses the `opensec` CLI (bundled with the OpenSec installer) and `gh` for the PR review/merge step. Hard rule: never auto-approve plans or auto-merge PRs — those are user gates.
-version: "0.1.0"
+version: "0.1.1"
 category: "security"
 tags: [opensec, security, remediation, vibe-security, agent-cli]
 ---
@@ -83,13 +83,15 @@ opensec issues --severity critical,high --limit 10
 
 If `total > 5`, ask the user which issues to tackle this session (or "all"). Otherwise proceed through them in order. Don't chase low/medium severity unless the user asks.
 
+Posture findings surface here too (`type: "posture"`, severity often empty). They map to grade-counting criteria — don't skip them just because they have no CVSS. The fix flow is the same: `opensec fix <id>` → review plan → approve → PR → merge → close.
+
 ### 5. Fix loop — per issue
 
 ```
 opensec fix <issue_id>
 ```
 
-Exit 2 means the planner is done and the plan is awaiting approval. The JSON contains `plan.summary`, `plan.steps`, `plan.definition_of_done`. Render that to the user as a short bullet list and ask for approval. **Wait for an explicit yes.**
+Exit 2 means the planner is done and the plan is awaiting approval. The JSON contains `plan.steps`, `plan.interim_mitigation`, and `plan.definition_of_done`. Render that to the user as a short bullet list and ask for approval. **Wait for an explicit yes.**
 
 Once approved:
 
@@ -123,9 +125,40 @@ opensec close <workspace_id>
 
 This marks the workspace closed and auto-resolves the linked finding. Exit 0 with `closed: true` → move on to the next issue.
 
-### 8. Report
+### 8. Re-assess (always run after fixes land)
 
-When the loop ends (no more issues, or user stopped), give the user one paragraph: count closed, count deferred, links to merged PRs. Don't repeat what they already saw.
+After the last `opensec close` — or whenever the user pauses the loop — re-run the scan to capture the new grade and any newly surfaced posture findings:
+
+```
+opensec scan <repo_url>
+```
+
+Then read `/api/assessment/latest` to get the current grade and `criteria_snapshot`:
+
+```bash
+curl -s http://localhost:8000/api/assessment/latest | jq '{grade, criteria: .criteria}'
+```
+
+Compare to the pre-fix grade and report:
+
+- Grade went up? Tell the user what flipped.
+- Grade unchanged? Surface the still-failing criteria (`criteria_snapshot` keys whose value is `false`).
+- Grade A reached? Celebrate — and stop.
+
+Posture criteria that need GitHub repo settings (not code) — call these out explicitly so the user knows they're action items, not skill bugs:
+
+| Criterion | What unblocks it |
+|---|---|
+| `branch_protection_enabled` | Enable a branch-protection rule on `main` (Settings → Branches) |
+| `secret_scanning_enabled` | Settings → Code security → enable secret scanning |
+| `no_stale_collaborators` | Audit Settings → Collaborators; remove dormant accounts |
+| `actions_pinned_to_sha` | Pin every `uses:` to a 40-char SHA in `.github/workflows/*` |
+
+Some of those checks return `unknown` without a GitHub PAT configured for the daemon; if the criterion stays false despite the user fixing the setting, tell them to add a `GITHUB_TOKEN` to the daemon env.
+
+### 9. Report
+
+When the loop ends (no more issues, or user stopped), give the user one paragraph: count closed, count deferred, the new grade, links to merged PRs. Don't repeat what they already saw.
 
 ## Token discipline
 
