@@ -94,9 +94,11 @@ Live hosted demo coming soon at `demo.opensec.dev`. Until then, spin it up local
 
 ## Using Claude Code? Vibe-Security your repo.
 
-If you live in [Claude Code](https://claude.com/claude-code), you don't need the web UI. OpenSec ships an agent-shaped CLI and a `/secure-repo` skill that drives the full remediation loop — install, scan, plan, approve, PR, merge, close — from inside your terminal.
+If you live in [Claude Code](https://claude.com/claude-code), you don't need the web UI. OpenSec ships an agent-shaped CLI (`opensec`) and a `/secure-repo` skill that drives the full remediation loop — install, scan, plan, approve, PR, merge, close — from inside your terminal.
 
-**One-time install** (puts the CLI on your PATH and the skill into `~/.claude/skills/`):
+### Install everything at once (recommended)
+
+The OpenSec one-liner installs **the daemon, the `opensec` CLI on your PATH, and the `/secure-repo` skill into `~/.claude/skills/`** in a single step:
 
 <!-- install:start -->
 ```bash
@@ -104,11 +106,32 @@ curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/install.s
 ```
 <!-- install:end -->
 
-**Then, in any repo, ask Claude Code:**
+### Just the skill (already running OpenSec)
+
+If the daemon is already running on this machine — or running remotely and you've pointed `OPENSEC_URL` at it — drop the skill into your Claude config directly:
+
+```bash
+mkdir -p ~/.claude/skills/secure-repo
+curl -fsSL https://github.com/galanko/OpenSec/releases/latest/download/secure-repo-skill.md \
+  -o ~/.claude/skills/secure-repo/SKILL.md
+```
+
+You'll also need the `opensec` CLI on your PATH. Either re-run the full installer (it's idempotent) or install the CLI sdist directly:
+
+```bash
+python3 -m venv ~/.opensec/cli-venv
+~/.opensec/cli-venv/bin/pip install \
+  https://github.com/galanko/OpenSec/releases/latest/download/opensec-cli.tar.gz
+ln -sf ~/.opensec/cli-venv/bin/opensec ~/.local/bin/opensec
+```
+
+### Try it
+
+Restart Claude Code so it picks up the new skill, then in any git repo:
 
 > *"Secure this repo with OpenSec."*
 
-Claude invokes the `/secure-repo` skill and walks the loop. You touch three buttons per finding: approve the install (once), approve the plan, approve the merge. Everything else is one CLI call. See the [Use from Claude Code](#use-from-claude-code) section below for the full step-by-step.
+Claude invokes `/secure-repo` and walks the loop. You touch three buttons per finding: approve the install (only the first time), approve the plan, approve the merge. Everything else is one CLI call. Full step-by-step in the [Use from Claude Code](#use-from-claude-code) section below.
 
 ---
 
