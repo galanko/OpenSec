@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2-alpha] - 2026-04-30
+
+Adds an agent-shaped surface so Claude Code (and other coding agents)
+can drive the full remediation loop without ever opening the web UI.
+No app behavior or API changes for existing UI users.
+
+### Added
+
+- **Agent CLI (`opensec`)** — six commands (`status`, `scan`, `issues`,
+  `fix`, `approve`, `close`) plus `selftest`. JSON-by-default output;
+  exit codes encode workflow state (`0` ok · `2` awaiting human · `3`
+  daemon down · `4` version mismatch · `5` clean repo). Published as a
+  Python sdist release asset (`opensec-cli.tar.gz`); `scripts/install.sh`
+  pip-installs it into `~/.opensec/cli-venv` and symlinks the entry
+  point to `~/.local/bin/opensec`.
+- **`/secure-repo` Claude Code plugin** — published via Anthropic's
+  documented plugin marketplace mechanism (`.claude-plugin/marketplace.json`
+  + `plugins/secure-repo/`). Users install explicitly with
+  `/plugin marketplace add galanko/OpenSec` and
+  `/plugin install secure-repo@opensec`. The plugin's skill drives the
+  full loop: scan, plan, user-approves, executor, validator, PR, merge
+  via `gh`, close. Hard rules: never auto-approve a plan, never
+  auto-merge a PR.
+- **`GET /api/version`** — version-handshake endpoint returning
+  `{opensec, opencode, schema_version, min_cli}`. The CLI calls it once
+  per command and refuses to operate when its baked-in version is
+  older than `min_cli`.
+- **CLI CI** (`.github/workflows/cli.yml`) — lint, tests, sdist build
+  on every PR touching `cli/**`.
+- **[ADR-0034](docs/adr/0034-agent-cli-and-skill.md)** — design
+  rationale for the agent CLI + plugin, including the trust-from-
+  first-second decision to avoid silent `~/.claude/` mutation.
+- **README** — new "Using Claude Code? Vibe-Security your repo."
+  section walks the explicit two-step install (daemon installer +
+  `/plugin` commands).
+
+### Changed
+
+- `scripts/install.sh` now installs only the `opensec` CLI to
+  `~/.local/bin`; it never touches `~/.claude/`. The end-of-install
+  banner prints the two `/plugin` commands the user runs themselves.
+- `docs/adr/README.md` — index filled in for ADRs 0025–0034 (had been
+  frozen at 0024).
+
 ## [0.1.1-alpha] - 2026-04-29
 
 Polishes the install path before handing the alpha to external testers.
@@ -101,6 +145,7 @@ SLSA build provenance and a CycloneDX SBOM attestation.
   One-line migration:
   `docker run --rm --user 0 -v opensec_data:/data alpine chown -R 10001:10001 /data`.
 
-[Unreleased]: https://github.com/galanko/OpenSec/compare/v0.1.1-alpha...HEAD
+[Unreleased]: https://github.com/galanko/OpenSec/compare/v0.1.2-alpha...HEAD
+[0.1.2-alpha]: https://github.com/galanko/OpenSec/releases/tag/v0.1.2-alpha
 [0.1.1-alpha]: https://github.com/galanko/OpenSec/releases/tag/v0.1.1-alpha
 [0.1.0-alpha]: https://github.com/galanko/OpenSec/releases/tag/v0.1.0-alpha
