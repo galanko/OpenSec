@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from cliff.repos.deps.imports import find_import_sites
+from cliff.repos.deps.imports import collect_import_sites, find_import_sites
 
 
 def test_npm_import_found_in_shipping_not_test(tmp_path) -> None:
@@ -52,3 +52,24 @@ def test_py_import_forms(tmp_path) -> None:
 def test_py_not_imported(tmp_path) -> None:
     (tmp_path / "m.py").write_text("import requests\n")
     assert find_import_sites(tmp_path, "urllib3", "pypi") == []
+
+
+def test_collect_npm_one_pass(tmp_path) -> None:
+    (tmp_path / "a.ts").write_text("import x from 'yaml'\nimport y from 'lodash/merge'\n")
+    (tmp_path / "b.js").write_text("const z = require('@xmldom/xmldom')\n")
+    (tmp_path / "rel.ts").write_text("import './local'\n")  # relative — ignored
+    t = tmp_path / "__tests__"
+    t.mkdir()
+    (t / "c.ts").write_text("import q from 'yaml'\n")  # test — excluded
+    got = collect_import_sites(tmp_path, "npm")
+    assert got.get("yaml") == ["a.ts:1"]
+    assert got.get("lodash") == ["a.ts:2"]
+    assert got.get("@xmldom/xmldom") == ["b.js:1"]
+    assert "." not in got and "./local" not in got
+
+
+def test_collect_py_one_pass(tmp_path) -> None:
+    (tmp_path / "m.py").write_text("import aiohttp\nfrom yaml.loader import SafeLoader\n")
+    got = collect_import_sites(tmp_path, "pypi")
+    assert got.get("aiohttp") == ["m.py:1"]
+    assert got.get("yaml") == ["m.py:2"]

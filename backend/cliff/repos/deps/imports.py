@@ -43,6 +43,68 @@ def _is_test_file(rel: str) -> bool:
     return bool(_TEST_FILE_RE.search(rel.replace("\\", "/")))
 
 
+# One-pass collectors — extract the imported top-level name from each import
+# statement so the whole repo is scanned ONCE (the per-node call would re-walk).
+_NPM_SPEC_RE = re.compile(
+    r"""(?:from|import)\s*\(?\s*['"]([^'"]+)['"]|require\(\s*['"]([^'"]+)['"]"""
+)
+_PY_IMPORT_RE = re.compile(r"""^\s*(?:import\s+(\w+)|from\s+(\w+)(?:\.\w+)*\s+import)""")
+
+
+def _npm_spec_to_pkg(spec: str) -> str | None:
+    if not spec or spec.startswith(".") or spec.startswith("/"):
+        return None  # relative / absolute — not a package
+    parts = spec.split("/")
+    if spec.startswith("@"):
+        return "/".join(parts[:2]) if len(parts) >= 2 else None  # @scope/name
+    return parts[0]
+
+
+def collect_import_sites(root, ecosystem: str) -> dict[str, list[str]]:  # noqa: ANN001 - Path
+    """One walk of shipping first-party source → ``{package_or_import_name: [file:line, ...]}``.
+
+    npm keys are package names (``lodash``, ``@scope/name``); pypi keys are
+    top-level import names (``yaml``, ``aiohttp``). Callers match a node's
+    ``import_name`` against these keys.
+    """
+    root = os.fspath(root)
+    exts = _NPM_EXT if ecosystem == "npm" else _PY_EXT if ecosystem == "pypi" else set()
+    if not exts:
+        return {}
+    out: dict[str, list[str]] = {}
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d.lower() not in _EXCLUDE_DIRS]
+        for fn in filenames:
+            if os.path.splitext(fn)[1].lower() not in exts:
+                continue
+            rel = os.path.relpath(os.path.join(dirpath, fn), root)
+            if _is_test_file(rel):
+                continue
+            try:
+                with open(os.path.join(dirpath, fn), encoding="utf-8", errors="ignore") as fh:
+                    for i, line in enumerate(fh, 1):
+                        if "import" not in line and "require" not in line:
+                            continue
+                        if ecosystem == "npm":
+                            m = _NPM_SPEC_RE.search(line)
+                            if not m:
+                                continue
+                            pkg = _npm_spec_to_pkg(m.group(1) or m.group(2) or "")
+                        else:
+                            m = _PY_IMPORT_RE.match(line)
+                            if not m:
+                                continue
+                            pkg = m.group(1) or m.group(2)
+                        if not pkg:
+                            continue
+                        bucket = out.setdefault(pkg, [])
+                        if len(bucket) < _MAX_SITES:
+                            bucket.append(f"{rel}:{i}")
+            except OSError:
+                continue
+    return out
+
+
 def find_import_sites(root, import_name: str, ecosystem: str) -> list[str]:  # noqa: ANN001 - Path
     """Shipping first-party ``file:line`` sites that import ``import_name``."""
     if not import_name:
