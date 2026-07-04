@@ -16,7 +16,10 @@ from dataclasses import dataclass
 # Directory segments whose manifests never ship to production.
 _DOCS_DIRS = {"docs", "doc", "documentation", "website", "site", "examples", "example", "demo", "demos"}
 _TEST_DIRS = {"test", "tests", "__tests__", "__mocks__", "spec", "specs", "e2e", "cypress", "playwright"}
-_BUILD_DIRS = {"benchmark", "benchmarks", "bench", "storybook", ".storybook", "scripts", "tools", "tooling"}
+# NOTE: intentionally NOT including scripts/tools here — real shipping code lives
+# in scripts/ dirs (e.g. worker entrypoints), so excluding them from the import
+# scan would false-negative "not imported" and risk an unsafe clear.
+_BUILD_DIRS = {"benchmark", "benchmarks", "bench", "storybook", ".storybook"}
 
 # Dependency section -> scope. Unknown -> "prod" (conservative).
 _SECTION_SCOPE: dict[str, str] = {
