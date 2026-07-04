@@ -1,0 +1,58 @@
+# SMALL real slice of karakeep's pnpm-lock.yaml (v9). Real package identities:
+#   - undici version-split: @6.23.0 is a PROD dep of packages/shared; @7.16.0 is a
+#     transitive of cheerio, which here is a DEV-only dep of the root workspace.
+#   - '@xmldom/xmldom@0.8.0' exercises scoped-name parsing.
+#   - 'openai@6.34.0(ws@8.18.3)(zod@4.3.6)' exercises peer-suffix stripping.
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    devDependencies:
+      cheerio:
+        specifier: ^1.1.2
+        version: 1.1.2
+
+  packages/shared:
+    dependencies:
+      undici:
+        specifier: ^6.23.0
+        version: 6.23.0
+      '@xmldom/xmldom':
+        specifier: ^0.8.0
+        version: 0.8.0
+      openai:
+        specifier: ^6.0.0
+        version: 6.34.0(ws@8.18.3)(zod@4.3.6)
+
+packages:
+
+  '@xmldom/xmldom@0.8.0':
+    resolution: {integrity: sha512-aAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==}
+
+  cheerio@1.1.2:
+    resolution: {integrity: sha512-bBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==}
+
+  openai@6.34.0:
+    resolution: {integrity: sha512-cCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC==}
+
+  undici@6.23.0:
+    resolution: {integrity: sha512-dDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD==}
+
+  undici@7.16.0:
+    resolution: {integrity: sha512-eEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE==}
+
+snapshots:
+
+  '@xmldom/xmldom@0.8.0': {}
+
+  cheerio@1.1.2:
+    dependencies:
+      undici: 7.16.0
+
+  'openai@6.34.0(ws@8.18.3)(zod@4.3.6)':
+    dependencies: {}
+
+  undici@6.23.0: {}
+
+  undici@7.16.0: {}
