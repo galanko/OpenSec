@@ -25,7 +25,7 @@ def test_build_profile_runner_wires_production_adapters(db, tmp_path):
     )
     assert runner._sync_clone is git_ops.sync_clone
     assert runner._head_sha is git_ops.git_head_sha
-    assert set(runner._builders) == {"profile", "code_map", "threat"}
+    assert set(runner._builders) == {"profile", "code_map", "threat", "dep_manifest"}
 
 
 async def test_end_to_end_with_real_git_adapters(db, bare_repo, tmp_path):

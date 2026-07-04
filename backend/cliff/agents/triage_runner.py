@@ -22,6 +22,7 @@ from cliff.agents.schemas import TriageOutput
 from cliff.agents.sidebar_mapper import map_and_upsert
 from cliff.agents.triage_codemap import resolve_by_code_map
 from cliff.agents.triage_deep.integration import maybe_deep_dive
+from cliff.agents.triage_dep_manifest import resolve_by_dep_manifest
 from cliff.db.repo_agent_run import (
     create_agent_run,
     list_latest_runs_by_workspace_ids,
@@ -107,13 +108,15 @@ def _structured_output(runs: dict[str, Any], agent_type: str) -> dict[str, Any] 
     return run.structured_output if run is not None else None
 
 
-async def _load_code_map(db: aiosqlite.Connection, repo_url: str | None) -> dict[str, Any] | None:
-    """The repo's cached code_map, or None when there's no ready profile — the
-    same resolution the Deep dive uses (cliff/agents/triage_deep/integration.py).
+async def _load_artifact(
+    db: aiosqlite.Connection, repo_url: str | None, name: str
+) -> dict[str, Any] | None:
+    """The repo's cached profile artifact *name*, or None when there's no ready
+    profile — the same resolution the Deep dive uses
+    (cliff/agents/triage_deep/integration.py).
 
-    Returns None (falls through to Deep dive) on any read/parse failure, or
-    when the artifact is not a dict — triage must never crash on a corrupt
-    code_map.
+    Returns None (falls through to Deep dive) on any read/parse failure, or when
+    the artifact is not a dict — triage must never crash on a corrupt artifact.
     """
     if not repo_url:
         return None
@@ -121,15 +124,19 @@ async def _load_code_map(db: aiosqlite.Connection, repo_url: str | None) -> dict
     if repo is None or repo.profile_status != "ready":
         return None
     try:
-        result = default_repo_dir_manager().read_artifact(repo.id, "code_map")
+        result = default_repo_dir_manager().read_artifact(repo.id, name)
     except Exception:
-        logger.debug(
-            "code_map unreadable for repo %s — falling through to Deep dive", repo_url
-        )
+        logger.debug("%s unreadable for repo %s — falling through to Deep dive", name, repo_url)
         return None
-    if not isinstance(result, dict):
-        return None
-    return result
+    return result if isinstance(result, dict) else None
+
+
+async def _load_code_map(db: aiosqlite.Connection, repo_url: str | None) -> dict[str, Any] | None:
+    return await _load_artifact(db, repo_url, "code_map")
+
+
+async def _load_dep_manifest(db: aiosqlite.Connection, repo_url: str | None) -> dict[str, Any] | None:
+    return await _load_artifact(db, repo_url, "dep_manifest")
 
 
 async def run_triage(
@@ -261,6 +268,22 @@ async def _run_scanner_triage(
     if cleared is not None:
         await _persist_synthesis(db, workspace.id, cleared)
         return cleared
+
+    # Deterministic dep_manifest gate (SP1): clear a dependency finding whose
+    # package provably does not ship (dev/test-only, unimported). The dep finding
+    # carries pkg@version in raw_payload; code_map's file-path gate never matches
+    # it, so this runs only for type=="dependency" and is a pure structural clear.
+    if finding.type == "dependency":
+        rp = finding.raw_payload or {}
+        pkg, ver = rp.get("package"), rp.get("version")
+        if pkg and ver:
+            dep_manifest = await _load_dep_manifest(db, workspace.repo_url)
+            dep_cleared = resolve_by_dep_manifest(
+                {**finding_ctx, "location": f"{pkg}@{ver}"}, dep_manifest
+            )
+            if dep_cleared is not None:
+                await _persist_synthesis(db, workspace.id, dep_cleared)
+                return dep_cleared
 
     # Escalate to the agentic Deep dive when warranted (ADR-0052). Best-effort:
     # any failure keeps the cheap Quick-read verdict — triage never breaks.

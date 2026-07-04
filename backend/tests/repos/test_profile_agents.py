@@ -69,7 +69,7 @@ async def test_threat_history_defaults_to_empty(clone):
     assert parsed.prior_issues == []
 
 
-def test_make_profile_builders_has_all_three():
+def test_make_profile_builders_has_all_artifacts():
     builders = make_profile_builders(TestModel())
-    assert set(builders) == {"profile", "code_map", "threat"}
+    assert set(builders) == {"profile", "code_map", "threat", "dep_manifest"}
     assert all(callable(b) for b in builders.values())

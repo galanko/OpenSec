@@ -31,8 +31,9 @@ if TYPE_CHECKING:
 SCHEMA_VERSION = 1
 
 #: The Project-profile artifacts (ADR-0053 §3). The clone lives alongside in
-#: ``repo/`` (see :meth:`clone_dir`).
-ARTIFACTS = ("profile", "code_map", "threat")
+#: ``repo/`` (see :meth:`clone_dir`). ``dep_manifest`` is the deterministic
+#: lockfile-resolved dependency graph (no LLM).
+ARTIFACTS = ("profile", "code_map", "threat", "dep_manifest")
 
 
 class RepoDirManager:
