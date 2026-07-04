@@ -84,8 +84,8 @@ def test_uv_lock_slice_nodes_and_edges() -> None:
     # transitive edge aiohttp → aiohappyeyeballs propagates prod (proves edges exist)
     assert scopes[("aiohappyeyeballs", "2.6.1")] == {"prod"}
     assert scopes[("frozenlist", "1.8.0")] == {"prod"}
-    # optional-dependency (docs extra) is scoped optional, never prod
-    assert scopes[("mkdocs", "1.6.1")] == {"optional"}
+    # a docs-named extra is non-shipping tooling → scoped docs, never prod
+    assert scopes[("mkdocs", "1.6.1")] == {"docs"}
 
 
 # ── declared-only fallback (no lockfile) ──────────────────────────────────────

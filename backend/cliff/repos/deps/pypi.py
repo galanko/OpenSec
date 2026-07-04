@@ -40,7 +40,7 @@ import tomllib
 from pathlib import Path
 
 from .graph import DepGraph
-from .manifests import Manifest, classify_scope
+from .manifests import Manifest, classify_extra, classify_scope
 
 NV = tuple[str, str]
 _ECO = "pypi"
@@ -245,9 +245,10 @@ def _parse_uv_lock(
             declared_in = _root_manifest(src, pyprojects, root)
             _uv_roots(g, pkg.get("dependencies") or [], name_versions,
                       classify_scope(declared_in, "project.dependencies"), declared_in)
-            for deps in (pkg.get("optional-dependencies") or {}).values():
-                _uv_roots(g, deps or [], name_versions,
-                          classify_scope(declared_in, "project.optional-dependencies"), declared_in)
+            for extra_name, deps in (pkg.get("optional-dependencies") or {}).items():
+                # a dev/docs/test-named extra is non-shipping tooling; a feature
+                # extra (anthropic, postgres, …) ships when installed → optional.
+                _uv_roots(g, deps or [], name_versions, classify_extra(extra_name), declared_in)
             for deps in (pkg.get("dev-dependencies") or {}).values():
                 _uv_roots(g, deps or [], name_versions,
                           classify_scope(declared_in, "dependency-groups"), declared_in)

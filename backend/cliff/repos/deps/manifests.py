@@ -57,6 +57,28 @@ def _path_dir_scope(manifest_path: str) -> str | None:
     return None
 
 
+#: Python ``[project.optional-dependencies]`` EXTRA names that denote non-shipping
+#: dev/docs/test tooling (vs feature extras like ``anthropic``/``postgres`` which
+#: DO ship when installed → ``optional``). Conservative: unknown extra → optional.
+_DEV_EXTRA_NAMES: dict[str, str] = {
+    "dev": "dev", "develop": "dev", "development": "dev", "devel": "dev",
+    "lint": "dev", "linting": "dev", "typing": "dev", "types": "dev", "mypy": "dev",
+    "style": "dev", "format": "dev", "ci": "dev", "check": "dev", "checks": "dev",
+    "docs": "docs", "doc": "docs", "documentation": "docs", "test-docs": "docs",
+    "test": "test", "tests": "test", "testing": "test",
+    "benchmark": "build", "benchmarks": "build", "bench": "build", "build": "build",
+}
+
+
+def classify_extra(extra_name: str) -> str:
+    """Scope for a Python ``optional-dependencies`` extra by its NAME.
+
+    A ``dev``/``docs``/``test`` extra is non-shipping tooling; a feature extra
+    (``anthropic``, ``postgres``, …) ships when installed → ``optional``.
+    """
+    return _DEV_EXTRA_NAMES.get(extra_name.strip().lower(), "optional")
+
+
 def classify_scope(manifest_path: str, section: str) -> str:
     """Scope for a dependency declared in ``section`` of ``manifest_path``.
 

@@ -4,7 +4,21 @@ from __future__ import annotations
 
 import pytest
 
-from cliff.repos.deps.manifests import classify_scope, discover_manifests
+from cliff.repos.deps.manifests import classify_extra, classify_scope, discover_manifests
+
+
+@pytest.mark.parametrize(
+    "extra,expected",
+    [
+        ("dev", "dev"), ("Dev", "dev"), ("lint", "dev"), ("typing", "dev"),
+        ("docs", "docs"), ("test-docs", "docs"), ("test", "test"), ("tests", "test"),
+        ("benchmark", "build"),
+        # feature extras ship when installed → optional (conservative)
+        ("anthropic", "optional"), ("postgres", "optional"), ("all", "optional"),
+    ],
+)
+def test_classify_extra(extra: str, expected: str) -> None:
+    assert classify_extra(extra) == expected
 
 
 @pytest.mark.parametrize(
