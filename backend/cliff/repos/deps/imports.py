@@ -20,6 +20,19 @@ _NPM_EXT = {".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte"}
 _PY_EXT = {".py", ".pyi"}
 # also treat these filename markers as test/non-ship regardless of directory
 _TEST_FILE_RE = re.compile(r"(\.|_|-)(test|spec)\.|(^|/)(test|conftest)_|_test\.py$", re.I)
+# Build-TIME config files: code that runs during build, not in the shipped app.
+# A dependency imported ONLY here does not ship to production runtime, so it must
+# not count as a shipping import (would block a safe dev-only clear).
+_BUILD_CONFIG_RE = re.compile(
+    r"""(?:^|/)(?:[^/]*\.config\.(?:js|ts|mjs|cjs)"""
+    r"""|(?:webpack|rollup|esbuild|gulpfile|gruntfile|metro|karma|craco)\.[^/]*"""
+    r"""|\.[a-z]*rc\.(?:js|ts|cjs|mjs))$""",
+    re.I,
+)
+
+
+def _is_build_config(rel: str) -> bool:
+    return bool(_BUILD_CONFIG_RE.search(rel.replace("\\", "/")))
 
 _MAX_SITES = 30
 
@@ -78,7 +91,7 @@ def collect_import_sites(root, ecosystem: str) -> dict[str, list[str]]:  # noqa:
             if os.path.splitext(fn)[1].lower() not in exts:
                 continue
             rel = os.path.relpath(os.path.join(dirpath, fn), root)
-            if _is_test_file(rel):
+            if _is_test_file(rel) or _is_build_config(rel):
                 continue
             try:
                 with open(os.path.join(dirpath, fn), encoding="utf-8", errors="ignore") as fh:
@@ -125,7 +138,7 @@ def find_import_sites(root, import_name: str, ecosystem: str) -> list[str]:  # n
                 continue
             full = os.path.join(dirpath, fn)
             rel = os.path.relpath(full, root)
-            if _is_test_file(rel):
+            if _is_test_file(rel) or _is_build_config(rel):
                 continue
             try:
                 with open(full, encoding="utf-8", errors="ignore") as fh:

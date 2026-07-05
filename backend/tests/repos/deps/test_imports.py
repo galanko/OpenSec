@@ -68,6 +68,19 @@ def test_collect_npm_one_pass(tmp_path) -> None:
     assert "." not in got and "./local" not in got
 
 
+def test_build_config_import_not_counted(tmp_path) -> None:
+    # a dep imported only in a build-config file does not ship → not a shipping import
+    (tmp_path / "vite.config.ts").write_text("import react from '@vitejs/plugin-react'\n")
+    (tmp_path / "webpack.config.js").write_text("const x = require('terser-webpack-plugin')\n")
+    (tmp_path / ".eslintrc.js").write_text("module.exports = require('eslint-config-foo')\n")
+    assert find_import_sites(tmp_path, "@vitejs/plugin-react", "npm") == []
+    assert find_import_sites(tmp_path, "terser-webpack-plugin", "npm") == []
+    assert collect_import_sites(tmp_path, "npm") == {}
+    # but a real source import IS counted
+    (tmp_path / "app.ts").write_text("import react from '@vitejs/plugin-react'\n")
+    assert find_import_sites(tmp_path, "@vitejs/plugin-react", "npm") == ["app.ts:1"]
+
+
 def test_collect_py_one_pass(tmp_path) -> None:
     (tmp_path / "m.py").write_text("import aiohttp\nfrom yaml.loader import SafeLoader\n")
     got = collect_import_sites(tmp_path, "pypi")
