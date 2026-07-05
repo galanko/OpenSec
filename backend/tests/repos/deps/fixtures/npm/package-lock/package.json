@@ -1,0 +1,10 @@
+{
+  "name": "nicegui-slice",
+  "private": true,
+  "dependencies": {
+    "dompurify": "^3.4.0"
+  },
+  "devDependencies": {
+    "@antfu/install-pkg": "^1.1.0"
+  }
+}

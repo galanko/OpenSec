@@ -75,7 +75,7 @@ async def maybe_deep_dive(
 
     knowledge = {
         name: mgr.read_artifact(repo.id, name)
-        for name in ("profile", "code_map", "threat")
+        for name in ("profile", "code_map", "threat", "dep_manifest")
     }
     active_runner = runner or DeepDiveRunner(
         build_tier_models(ai_env, model_full_id),

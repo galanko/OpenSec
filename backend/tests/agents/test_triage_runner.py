@@ -300,6 +300,130 @@ async def test_codemap_gate_clears_and_skips_deep_dive(monkeypatch, db) -> None:
     assert len(synth) == 1 and synth[0].structured_output["verdict"] == "false_positive"
 
 
+async def test_dep_manifest_gate_clears_dev_only_dependency(monkeypatch, db) -> None:
+    """A dependency finding whose package is dev/test-only + unimported is cleared
+    false_positive by the dep_manifest gate, WITHOUT invoking the Deep dive."""
+    import cliff.agents.triage_runner as tr
+
+    async def _no_code_map(db, repo_url):  # noqa: ANN001
+        return None
+
+    async def _fake_load_dep_manifest(db, repo_url):  # noqa: ANN001
+        return {
+            "nodes": [
+                {
+                    "name": "webpack-dev-server",
+                    "version": "4.15.2",
+                    "ecosystem": "npm",
+                    "scopes": ["dev"],
+                    "direct": True,
+                    "declared_in": ["package.json"],
+                    "import_name": "webpack-dev-server",
+                    "import_sites": [],
+                }
+            ]
+        }
+
+    called = {"deep": False}
+
+    async def _fake_deep(*a, **k):  # noqa: ANN002, ANN003
+        called["deep"] = True
+        return None
+
+    monkeypatch.setattr(tr, "_load_code_map", _no_code_map)
+    monkeypatch.setattr(tr, "_load_dep_manifest", _fake_load_dep_manifest)
+    monkeypatch.setattr(tr, "maybe_deep_dive", _fake_deep)
+
+    finding = await create_finding(
+        db,
+        FindingCreate(
+            source_type="trivy",
+            source_id="webpack-dev-server@4.15.2:CVE-2026-9",
+            title="CVE-2026-9 in webpack-dev-server",
+            type="dependency",
+            raw_payload={"package": "webpack-dev-server", "version": "4.15.2"},
+        ),
+    )
+    ws = await create_workspace(
+        db, WorkspaceCreate(finding_id=finding.id, repo_url="https://github.com/test/repo")
+    )
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE workspace SET workspace_dir = ?, updated_at = ? WHERE id = ?",
+        (f"/tmp/ws/{ws.id}", now, ws.id),
+    )
+    await db.commit()
+    executor = _StubExecutor(
+        {"finding_enricher": _ENRICH_REAL, "exposure_analyzer": _EXPOSURE_REAL}
+    )
+
+    triage = await run_triage(executor, db, ws, env_vars={})
+
+    assert triage is not None
+    assert triage.verdict == "false_positive"
+    assert called["deep"] is False
+
+
+async def test_dep_manifest_gate_prod_dependency_falls_through(monkeypatch, db) -> None:
+    """A prod dependency is NOT cleared by the gate → it escalates to the Deep dive."""
+    import cliff.agents.triage_runner as tr
+
+    async def _no_code_map(db, repo_url):  # noqa: ANN001
+        return None
+
+    async def _fake_load_dep_manifest(db, repo_url):  # noqa: ANN001
+        return {
+            "nodes": [
+                {
+                    "name": "axios",
+                    "version": "1.13.2",
+                    "ecosystem": "npm",
+                    "scopes": ["prod"],
+                    "direct": True,
+                    "declared_in": ["apps/web/package.json"],
+                    "import_name": "axios",
+                    "import_sites": ["apps/web/src/api.ts:3"],
+                }
+            ]
+        }
+
+    called = {"deep": False}
+
+    async def _fake_deep(*a, **k):  # noqa: ANN002, ANN003
+        called["deep"] = True
+        return None
+
+    monkeypatch.setattr(tr, "_load_code_map", _no_code_map)
+    monkeypatch.setattr(tr, "_load_dep_manifest", _fake_load_dep_manifest)
+    monkeypatch.setattr(tr, "maybe_deep_dive", _fake_deep)
+
+    finding = await create_finding(
+        db,
+        FindingCreate(
+            source_type="trivy",
+            source_id="axios@1.13.2:CVE-2026-8",
+            title="CVE-2026-8 in axios",
+            type="dependency",
+            raw_payload={"package": "axios", "version": "1.13.2"},
+        ),
+    )
+    ws = await create_workspace(
+        db, WorkspaceCreate(finding_id=finding.id, repo_url="https://github.com/test/repo")
+    )
+    now = datetime.now(UTC).isoformat()
+    await db.execute(
+        "UPDATE workspace SET workspace_dir = ?, updated_at = ? WHERE id = ?",
+        (f"/tmp/ws/{ws.id}", now, ws.id),
+    )
+    await db.commit()
+    executor = _StubExecutor(
+        {"finding_enricher": _ENRICH_REAL, "exposure_analyzer": _EXPOSURE_REAL}
+    )
+
+    await run_triage(executor, db, ws, env_vars={})
+    assert called["deep"] is True  # prod dep → not cleared → Deep dive runs
+
+
 async def test_codemap_gate_no_match_runs_deep_dive(monkeypatch, db) -> None:
     """When nothing matches, the Deep dive still runs (gate is transparent)."""
     import cliff.agents.triage_runner as tr

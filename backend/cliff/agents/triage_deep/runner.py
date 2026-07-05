@@ -272,6 +272,7 @@ class DeepDiveRunner:
             "profile": repo_knowledge.get("profile"),
             "code_map": repo_knowledge.get("code_map"),
             "threat": repo_knowledge.get("threat"),
+            "dep_manifest": repo_knowledge.get("dep_manifest"),
         }
 
         def prov(exit_stage: str) -> TriageProvenance:

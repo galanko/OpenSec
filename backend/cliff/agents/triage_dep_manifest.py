@@ -1,0 +1,139 @@
+"""Deterministic dependency-manifest resolver (SP1 / ADR-0053 dep_manifest).
+
+Clears a **dependency** finding (``location`` shape ``pkg@version``) as
+``false_positive`` BEFORE the LLM Deep dive when the package provably does not
+ship: every root reaching its ``(name, version)`` node is dev/test/docs/build
+(no prod, no optional) AND it is not imported by any first-party shipping source.
+
+Pure — no LLM, no network, no filesystem — keyless and CI-testable. This is a
+*structural* clear like ``code_map`` (facts from the lockfile graph, not a model
+hunch), so it is tier-independent under ADR-0054.
+
+Safety (never clear a shipping dependency): the clear requires TWO independent
+gates to both hold — non-prod scope AND zero shipping import sites — plus a
+resolved import name. Transitive reachability of a *vulnerable API* is NOT
+decided here (that is Lane B / the Deep dive); this resolver only clears the
+"doesn't ship at all" case.
+"""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from cliff.agents.schemas import TriageCheck, TriageOutput, TriageProvenance
+
+_CONF_DEP_CLEAR = 0.9
+
+#: The ONLY scopes that are safe to clear (allowlist, not denylist). A node may be
+#: cleared only if *every* scope reaching it is one of these — any other value
+#: ("prod", "optional", or an unrecognized/future scope) blocks the clear, so a new
+#: shipping scope can never silently pass the gate.
+_CLEARABLE_SCOPES = frozenset({"dev", "test", "docs", "build"})
+
+
+def _parse_location(loc: str) -> tuple[str, str] | None:
+    """``"pkg@version"`` -> ``(name, version)``; scoped npm ``@scope/name@ver`` handled.
+
+    Splits on the LAST ``@`` so the leading ``@`` of a scoped name is preserved.
+    """
+    s = loc.strip()
+    if "@" not in s:
+        return None
+    name, _, version = s.rpartition("@")
+    if not name or not version:
+        return None
+    return name, version
+
+
+def _pep503(name: str) -> str:
+    """PEP 503 canonical form (lowercase; runs of -_. → single -)."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _name_matches(node: dict[str, Any], raw_name: str) -> bool:
+    """The finding's scanner-reported name vs a node's stored name.
+
+    pypi nodes are stored PEP-503-normalized (``pyyaml``) but scanners report raw
+    names (``PyYAML``, ``ruamel.yaml``) — normalize before comparing. npm names
+    are compared verbatim (they are not PEP-503-normalized; ``lodash.merge`` ≠
+    ``lodash-merge``).
+    """
+    node_name = node.get("name")
+    if node.get("ecosystem") == "pypi":
+        return isinstance(node_name, str) and _pep503(raw_name) == node_name
+    return raw_name == node_name
+
+
+def _clear(*, detail: str) -> TriageOutput:
+    return TriageOutput(
+        verdict="false_positive",
+        confidence=_CONF_DEP_CLEAR,
+        checks=[
+            TriageCheck(
+                eyebrow="Dependency does not ship",
+                result="dev/test-only dependency",
+                kind="pass",
+                detail=detail,
+            )
+        ],
+        provenance=TriageProvenance(
+            steps_run=["dep_manifest_resolver"],
+            exit_stage="dep_manifest_resolver",
+            escalated=False,
+        ),
+    )
+
+
+def resolve_by_dep_manifest(
+    finding: dict[str, Any], dep_manifest: dict[str, Any] | None
+) -> TriageOutput | None:
+    """Clear *finding* if its ``pkg@version`` is a dev/test-only, unimported
+    dependency; else ``None`` (fall through to Lane B / the Deep dive)."""
+    if not dep_manifest:
+        return None
+    loc = finding.get("location")
+    if not isinstance(loc, str):
+        return None
+    parsed = _parse_location(loc)
+    if parsed is None:
+        return None
+    name, version = parsed
+
+    nodes = dep_manifest.get("nodes")
+    if not isinstance(nodes, list):
+        return None
+    matches = [
+        n
+        for n in nodes
+        if isinstance(n, dict) and _name_matches(n, name) and n.get("version") == version
+    ]
+    if len(matches) != 1:
+        # not found, or a cross-ecosystem (name, version) collision → conservative
+        return None
+    node = matches[0]
+
+    scopes = node.get("scopes")
+    if not isinstance(scopes, list) or not scopes:
+        return None  # unknown reachability → cannot prove non-prod → don't clear
+    scope_set = {s for s in scopes if isinstance(s, str)}
+    if not scope_set <= _CLEARABLE_SCOPES:
+        return None  # a prod/optional/unknown scope reaches it → don't clear (allowlist)
+
+    # Import-site gate — fail CLOSED: only a present, empty list proves "not imported".
+    # A missing / non-list / non-empty import_sites blocks the clear (pitfall 1).
+    import_sites = node.get("import_sites")
+    if not isinstance(import_sites, list) or import_sites:
+        return None  # imported in first-party shipping code, or untrustworthy → don't clear
+
+    if not node.get("import_name"):
+        # import name unresolved → couldn't run the import gate → don't clear (pitfall 3)
+        return None
+
+    return _clear(
+        detail=(
+            f"{name}@{version} ({node.get('ecosystem', '?')}) reaches only "
+            f"{sorted(scope_set)} roots and is imported by no shipping first-party "
+            f"source (declared_in={node.get('declared_in') or 'transitive'})"
+        )
+    )

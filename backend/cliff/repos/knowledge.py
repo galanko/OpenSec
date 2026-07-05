@@ -37,6 +37,7 @@ class RepoKnowledge:
     profile: dict | None = None
     code_map: dict | None = None
     threat: dict | None = None
+    dep_manifest: dict | None = None
     clone_dir: Path | None = None
 
 
@@ -66,5 +67,8 @@ def load_repo_knowledge(
         profile=mgr.read_artifact(repo_id, "profile") if "profile" in selected else None,
         code_map=mgr.read_artifact(repo_id, "code_map") if "code_map" in selected else None,
         threat=mgr.read_artifact(repo_id, "threat") if "threat" in selected else None,
+        dep_manifest=(
+            mgr.read_artifact(repo_id, "dep_manifest") if "dep_manifest" in selected else None
+        ),
         clone_dir=mgr.clone_dir(repo_id) if include_clone else None,
     )

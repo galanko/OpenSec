@@ -1,0 +1,6 @@
+# Tiny declared-only docs requirements slice (no lockfile present).
+sphinx==7.2.6
+mkdocs
+mkdocstrings-python  # inline comment is stripped
+furo>=2024.1.0 ; python_version >= "3.9"
+-r other-constraints.txt

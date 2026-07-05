@@ -98,7 +98,7 @@ async def test_escalates_and_runs_deep_dive(db, tmp_path):
     assert runner.called
     # The runner received the repo knowledge + the SHA-pinned clone.
     assert runner.kwargs["traced_sha"] == "a" * 40
-    assert set(runner.kwargs["repo_knowledge"]) == {"profile", "code_map", "threat"}
+    assert set(runner.kwargs["repo_knowledge"]) == {"profile", "code_map", "threat", "dep_manifest"}
 
 
 async def test_no_ai_skips(db, tmp_path):

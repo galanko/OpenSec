@@ -1,8 +1,10 @@
-"""The three Project-profile builder agents (ADR-0053 §3, Phase 1.6).
+"""The Project-profile builders (ADR-0053 §3, Phase 1.6).
 
-Each is an in-process Pydantic AI agent (ADR-0047) that reads the cached clone
-(read-only) and emits one typed artifact. They satisfy the ``ProfileBuilder``
-shape (``async (clone_dir) -> dict``) so :class:`ProfileRunner` can drive them.
+Three are in-process Pydantic AI agents (ADR-0047) that read the cached clone
+(read-only) and emit one typed artifact. The fourth, ``dep_manifest``, is a
+**deterministic** lockfile-graph parser (no LLM). All satisfy the
+``ProfileBuilder`` shape (``async (clone_dir) -> dict``) so :class:`ProfileRunner`
+can drive them uniformly.
 
 Deps reuse: profile builders run on a *clone*, not a finding workspace, but the
 ``read`` tool is keyed on ``WorkspaceDeps.workspace_dir`` — so we reuse
@@ -16,6 +18,7 @@ Read-only by design (the whole profiling tier touches nothing): the only tool is
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 from pydantic_ai import Agent
@@ -23,6 +26,7 @@ from pydantic_ai.usage import UsageLimits
 
 from cliff.agents.runtime.deps import WorkspaceDeps
 from cliff.agents.runtime.tools.read import read
+from cliff.repos.deps import build_dep_manifest
 from cliff.repos.schemas import CodeMap, RepoProfile, ThreatHistory
 
 if TYPE_CHECKING:
@@ -103,12 +107,26 @@ def make_threat_history(model: Model) -> ProfileBuilder:
     return _make_builder(model, ThreatHistory, _THREAT_PROMPT)
 
 
+def make_dep_manifest(model: Model) -> ProfileBuilder:
+    """Deterministic lockfile-graph builder (no LLM). ``model`` is accepted for
+    signature-compatibility with the agent builders and ignored."""
+
+    async def _build(clone_dir: Path) -> dict:
+        # build_dep_manifest is fully synchronous (several os.walk passes + regex);
+        # offload to a thread so the whole-repo scan doesn't block the event loop.
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, build_dep_manifest, clone_dir)
+
+    return _build
+
+
 def make_profile_builders(model: Model) -> dict[str, ProfileBuilder]:
     """The full builder set keyed by artifact name, ready for ProfileRunner."""
     return {
         "profile": make_repo_profiler(model),
         "code_map": make_code_map(model),
         "threat": make_threat_history(model),
+        "dep_manifest": make_dep_manifest(model),
     }
 
 
@@ -116,6 +134,7 @@ __all__ = [
     "PROFILE_BUILDER_TOOLS",
     "PROFILE_REQUEST_LIMIT",
     "make_code_map",
+    "make_dep_manifest",
     "make_profile_builders",
     "make_repo_profiler",
     "make_threat_history",
