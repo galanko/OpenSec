@@ -134,3 +134,24 @@ def test_integration_instructor_full_clone() -> None:
 
     # the resolved graph has real transitive edges (not just declared roots)
     assert any("prod" in s for nv, s in scopes.items() if nv[0] == "yarl")
+
+
+def test_lockless_subproject_not_dropped_when_sibling_has_lock(tmp_path) -> None:
+    """Per-directory precedence: subA has a uv.lock, subB has only a pyproject.
+    subB's declared prod dep must still be parsed (a repo-global 'resolved' flag
+    would drop it and risk a false clear of subB's shipping deps)."""
+    (tmp_path / "subA").mkdir()
+    (tmp_path / "subA" / "pyproject.toml").write_text('[project]\nname = "a"\nversion = "0.1"\n')
+    (tmp_path / "subA" / "uv.lock").write_text(
+        'version = 1\n[[package]]\nname = "a"\nversion = "0.1"\nsource = { editable = "." }\n'
+    )
+    (tmp_path / "subB").mkdir()
+    (tmp_path / "subB" / "pyproject.toml").write_text(
+        '[project]\nname = "b"\nversion = "0.1"\ndependencies = ["subb-prod-dep"]\n'
+    )
+    manifests = [
+        Manifest("subA/pyproject.toml", "pypi", "pyproject.toml"),
+        Manifest("subB/pyproject.toml", "pypi", "pyproject.toml"),
+    ]
+    g, _unresolved = parse_pypi(tmp_path, manifests)
+    assert "subb-prod-dep" in {r.name for r in g.roots}  # subB not dropped

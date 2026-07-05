@@ -36,7 +36,9 @@ def test_npm_no_false_match_on_substring(tmp_path) -> None:
 def test_npm_barrel_reexport_counted(tmp_path) -> None:
     # `export … from 'pkg'` is a real shipping import — must be recorded (it has no
     # 'import'/'require' token, so the prefilter must also allow 'from').
-    (tmp_path / "index.ts").write_text("export { Foo } from 'some-lib'\nexport * from 'other-lib'\n")
+    (tmp_path / "index.ts").write_text(
+        "export { Foo } from 'some-lib'\nexport * from 'other-lib'\n"
+    )
     got = collect_import_sites(tmp_path, "npm")
     assert got.get("some-lib") == ["index.ts:1"]
     assert got.get("other-lib") == ["index.ts:2"]
@@ -57,7 +59,9 @@ def test_py_import_forms_and_test_excluded(tmp_path) -> None:
 def test_py_dotted_import_bucketed_by_top_level(tmp_path) -> None:
     # protobuf's import name is 'google.protobuf'; the collector must bucket by the
     # TOP-LEVEL 'google' so build.py's top-level lookup matches.
-    (tmp_path / "m.py").write_text("from google.protobuf import message\nimport google.cloud.storage\n")
+    (tmp_path / "m.py").write_text(
+        "from google.protobuf import message\nimport google.cloud.storage\n"
+    )
     got = collect_import_sites(tmp_path, "pypi")
     assert got.get("google") == ["m.py:1", "m.py:2"]
 

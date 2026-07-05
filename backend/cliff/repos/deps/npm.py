@@ -37,8 +37,12 @@ except ImportError:  # pragma: no cover - pure-python fallback
     from yaml import SafeLoader as _YamlLoader
 
 from .graph import DepGraph
-from .manifests import Manifest, classify_scope, discover_manifests
-from .manifests import _SKIP_DIRS  # noqa: PLC2701 - shared walk-exclusion set
+from .manifests import (
+    _SKIP_DIRS,  # noqa: PLC2701 - shared walk-exclusion set
+    Manifest,
+    classify_scope,
+    discover_manifests,
+)
 
 NV = tuple[str, str]
 
@@ -109,7 +113,9 @@ def _resolve_range(
 
 
 # ── pnpm-lock.yaml (v9) ──────────────────────────────────────────────────────
-def parse_pnpm_lock(text: str, lock_dir: str) -> tuple[set[NV], list[tuple[NV, NV]], list[tuple[str, str, str, str]]]:
+def parse_pnpm_lock(
+    text: str, lock_dir: str
+) -> tuple[set[NV], list[tuple[NV, NV]], list[tuple[str, str, str, str]]]:
     """Return ``(nodes, edges, roots)`` for a pnpm-lock.
 
     ``roots`` items are ``(name, version, section, manifest_path)`` — manifest_path
@@ -175,7 +181,9 @@ def _is_berry(text: str) -> bool:
     return "__metadata:" in text or bool(re.search(r"^\s+resolution:", text, re.M))
 
 
-def _parse_yarn_berry(text: str) -> tuple[dict[str, str], dict[str, set[str]], set[NV], list[tuple[NV, str, str]]]:
+def _parse_yarn_berry(
+    text: str,
+) -> tuple[dict[str, str], dict[str, set[str]], set[NV], list[tuple[NV, str, str]]]:
     """Berry v2+ yarn.lock is valid YAML.
 
     Returns ``(by_descriptor, versions_by_name, nodes, edge_specs)`` where
@@ -220,7 +228,9 @@ def _descriptor_name(descriptor: str) -> str:
     return descriptor[:at] if at > 0 else descriptor
 
 
-def _parse_yarn_classic(text: str) -> tuple[dict[str, str], dict[str, set[str]], set[NV], list[tuple[NV, str, str]]]:
+def _parse_yarn_classic(
+    text: str,
+) -> tuple[dict[str, str], dict[str, set[str]], set[NV], list[tuple[NV, str, str]]]:
     """Classic v1 yarn.lock — line parser (``version "x"`` is not valid YAML)."""
     by_descriptor: dict[str, str] = {}
     versions_by_name: dict[str, set[str]] = {}
@@ -312,7 +322,9 @@ def parse_yarn_lock(
     for frm, dep_name, dep_val in edge_specs:
         if _is_local(dep_val):
             continue
-        for ver in _resolve_range(dep_name, dep_val, by_descriptor, versions_by_name, candidates(dep_name, dep_val)):
+        for ver in _resolve_range(
+            dep_name, dep_val, by_descriptor, versions_by_name, candidates(dep_name, dep_val)
+        ):
             to = (dep_name, ver)
             nodes.add(to)
             edges.append((frm, to))
@@ -322,7 +334,9 @@ def parse_yarn_lock(
     for name, rng, section, manifest_path in manifests_here:
         if _is_local(rng):
             continue
-        for ver in _resolve_range(name, rng, by_descriptor, versions_by_name, candidates(name, rng)):
+        for ver in _resolve_range(
+            name, rng, by_descriptor, versions_by_name, candidates(name, rng)
+        ):
             roots.append((name, ver, section, manifest_path))
     return nodes, edges, roots
 
@@ -393,11 +407,18 @@ def parse_package_lock(
 
 
 # ── package.json reading ─────────────────────────────────────────────────────
-def _read_package_json(path: Path) -> dict:
+def _read_package_json(path: Path) -> dict | None:
+    """Parsed package.json, or ``None`` if it is missing/unreadable/malformed.
+
+    ``None`` is distinct from ``{}`` (a valid empty manifest): a *parse failure*
+    means we lost that workspace's declared scopes, so the caller records it in
+    ``unresolved`` rather than silently under-connecting its prod dependencies.
+    """
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _declared_deps(pkg: dict) -> list[tuple[str, str, str]]:
@@ -438,9 +459,10 @@ def _nearest_lock_dir(manifest_dir: str, lock_dirs: set[str]) -> str | None:
     """Deepest lockfile dir that is an ancestor of (or equal to) ``manifest_dir``."""
     best: str | None = None
     for ld in lock_dirs:
-        if manifest_dir == ld or manifest_dir.startswith(ld + "/") if ld else True:
-            if best is None or len(ld) > len(best):
-                best = ld
+        # a root lock dir ("") governs everything; otherwise ld must be an ancestor
+        is_ancestor = (not ld) or manifest_dir == ld or manifest_dir.startswith(ld + "/")
+        if is_ancestor and (best is None or len(ld) > len(best)):
+            best = ld
     return best
 
 
@@ -462,7 +484,9 @@ def parse_npm(root: Path, manifests: list[Manifest]) -> tuple[DepGraph, list[str
     lock_by_dir = _find_lockfiles(root)  # rel_dir -> lockfile name
     lock_dirs = set(lock_by_dir)
 
-    def _add(nodes: set[NV], edges: list[tuple[NV, NV]], roots: list[tuple[str, str, str, str]]) -> None:
+    def _add(
+        nodes: set[NV], edges: list[tuple[NV, NV]], roots: list[tuple[str, str, str, str]]
+    ) -> None:
         for name, ver in nodes:
             graph.add_node(name, ver, "npm")
         for frm, to in edges:
@@ -479,9 +503,10 @@ def parse_npm(root: Path, manifests: list[Manifest]) -> tuple[DepGraph, list[str
     for m in npm_manifests:
         ld = _nearest_lock_dir(manifest_dir_of[m.path], lock_dirs)
         if ld is None:
-            # a package.json with deps but no lockfile above it can't be resolved
+            # a package.json with deps but no lockfile above it can't be resolved;
+            # a parse failure (pkg is None) is likewise recorded, not swallowed.
             pkg = _read_package_json(root / m.path)
-            if _declared_deps(pkg):
+            if pkg is None or _declared_deps(pkg):
                 unresolved.append(m.path)
         else:
             governed[ld].append(m)
@@ -504,6 +529,9 @@ def parse_npm(root: Path, manifests: list[Manifest]) -> tuple[DepGraph, list[str
                 decls: list[tuple[str, str, str, str]] = []
                 for m in governed.get(lock_dir, []):
                     pkg = _read_package_json(root / m.path)
+                    if pkg is None:  # malformed manifest → record, don't drop silently
+                        unresolved.append(m.path)
+                        continue
                     for name, rng, section in _declared_deps(pkg):
                         decls.append((name, rng, section, m.path))
                 nodes, edges, roots = parse_yarn_lock(text, decls)
@@ -512,8 +540,15 @@ def parse_npm(root: Path, manifests: list[Manifest]) -> tuple[DepGraph, list[str
                 decls_pl: list[tuple[str, str, str, str, str]] = []
                 for m in governed.get(lock_dir, []):
                     pkg = _read_package_json(root / m.path)
+                    if pkg is None:  # malformed manifest → record, don't drop silently
+                        unresolved.append(m.path)
+                        continue
                     md = manifest_dir_of[m.path]
-                    pkg_key = md[len(lock_dir) + 1 :] if lock_dir and md != lock_dir else ("" if md == lock_dir else md)
+                    pkg_key = (
+                        md[len(lock_dir) + 1 :]
+                        if lock_dir and md != lock_dir
+                        else ("" if md == lock_dir else md)
+                    )
                     for name, rng, section in _declared_deps(pkg):
                         decls_pl.append((name, rng, section, m.path, pkg_key))
                 nodes, edges, roots = parse_package_lock(text, decls_pl)

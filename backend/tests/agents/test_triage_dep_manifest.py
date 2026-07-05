@@ -9,7 +9,9 @@ def _mf(*nodes: dict) -> dict:
     return {"ecosystems": ["npm"], "workspaces": [], "nodes": list(nodes), "unresolved": []}
 
 
-def _node(name, version, scopes, *, import_name="x", import_sites=None, ecosystem="npm", declared_in=None):
+def _node(
+    name, version, scopes, *, import_name="x", import_sites=None, ecosystem="npm", declared_in=None
+):
     return {
         "name": name,
         "version": version,
@@ -54,6 +56,12 @@ def test_both_dev_and_prod_blocks() -> None:
 def test_optional_scope_blocks() -> None:
     mf = _mf(_node("fsevents", "2.3.0", ["optional"]))
     assert resolve_by_dep_manifest(_finding("fsevents@2.3.0"), mf) is None
+
+
+def test_unknown_scope_blocks() -> None:
+    # allowlist: an unrecognized/future scope must NOT pass the gate
+    mf = _mf(_node("mystery", "1.0.0", ["dev", "runtime"]))
+    assert resolve_by_dep_manifest(_finding("mystery@1.0.0"), mf) is None
 
 
 def test_imported_in_firstparty_blocks() -> None:

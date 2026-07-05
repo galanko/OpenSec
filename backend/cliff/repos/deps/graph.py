@@ -12,7 +12,7 @@ root ships (``prod`` in its scopes); one reachable only from dev roots does not.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 NV = tuple[str, str]  # (name, version)
 
@@ -37,7 +37,9 @@ class DepGraph:
         self._nodes.setdefault(nv, ecosystem)
         self._edges.setdefault(nv, set())
 
-    def add_root(self, name: str, version: str, scope: str, declared_in: str, ecosystem: str) -> None:
+    def add_root(
+        self, name: str, version: str, scope: str, declared_in: str, ecosystem: str
+    ) -> None:
         self.add_node(name, version, ecosystem)
         self.roots.append(Root(name=name, version=version, scope=scope, declared_in=declared_in))
 

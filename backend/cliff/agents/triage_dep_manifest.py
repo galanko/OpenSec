@@ -25,8 +25,11 @@ from cliff.agents.schemas import TriageCheck, TriageOutput, TriageProvenance
 
 _CONF_DEP_CLEAR = 0.9
 
-#: Scopes that mean the package reaches production (block a clear).
-_SHIPPING_SCOPES = frozenset({"prod", "optional"})
+#: The ONLY scopes that are safe to clear (allowlist, not denylist). A node may be
+#: cleared only if *every* scope reaching it is one of these — any other value
+#: ("prod", "optional", or an unrecognized/future scope) blocks the clear, so a new
+#: shipping scope can never silently pass the gate.
+_CLEARABLE_SCOPES = frozenset({"dev", "test", "docs", "build"})
 
 
 def _parse_location(loc: str) -> tuple[str, str] | None:
@@ -114,8 +117,8 @@ def resolve_by_dep_manifest(
     if not isinstance(scopes, list) or not scopes:
         return None  # unknown reachability → cannot prove non-prod → don't clear
     scope_set = {s for s in scopes if isinstance(s, str)}
-    if scope_set & _SHIPPING_SCOPES:
-        return None  # reaches production → don't clear (Lane B decides reachability)
+    if not scope_set <= _CLEARABLE_SCOPES:
+        return None  # a prod/optional/unknown scope reaches it → don't clear (allowlist)
 
     # Import-site gate — fail CLOSED: only a present, empty list proves "not imported".
     # A missing / non-list / non-empty import_sites blocks the clear (pitfall 1).
@@ -124,7 +127,8 @@ def resolve_by_dep_manifest(
         return None  # imported in first-party shipping code, or untrustworthy → don't clear
 
     if not node.get("import_name"):
-        return None  # import name unresolved → couldn't run the import gate → don't clear (pitfall 3)
+        # import name unresolved → couldn't run the import gate → don't clear (pitfall 3)
+        return None
 
     return _clear(
         detail=(

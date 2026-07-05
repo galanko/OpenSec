@@ -23,7 +23,9 @@ from dataclasses import dataclass
 # excluded. A production app whose entire source lives under docs/ or website/
 # with deps declared only there is the known residual false-clear edge case.
 _DOCS_DIRS = {"docs", "doc", "documentation", "website", "examples", "example"}
-_TEST_DIRS = {"test", "tests", "__tests__", "__mocks__", "spec", "specs", "e2e", "cypress", "playwright"}
+_TEST_DIRS = {
+    "test", "tests", "__tests__", "__mocks__", "spec", "specs", "e2e", "cypress", "playwright"
+}
 # NOTE: intentionally NOT including scripts/tools here — real shipping code lives
 # in scripts/ dirs (e.g. worker entrypoints), so excluding them from the import
 # scan would false-negative "not imported" and risk an unsafe clear.
@@ -116,7 +118,10 @@ class Manifest:
     kind: str  # package.json | pyproject.toml | requirements | pnpm-workspace | setup.cfg | pipfile
 
 
-_SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".venv", "venv", "site-packages", ".tox", ".next", "__pycache__", "vendor"}
+_SKIP_DIRS = {
+    "node_modules", ".git", "dist", "build", ".venv", "venv", "site-packages", ".tox", ".next",
+    "__pycache__", "vendor",
+}
 
 _NPM_NAMES = {"package.json"}
 _PNPM_WS = {"pnpm-workspace.yaml", "pnpm-workspace.yml"}
@@ -127,7 +132,8 @@ def discover_manifests(root) -> list[Manifest]:  # noqa: ANN001 - Path
     root = os.fspath(root)
     out: list[Manifest] = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        # case-insensitive, consistent with imports.py's exclusion walk
+        dirnames[:] = [d for d in dirnames if d.lower() not in _SKIP_DIRS]
         for fn in filenames:
             rel = os.path.relpath(os.path.join(dirpath, fn), root)
             low = fn.lower()

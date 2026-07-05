@@ -68,7 +68,9 @@ def _ecosystem_nodes(root: Path, ms: list, parser, eco: str) -> tuple[list[dict]
             )
         return nodes, list(unresolved)
     except Exception:  # noqa: BLE001 - a bad lockfile must not fail the whole profile
-        logger.warning("dep_manifest: %s parse failed — recording as unresolved", eco, exc_info=True)
+        logger.warning(
+            "dep_manifest: %s parse failed — recording as unresolved", eco, exc_info=True
+        )
         return [], [f"<{eco}-parse-error>"]
 
 

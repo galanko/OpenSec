@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import configparser
 import json
+import os
 import re
 import tomllib
 from pathlib import Path
@@ -204,7 +205,9 @@ def _parse_uv_lock(
     try:
         data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        unresolved.append(f"{_rel(root, lock_path)}: unparseable uv.lock ({exc.__class__.__name__})")
+        unresolved.append(
+            f"{_rel(root, lock_path)}: unparseable uv.lock ({exc.__class__.__name__})"
+        )
         return False
     packages = data.get("package") or []
     if not packages:
@@ -255,7 +258,9 @@ def _parse_uv_lock(
     return True
 
 
-def _uv_roots(g: DepGraph, deps: list, name_versions: dict[str, list[str]], scope: str, declared_in: str) -> None:
+def _uv_roots(
+    g: DepGraph, deps: list, name_versions: dict[str, list[str]], scope: str, declared_in: str
+) -> None:
     for dep in deps:
         for (n, v) in _resolve_targets(dep, name_versions):
             g.add_root(n, v, scope, declared_in, _ECO)
@@ -272,7 +277,9 @@ def _parse_poetry_lock(
     try:
         data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        unresolved.append(f"{_rel(root, lock_path)}: unparseable poetry.lock ({exc.__class__.__name__})")
+        unresolved.append(
+            f"{_rel(root, lock_path)}: unparseable poetry.lock ({exc.__class__.__name__})"
+        )
         return False
     packages = data.get("package") or []
     if not packages:
@@ -321,7 +328,9 @@ def _parse_poetry_lock(
     return True
 
 
-def _poetry_roots_from_pyproject(g: DepGraph, root: Path, pyproject_rel: str | None, name_versions: dict[str, list[str]]) -> int:
+def _poetry_roots_from_pyproject(
+    g: DepGraph, root: Path, pyproject_rel: str | None, name_versions: dict[str, list[str]]
+) -> int:
     if not pyproject_rel:
         return 0
     full = root / pyproject_rel
@@ -352,11 +361,16 @@ def _parse_pipfile_lock(g: DepGraph, root: Path, lock_path: Path, unresolved: li
     try:
         data = json.loads(lock_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        unresolved.append(f"{_rel(root, lock_path)}: unparseable Pipfile.lock ({exc.__class__.__name__})")
+        unresolved.append(
+            f"{_rel(root, lock_path)}: unparseable Pipfile.lock ({exc.__class__.__name__})"
+        )
         return False
     rel = _rel(root, lock_path)
     found = False
-    for section, cscope_section in (("default", "project.dependencies"), ("develop", "dependency-groups")):
+    for section, cscope_section in (
+        ("default", "project.dependencies"),
+        ("develop", "dependency-groups"),
+    ):
         for name, meta in (data.get(section) or {}).items():
             n = normalize_dist(name)
             if not n:
@@ -418,7 +432,9 @@ def _iter_pyproject_deps(data: dict):
                 yield f"tool.poetry.group.{grp}.dependencies", nn, _poetry_spec_version(spec)
 
 
-def _parse_declared(g: DepGraph, root: Path, manifests: list[Manifest], unresolved: list[str]) -> None:
+def _parse_declared(
+    g: DepGraph, root: Path, manifests: list[Manifest], unresolved: list[str]
+) -> None:
     for m in manifests:
         full = root / m.path
         try:
@@ -463,7 +479,10 @@ def _parse_setup_cfg(g: DepGraph, path: str, text: str, unresolved: list[str]) -
             for line in val.splitlines():
                 p = _parse_req_line(line)
                 if p:
-                    g.add_root(p[0], p[1], classify_scope(path, "project.optional-dependencies"), path, _ECO)
+                    g.add_root(
+                        p[0], p[1], classify_scope(path, "project.optional-dependencies"), path,
+                        _ECO,
+                    )
 
 
 def _parse_pipfile_toml(g: DepGraph, path: str, text: str, unresolved: list[str]) -> None:
@@ -472,7 +491,10 @@ def _parse_pipfile_toml(g: DepGraph, path: str, text: str, unresolved: list[str]
     except tomllib.TOMLDecodeError:
         unresolved.append(f"{path}: unparseable Pipfile")
         return
-    for section, cscope_section in (("packages", "project.dependencies"), ("dev-packages", "dependency-groups")):
+    for section, cscope_section in (
+        ("packages", "project.dependencies"),
+        ("dev-packages", "dependency-groups"),
+    ):
         for name, spec in (data.get(section) or {}).items():
             nn = normalize_dist(name)
             if not nn:
@@ -515,31 +537,30 @@ def parse_pypi(root: Path, manifests: list[Manifest]) -> tuple[DepGraph, list[st
         if m.kind in ("pyproject.toml", "pipfile"):
             lock_dirs.add(Path(m.path).parent)
 
-    uv_locks: list[Path] = []
-    poetry_locks: list[Path] = []
-    pipfile_locks: list[Path] = []
+    # PER-DIRECTORY lock precedence (uv > poetry > pipfile): a lock in dir D governs
+    # D and everything under it. A repo-global "resolved" flag would drop a lock-less
+    # sub-project's deps whenever any *other* sub-project had a lock — under-connecting
+    # (and risking a false clear of) that sub-project's shipping dependencies.
+    resolved_dirs: set[str] = set()
     for d in sorted(lock_dirs, key=str):
         base = root / d
-        if (base / "uv.lock").is_file():
-            uv_locks.append(base / "uv.lock")
-        if (base / "poetry.lock").is_file():
-            poetry_locks.append(base / "poetry.lock")
-        if (base / "Pipfile.lock").is_file():
-            pipfile_locks.append(base / "Pipfile.lock")
+        d_rel = "" if str(d) == "." else str(d).replace("\\", "/")
+        if (base / "uv.lock").is_file() and _parse_uv_lock(
+            g, root, base / "uv.lock", py_manifests, unresolved
+        ) or (base / "poetry.lock").is_file() and _parse_poetry_lock(
+            g, root, base / "poetry.lock", py_manifests, unresolved
+        ) or (base / "Pipfile.lock").is_file() and _parse_pipfile_lock(
+            g, root, base / "Pipfile.lock", unresolved
+        ):
+            resolved_dirs.add(d_rel)
 
-    resolved = False
-    for lp in uv_locks:
-        if _parse_uv_lock(g, root, lp, py_manifests, unresolved):
-            resolved = True
-    if not resolved:
-        for lp in poetry_locks:
-            if _parse_poetry_lock(g, root, lp, py_manifests, unresolved):
-                resolved = True
-    if not resolved:
-        for lp in pipfile_locks:
-            if _parse_pipfile_lock(g, root, lp, unresolved):
-                resolved = True
-    if not resolved:
-        _parse_declared(g, root, py_manifests, unresolved)
+    # declared-only fallback for every manifest NOT governed by a resolved lock dir
+    def _covered(manifest_path: str) -> bool:
+        md = os.path.dirname(manifest_path).replace("\\", "/")
+        return any(ld == "" or md == ld or md.startswith(ld + "/") for ld in resolved_dirs)
+
+    uncovered = [m for m in py_manifests if not _covered(m.path)]
+    if uncovered:
+        _parse_declared(g, root, uncovered, unresolved)
 
     return g, unresolved

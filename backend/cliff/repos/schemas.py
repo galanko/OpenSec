@@ -66,6 +66,7 @@ class CodeMap(BaseModel):
 # ── Map the dependencies ─────────────────────────────────────────────────────
 
 DepScope = Literal["prod", "dev", "test", "docs", "build", "optional"]
+Ecosystem = Literal["npm", "pypi"]
 
 
 class DepNode(BaseModel):
@@ -80,7 +81,7 @@ class DepNode(BaseModel):
     model_config = {"extra": "allow"}
     name: str
     version: str
-    ecosystem: str  # "npm" | "pypi"
+    ecosystem: Ecosystem
     scopes: list[DepScope] = []
     direct: bool = False  # declared as a top-level dep in some manifest
     declared_in: list[str] = []  # manifest paths declaring it (empty for pure transitive)
@@ -97,7 +98,7 @@ class DepManifest(BaseModel):
     """
 
     model_config = {"extra": "allow"}
-    ecosystems: list[str] = []
+    ecosystems: list[Ecosystem] = []
     workspaces: list[str] = []  # manifest paths discovered
     nodes: list[DepNode] = []
     unresolved: list[str] = []  # manifests/lockfiles we could not parse confidently
