@@ -106,3 +106,31 @@ def test_parse_scoped_location() -> None:
 def test_scoped_package_clears() -> None:
     mf = _mf(_node("@xmldom/xmldom", "0.8.0", ["dev"], ecosystem="npm"))
     assert resolve_by_dep_manifest(_finding("@xmldom/xmldom@0.8.0"), mf) is not None
+
+
+# ── pypi PEP-503 name normalization (scanner reports raw names) ────────────────
+def test_pypi_raw_name_matches_normalized_node() -> None:
+    # node stored PEP-503-normalized; scanner reports "PyYAML" / "ruamel.yaml"
+    mf = _mf(_node("pyyaml", "6.0", ["dev"], ecosystem="pypi"))
+    assert resolve_by_dep_manifest(_finding("PyYAML@6.0"), mf) is not None
+    mf2 = _mf(_node("ruamel-yaml", "0.18.6", ["docs"], ecosystem="pypi"))
+    assert resolve_by_dep_manifest(_finding("ruamel.yaml@0.18.6"), mf2) is not None
+
+
+def test_npm_name_not_pep503_normalized() -> None:
+    # npm names are compared verbatim — 'lodash.merge' must NOT match 'lodash-merge'
+    mf = _mf(_node("lodash-merge", "1.0.0", ["dev"], ecosystem="npm"))
+    assert resolve_by_dep_manifest(_finding("lodash.merge@1.0.0"), mf) is None
+
+
+# ── import-site gate fails CLOSED on bad data ─────────────────────────────────
+def test_import_sites_none_fails_closed() -> None:
+    node = _node("x", "1.0.0", ["dev"], import_sites=[])
+    node["import_sites"] = None  # bad/absent data → must NOT clear
+    assert resolve_by_dep_manifest(_finding("x@1.0.0"), _mf(node)) is None
+
+
+def test_import_sites_nonlist_fails_closed() -> None:
+    node = _node("x", "1.0.0", ["dev"])
+    node["import_sites"] = "src/app.ts:12"  # a bare string, not a list → must NOT clear
+    assert resolve_by_dep_manifest(_finding("x@1.0.0"), _mf(node)) is None

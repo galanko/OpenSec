@@ -18,6 +18,7 @@ decided here (that is Lane B / the Deep dive); this resolver only clears the
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from cliff.agents.schemas import TriageCheck, TriageOutput, TriageProvenance
@@ -40,6 +41,25 @@ def _parse_location(loc: str) -> tuple[str, str] | None:
     if not name or not version:
         return None
     return name, version
+
+
+def _pep503(name: str) -> str:
+    """PEP 503 canonical form (lowercase; runs of -_. → single -)."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _name_matches(node: dict[str, Any], raw_name: str) -> bool:
+    """The finding's scanner-reported name vs a node's stored name.
+
+    pypi nodes are stored PEP-503-normalized (``pyyaml``) but scanners report raw
+    names (``PyYAML``, ``ruamel.yaml``) — normalize before comparing. npm names
+    are compared verbatim (they are not PEP-503-normalized; ``lodash.merge`` ≠
+    ``lodash-merge``).
+    """
+    node_name = node.get("name")
+    if node.get("ecosystem") == "pypi":
+        return isinstance(node_name, str) and _pep503(raw_name) == node_name
+    return raw_name == node_name
 
 
 def _clear(*, detail: str) -> TriageOutput:
@@ -83,7 +103,7 @@ def resolve_by_dep_manifest(
     matches = [
         n
         for n in nodes
-        if isinstance(n, dict) and n.get("name") == name and n.get("version") == version
+        if isinstance(n, dict) and _name_matches(n, name) and n.get("version") == version
     ]
     if len(matches) != 1:
         # not found, or a cross-ecosystem (name, version) collision → conservative
@@ -97,9 +117,11 @@ def resolve_by_dep_manifest(
     if scope_set & _SHIPPING_SCOPES:
         return None  # reaches production → don't clear (Lane B decides reachability)
 
+    # Import-site gate — fail CLOSED: only a present, empty list proves "not imported".
+    # A missing / non-list / non-empty import_sites blocks the clear (pitfall 1).
     import_sites = node.get("import_sites")
-    if isinstance(import_sites, list) and import_sites:
-        return None  # imported in first-party shipping code → don't clear (pitfall 1)
+    if not isinstance(import_sites, list) or import_sites:
+        return None  # imported in first-party shipping code, or untrustworthy → don't clear
 
     if not node.get("import_name"):
         return None  # import name unresolved → couldn't run the import gate → don't clear (pitfall 3)

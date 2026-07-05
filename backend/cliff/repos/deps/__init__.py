@@ -10,12 +10,7 @@ re-exported here (SP1 Task 7).
 
 from __future__ import annotations
 
+from .build import build_dep_manifest
 from .graph import DepGraph, Root
 
 __all__ = ["DepGraph", "Root", "build_dep_manifest"]
-
-
-def build_dep_manifest(root):  # noqa: ANN001 - thin lazy re-export to avoid import cycle at package load
-    from .build import build_dep_manifest as _impl
-
-    return _impl(root)

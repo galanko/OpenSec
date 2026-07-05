@@ -195,10 +195,10 @@ def _parse_yarn_berry(text: str) -> tuple[dict[str, str], dict[str, set[str]], s
             continue
         version = _strip_peer(str(version))
         descriptors = [d.strip() for d in str(raw_key).split(",")]
-        name = _berry_name(descriptors[0]) if descriptors else None
+        name = _descriptor_name(descriptors[0]) if descriptors else None
         resolution = body.get("resolution")
         if resolution:  # canonical (name, version) from the resolution field
-            name = _berry_name(str(resolution)) or name
+            name = _descriptor_name(str(resolution)) or name
         if not name:
             continue
         node = (name, version)
@@ -212,8 +212,10 @@ def _parse_yarn_berry(text: str) -> tuple[dict[str, str], dict[str, set[str]], s
     return by_descriptor, versions_by_name, nodes, edge_specs
 
 
-def _berry_name(descriptor: str) -> str:
-    """Name from a berry descriptor/resolution: ``@scope/x@npm:1.2`` → ``@scope/x``."""
+def _descriptor_name(descriptor: str) -> str:
+    """Name from a yarn descriptor/resolution (berry or classic):
+    ``@scope/x@npm:1.2`` → ``@scope/x``. The leading ``@`` of a scoped name is not
+    the separator."""
     at = descriptor.rfind("@")
     return descriptor[:at] if at > 0 else descriptor
 
@@ -267,7 +269,7 @@ def _parse_yarn_classic(text: str) -> tuple[dict[str, str], dict[str, set[str]],
         if not ver:
             continue
         ver = _strip_peer(ver)
-        name = _classic_name(keys[0]) if keys else None
+        name = _descriptor_name(keys[0]) if keys else None
         if not name:
             continue
         node = (name, ver)
@@ -278,11 +280,6 @@ def _parse_yarn_classic(text: str) -> tuple[dict[str, str], dict[str, set[str]],
         for dep_name, dep_range in deps:
             edge_specs.append((node, dep_name, dep_range))
     return by_descriptor, versions_by_name, nodes, edge_specs
-
-
-def _classic_name(descriptor: str) -> str:
-    at = descriptor.rfind("@")
-    return descriptor[:at] if at > 0 else descriptor
 
 
 def _unquote(s: str) -> str:

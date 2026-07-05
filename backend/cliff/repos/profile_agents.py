@@ -18,6 +18,7 @@ Read-only by design (the whole profiling tier touches nothing): the only tool is
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 from pydantic_ai import Agent
@@ -111,7 +112,10 @@ def make_dep_manifest(model: Model) -> ProfileBuilder:
     signature-compatibility with the agent builders and ignored."""
 
     async def _build(clone_dir: Path) -> dict:
-        return build_dep_manifest(clone_dir)
+        # build_dep_manifest is fully synchronous (several os.walk passes + regex);
+        # offload to a thread so the whole-repo scan doesn't block the event loop.
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, build_dep_manifest, clone_dir)
 
     return _build
 

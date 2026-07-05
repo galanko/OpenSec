@@ -11,10 +11,18 @@ This is safety-critical — a package wrongly scoped non-prod could be false-cle
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 
-# Directory segments whose manifests never ship to production.
-_DOCS_DIRS = {"docs", "doc", "documentation", "website", "site", "examples", "example", "demo", "demos"}
+# Directory segments whose manifests are treated as non-shipping (docs sites,
+# example apps). CAUTION — this set is *coupled*: it both (a) forces a manifest's
+# deps to a non-prod scope here and (b) is reused as an import-scan exclusion in
+# imports.py. So a dep unique to one of these workspaces fails BOTH the scope gate
+# and the import gate together. Keep it to names that are almost never the main
+# shipping app; bare "site"/"demo" (commonly a shipping app root) are deliberately
+# excluded. A production app whose entire source lives under docs/ or website/
+# with deps declared only there is the known residual false-clear edge case.
+_DOCS_DIRS = {"docs", "doc", "documentation", "website", "examples", "example"}
 _TEST_DIRS = {"test", "tests", "__tests__", "__mocks__", "spec", "specs", "e2e", "cypress", "playwright"}
 # NOTE: intentionally NOT including scripts/tools here — real shipping code lives
 # in scripts/ dirs (e.g. worker entrypoints), so excluding them from the import
@@ -91,7 +99,14 @@ def classify_scope(manifest_path: str, section: str) -> str:
     dir_scope = _path_dir_scope(manifest_path)
     if dir_scope is not None:
         return dir_scope
-    return _SECTION_SCOPE.get(section, "prod")
+    if section in _SECTION_SCOPE:
+        return _SECTION_SCOPE[section]
+    # poetry groups other than 'dev' (test/docs/typing/…): scope by the group name
+    # so a test/docs-only group is cleared, not defaulted to prod.
+    m = re.fullmatch(r"tool\.poetry\.group\.(.+)\.dependencies", section)
+    if m:
+        return classify_extra(m.group(1))
+    return "prod"
 
 
 @dataclass(frozen=True)
@@ -126,6 +141,12 @@ def discover_manifests(root) -> list[Manifest]:  # noqa: ANN001 - Path
                 out.append(Manifest(rel, "pypi", "setup.cfg"))
             elif fn == "Pipfile":
                 out.append(Manifest(rel, "pypi", "pipfile"))
-            elif low.startswith("requirements") and low.endswith(".txt"):
+            elif (low.startswith("requirements") and low.endswith((".txt", ".in"))) or (
+                # requirements/base.txt, requirements/prod.in, etc. — declaring
+                # prod deps only here must not be missed (a missed prod root risks
+                # a false clear of a shipping dependency).
+                os.path.basename(dirpath).lower() == "requirements"
+                and low.endswith((".txt", ".in"))
+            ):
                 out.append(Manifest(rel, "pypi", "requirements"))
     return out
