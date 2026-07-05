@@ -135,7 +135,9 @@ async def _load_code_map(db: aiosqlite.Connection, repo_url: str | None) -> dict
     return await _load_artifact(db, repo_url, "code_map")
 
 
-async def _load_dep_manifest(db: aiosqlite.Connection, repo_url: str | None) -> dict[str, Any] | None:
+async def _load_dep_manifest(
+    db: aiosqlite.Connection, repo_url: str | None
+) -> dict[str, Any] | None:
     return await _load_artifact(db, repo_url, "dep_manifest")
 
 
