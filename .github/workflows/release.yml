@@ -265,7 +265,7 @@ jobs:
           output: trivy.sarif
 
       - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@ce64ddcb0d8d890d2df4a9d1c04ff297367dea2a # v3
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v3
         with:
           sarif_file: trivy.sarif
           category: trivy-image-${{ needs.validate.outputs.version }}
