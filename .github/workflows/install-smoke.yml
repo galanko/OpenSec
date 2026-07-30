@@ -48,7 +48,7 @@ jobs:
 
       # The smoke script bootstraps uv itself, but pre-installing it on the
       # runner cuts ~10s off each job and avoids the curl|sh layer.
-      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
       - name: Verify gh + curl + git are present
         run: |
