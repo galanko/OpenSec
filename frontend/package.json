@@ -53,7 +53,7 @@
     "jsdom": "^29.0.2",
     "msw": "^2.13.3",
     "openapi-typescript": "^7.13.0",
-    "postcss": "^8.5.8",
+    "postcss": "^8.5.26",
     "storybook": "^10.3.5",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.9.3",
